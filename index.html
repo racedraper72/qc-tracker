@@ -1264,7 +1264,6 @@ label { font-size: 11px; font-weight: 600; color: var(--text-2); display: block;
       <span id="tracker-context-label" style="font-size:12px;color:#605e5c;"></span>
     </div>
     <div style="display:flex;gap:8px;">
-      <button class="primary" id="add-unit-btn" onclick="toggleAddForm()">+ Add QC units</button>
       <button class="primary" id="add-board-btn" onclick="toggleBoardAddForm()" style="display:none;">+ Add board units</button>
       <button onclick="exportCSV()" class="sm">&#8595; Export CSV</button>
     </div>
@@ -2309,7 +2308,7 @@ function getCurrentSignedIn() {
     Always prompts for name + employee number before every station release.
     Does NOT remember between actions — every release requires a fresh sign-in.
     This creates a full audit trail: who moved what, when.               */
-function requireName(callback) {
+function requireName(callback, title) {
   // Remove any existing overlay
   const existing = document.getElementById('name-prompt-overlay');
   if (existing) existing.remove();
@@ -2321,8 +2320,8 @@ function requireName(callback) {
   overlay.innerHTML = `
     <div style="background:#fff;border-radius:16px;padding:32px 36px;max-width:380px;width:92%;box-shadow:0 24px 64px rgba(0,0,0,.28);text-align:center;">
       <div style="width:52px;height:52px;border-radius:50%;background:#e8f1fd;display:flex;align-items:center;justify-content:center;margin:0 auto 14px;font-size:24px;">✍️</div>
-      <h2 style="font-size:18px;font-weight:800;color:#0f1923;margin-bottom:6px;letter-spacing:-.3px;">Sign to Release</h2>
-      <p style="font-size:13px;color:#4a5568;margin-bottom:20px;line-height:1.5;">Enter your name and employee number to confirm this station release. This will be logged permanently.</p>
+      <h2 style="font-size:18px;font-weight:800;color:#0f1923;margin-bottom:6px;letter-spacing:-.3px;">${title || 'Sign to Release'}</h2>
+      <p style="font-size:13px;color:#4a5568;margin-bottom:20px;line-height:1.5;">Enter your name and employee number to confirm this ${title === 'Sign to Begin Inspection' ? 'inspection' : 'station release'}. This will be logged permanently.</p>
 
       <div style="text-align:left;margin-bottom:12px;">
         <label style="font-size:11px;font-weight:700;color:#4a5568;text-transform:uppercase;letter-spacing:.3px;display:block;margin-bottom:5px;">Full Name</label>
@@ -2345,7 +2344,7 @@ function requireName(callback) {
           Cancel
         </button>
         <button id="sign-confirm-btn" style="padding:10px;font-size:13px;font-weight:700;background:#1a6fd4;color:#fff;border:none;border-radius:8px;cursor:pointer;box-shadow:0 2px 8px rgba(26,111,212,.3);">
-          ✓ Confirm Release
+          ✓ ${title === 'Sign to Begin Inspection' ? 'Confirm Inspection' : 'Confirm Release'}
         </button>
       </div>
 
@@ -3085,10 +3084,14 @@ function renderBoardUnitCard(u) {
         <button class="success sm" onclick="doBoardAction('${u.id}','returnFromRemed')">&#8592; Confirm return</button>
       </div>`;
     }
-    // Inspection cols — ready / started
+    // Inspection cols — Ready, then Confirm Inspection (starts it), then a
+    // separate Release step (below, in the normal move-forward section) once
+    // u.inspectionStarted is true — that's where the checklist gate applies.
     else if (isInspectionCol) {
       if (!u.readyForInspection&&!u.inspectionStarted) { actions+=`<button class="warn-btn" onclick="togglePanel('bd-rfi-${sid}')">&#9873; Ready for Inspection</button>`; panels+=`<div class="action-group" id="bd-rfi-${sid}"><label>Notes</label><textarea id="bd-notes-rfi-${sid}" rows="2" placeholder="Notes..."></textarea><button class="warn-btn sm" onclick="doBoardAction('${u.id}','readyForInspection')">&#9873; Confirm Ready</button></div>`; }
-      else if (u.readyForInspection&&!u.inspectionStarted) { actions+=`<button class="inspect-btn" onclick="togglePanel('bd-is-${sid}')">&#9654; Inspection Started</button>`; panels+=`<div class="action-group" id="bd-is-${sid}"><label>Notes</label><textarea id="bd-notes-is-${sid}" rows="2" placeholder="Notes..."></textarea><button class="inspect-btn sm" onclick="doBoardAction('${u.id}','inspectionStarted')">&#9654; Confirm Started</button></div>`; }
+      else if (u.readyForInspection&&!u.inspectionStarted) {
+        actions+=`<button class="inspect-btn" onclick="doBoardAction('${u.id}','inspectionStarted')">&#9654; Inspection</button>`;
+      }
       // Move to Remediation
       if (canSendToRemed) {
         actions+=`<button class="danger" onclick="togglePanel('bd-remed-${sid}')">&#9888; Remediation</button>`;
@@ -3227,7 +3230,8 @@ function saveStation7Data(unitId) {
 }
 
 function doBoardAction(unitId, action) {
-  requireName(() => _doBoardAction(unitId, action));
+  const title = action === 'readyForInspection' ? 'Sign to Begin Inspection' : undefined;
+  requireName(() => _doBoardAction(unitId, action), title);
 }
 function _doBoardAction(unitId, action) {
   const u=ensureBoardTracked(unitId);
@@ -3830,42 +3834,130 @@ function renderPMLineProgress() {
   el.innerHTML = `<div class="chart-title">Line Completion Progress</div>${bars}`;
 }
 
+let pmTimeSelectedProject = 'all';
+let pmTimeSelectedUnit = 'all';
+
+function pmTimeProjectChanged(val) {
+  pmTimeSelectedProject = val;
+  pmTimeSelectedUnit = 'all'; // reset unit choice when project changes
+  renderPMTimeChart();
+}
+function pmTimeUnitChanged(val) {
+  pmTimeSelectedUnit = val;
+  renderPMTimeChart();
+}
+
 function renderPMTimeChart() {
   const el = document.getElementById('pm-time-chart'); if(!el) return;
-  const units = getAllBoardUnits().filter(u => !u.completed);
-  const rows = units.map(u => {
+  const allActive = getAllBoardUnits().filter(u => !u.completed);
+
+  const allRows = allActive.map(u => {
     const durations = getStationDurations(u);
     const totalHours = durations.reduce((s,d) => s + (d.hours||0), 0);
     const pt = getProjectType(u.id);
-    return { id:u.id, pt, totalHours, cs: getBoardCatStyle(pt==='SAT'?'SAT82-0':pt+'-0') };
-  }).filter(r => r.totalHours > 0)
-    .sort((a,b) => b.totalHours - a.totalHours);
+    return { id:u.id, pt, totalHours, durations, cs: getBoardCatStyle(pt==='SAT'?'SAT82-0':pt+'-0') };
+  }).filter(r => r.totalHours > 0);
 
-  if (!rows.length) { el.innerHTML = `<div class="chart-title">Time in Process by Unit</div><p style="font-size:13px;color:#605e5c;">No active units yet.</p>`; return; }
+  if (!allRows.length) {
+    el.innerHTML = `<div class="chart-title">Time in Process — Project &rarr; Unit &rarr; Station</div><p style="font-size:13px;color:#605e5c;">No active units yet.</p>`;
+    return;
+  }
 
-  const shown = rows.slice(0, 15);
-  const max = shown[0].totalHours || 1;
+  const exportBtn = `<button class="subtle sm" onclick="exportPMTimeChartCsv()" style="font-size:11px;">&#8595; Export CSV</button>`;
+  const projects = [...new Set(allRows.map(r=>r.pt))].sort();
+  if (pmTimeSelectedProject !== 'all' && !projects.includes(pmTimeSelectedProject)) pmTimeSelectedProject = 'all';
 
-  const legend = [...new Set(shown.map(r=>r.pt))].map(pt => {
-    const cs = getBoardCatStyle(pt==='SAT'?'SAT82-0':pt+'-0');
-    return `<span style="display:inline-flex;align-items:center;gap:5px;font-size:11px;color:var(--text-2,#605e5c);margin-right:12px;"><span style="width:9px;height:9px;border-radius:2px;background:${cs.border};display:inline-block;"></span>${pt}</span>`;
-  }).join('');
-
-  const bars = shown.map(r => {
-    const w = Math.round((r.totalHours/max)*100);
-    return `<div class="chart-row">
-      <div class="chart-bar-label" title="${r.id}">${r.id}</div>
-      <div class="chart-bar-track">
-        <div class="chart-bar-fill" style="width:${w}%;background:${r.cs.border};">
-          <span class="chart-bar-num">${formatDuration(r.totalHours)}</span>
+  // ---- LEVEL 3: a unit is selected — station breakdown ----
+  if (pmTimeSelectedProject !== 'all' && pmTimeSelectedUnit !== 'all') {
+    const r = allRows.find(x=>x.id===pmTimeSelectedUnit && x.pt===pmTimeSelectedProject);
+    if (!r) { pmTimeSelectedUnit = 'all'; renderPMTimeChart(); return; }
+    const stationRows = r.durations.filter(d => d.hours > 0);
+    const maxS = Math.max(...stationRows.map(d=>d.hours), 1);
+    const bars = stationRows.map(d => {
+      const w = Math.round((d.hours/maxS)*100);
+      return `<div class="chart-row">
+        <div class="chart-bar-label" title="${d.station}">${d.station}</div>
+        <div class="chart-bar-track">
+          <div class="chart-bar-fill" style="width:${w}%;background:${r.cs.border};${d.inProgress?'opacity:.6;':''}">
+            <span class="chart-bar-num">${formatDuration(d.hours)}${d.inProgress?' (current)':''}</span>
+          </div>
         </div>
+      </div>`;
+    }).join('');
+    el.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:14px;">
+        <div class="chart-title" style="margin:0;">Time in Process <span class="chart-subtitle">${r.id} &middot; ${formatDuration(r.totalHours)} total</span></div>
+        ${exportBtn}
       </div>
+      <button class="subtle sm" onclick="pmTimeUnitChanged('all')" style="font-size:11px;margin-bottom:12px;">&larr; ${pmTimeSelectedProject} units</button>
+      ${bars}`;
+    return;
+  }
+
+  // ---- LEVEL 2: a project is selected — unit cards ----
+  if (pmTimeSelectedProject !== 'all') {
+    const unitsInProject = allRows.filter(r=>r.pt===pmTimeSelectedProject).sort((a,b)=>b.totalHours-a.totalHours);
+    const projectTotalHours = unitsInProject.reduce((s,r)=>s+r.totalHours,0);
+    const cs = getBoardCatStyle(pmTimeSelectedProject==='SAT'?'SAT82-0':pmTimeSelectedProject+'-0');
+    const unitCards = unitsInProject.map(r => `<div onclick="pmTimeUnitChanged('${r.id}')" style="background:var(--surface,#fff);border:1px solid var(--border,#edebe9);border-top:3px solid ${r.cs.border};border-radius:8px;padding:12px 14px;cursor:pointer;transition:background .12s;" onmouseover="this.style.background='var(--surface-2,#faf9f8)'" onmouseout="this.style.background=''">
+      <div style="font-size:13px;font-weight:800;color:${r.cs.text};margin-bottom:4px;">${r.id}</div>
+      <div style="font-size:18px;font-weight:800;color:var(--text-1,#323130);">${formatDuration(r.totalHours)}</div>
+      <div style="font-size:10px;color:var(--text-3,#8a96a8);text-transform:uppercase;letter-spacing:.3px;">total time</div>
+    </div>`).join('');
+    el.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:14px;">
+        <div class="chart-title" style="margin:0;">Time in Process <span class="chart-subtitle">${pmTimeSelectedProject} &middot; ${formatDuration(projectTotalHours)} combined &middot; ${unitsInProject.length} unit${unitsInProject.length!==1?'s':''}</span></div>
+        ${exportBtn}
+      </div>
+      <button class="subtle sm" onclick="pmTimeProjectChanged('all')" style="font-size:11px;margin-bottom:12px;">&larr; All Projects</button>
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px;">${unitCards}</div>`;
+    return;
+  }
+
+  // ---- LEVEL 1: project cards ----
+  const projectCards = projects.map(pt => {
+    const unitsInP = allRows.filter(r=>r.pt===pt);
+    const totalHours = unitsInP.reduce((s,r)=>s+r.totalHours,0);
+    const cs = getBoardCatStyle(pt==='SAT'?'SAT82-0':pt+'-0');
+    return `<div onclick="pmTimeProjectChanged('${pt}')" style="background:var(--surface,#fff);border:1px solid var(--border,#edebe9);border-top:4px solid ${cs.border};border-radius:8px;padding:14px 16px;cursor:pointer;transition:background .12s;" onmouseover="this.style.background='var(--surface-2,#faf9f8)'" onmouseout="this.style.background=''">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+        <span style="font-size:15px;font-weight:800;color:${cs.text};">${pt}</span>
+        <span style="font-size:11px;color:var(--text-3,#8a96a8);">${unitsInP.length} unit${unitsInP.length!==1?'s':''} &rarr;</span>
+      </div>
+      <div style="font-size:24px;font-weight:800;color:var(--text-1,#323130);letter-spacing:-.5px;">${formatDuration(totalHours)}</div>
+      <div style="font-size:10px;color:var(--text-3,#8a96a8);text-transform:uppercase;letter-spacing:.3px;">total time</div>
     </div>`;
   }).join('');
 
-  el.innerHTML = `<div class="chart-title">Time in Process by Unit <span class="chart-subtitle">${rows.length>15?'slowest 15 of '+rows.length:rows.length+' active units'}</span></div>
-    <div style="margin-bottom:10px;">${legend}</div>
-    ${bars}`;
+  el.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:14px;">
+      <div class="chart-title" style="margin:0;">Time in Process — Project &rarr; Unit &rarr; Station</div>
+      ${exportBtn}
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:12px;">${projectCards}</div>`;
+}
+
+function exportPMTimeChartCsv() {
+  let header, rowsOut, filename;
+  if (pmTimeSelectedUnit !== 'all') {
+    const u = getAllBoardUnits().find(x=>x.id===pmTimeSelectedUnit);
+    if (!u) return;
+    const durations = getStationDurations(u).filter(d=>d.hours>0);
+    header = ['Unit','Station','Hours','Duration','Status'];
+    rowsOut = durations.map(d => [pmTimeSelectedUnit, d.station, d.hours.toFixed(2), formatDuration(d.hours), d.inProgress?'In Progress':'Complete']);
+    filename = 'time_in_process_'+pmTimeSelectedUnit+'_'+new Date().toISOString().slice(0,10)+'.csv';
+  } else {
+    const allActive = getAllBoardUnits().filter(u => !u.completed);
+    const rowsData = allActive.map(u => {
+      const durations = getStationDurations(u);
+      const totalHours = durations.reduce((s,d) => s + (d.hours||0), 0);
+      const pt = getProjectType(u.id);
+      return { id:u.id, pt, totalHours };
+    }).filter(r => r.totalHours > 0 && (pmTimeSelectedProject==='all' || r.pt===pmTimeSelectedProject))
+      .sort((a,b)=>b.totalHours-a.totalHours);
+    header = ['Unit','Project','Total Hours','Duration'];
+    rowsOut = rowsData.map(r => [r.id, r.pt, r.totalHours.toFixed(2), formatDuration(r.totalHours)]);
+    filename = 'time_in_process_'+(pmTimeSelectedProject!=='all'?pmTimeSelectedProject+'_':'')+new Date().toISOString().slice(0,10)+'.csv';
+  }
+  const csv = [header, ...rowsOut].map(r=>r.map(c=>'"'+String(c).replace(/"/g,'""')+'"').join(',')).join('\n');
+  const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'})); a.download=filename; a.click();
 }
 
 /* ============================================================
@@ -5973,7 +6065,7 @@ function renderFloorCard(u, line) {
     const lockAttr = floorChecklistOK ? '' : 'disabled title="Complete the station checklist first"';
     releaseBtn = `<button class="floor-release-btn" ${lockAttr} onclick="floorDoAction('${u.id}','advance')">&#9654; Release to ${nextLabel}</button>`;
   } else if (u.readyForInspection && !isInsp) {
-    releaseBtn = `<button class="floor-release-btn rts" onclick="floorDoAction('${u.id}','inspectionStarted')">&#128270; Start Inspection</button>`;
+    releaseBtn = `<button class="floor-release-btn rts" onclick="floorDoAction('${u.id}','inspectionStarted')">&#128270; Inspection</button>`;
   } else if (isInsp) {
     const lockAttr = floorChecklistOK ? '' : 'disabled title="Complete the station checklist first"';
     releaseBtn = `<button class="floor-release-btn rts" ${lockAttr} onclick="floorDoAction('${u.id}','passInspection')">&#10003; Pass Inspection</button>`;

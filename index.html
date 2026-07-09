@@ -935,6 +935,7 @@ label { font-size: 11px; font-weight: 600; color: var(--text-2); display: block;
     <div class="nav-divider"></div>
     <button class="nav-btn" id="nav-admin" onclick="showPage('admin')">&#9881; Admin</button>
     <button class="nav-btn" id="nav-tv" onclick="showPage('tv')">&#128250; TV Mode</button>
+    <button class="nav-btn" id="nav-station2" onclick="showPage('station2')">&#9201; Station 2 Tracker</button>
   </div>
   <div style="display:flex;align-items:center;gap:8px;">
 <span style="font-size:12px;color:rgba(255,255,255,0.85);" id="sync-status-mini"></span>
@@ -1540,6 +1541,19 @@ label { font-size: 11px; font-weight: 600; color: var(--text-2); display: block;
 </div>
 <!-- ============================================================ END TV MODE PAGE -->
 
+<!-- ============================================================ STATION 2 PRODUCTION TRACKER PAGE -->
+<div id="page-station2" class="app-body" style="display:none;">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:8px;">
+    <div>
+      <h2 style="font-size:16px;font-weight:800;letter-spacing:-.3px;">&#9201; Station 2 Production Tracker</h2>
+      <p style="font-size:12px;color:var(--text-2);margin-top:3px;">Per-task time clock — Start, Pause, Hold for Material, Hold for Engineering. Tracks earned hours per task, per unit.</p>
+    </div>
+    <button class="subtle sm" onclick="renderStation2Tracker()">&#8635; Refresh</button>
+  </div>
+  <div id="station2-tracker-body" style="display:flex;flex-direction:column;gap:16px;"></div>
+</div>
+<!-- ============================================================ END STATION 2 PRODUCTION TRACKER PAGE -->
+
 <!-- ============================================================ SCRIPT -->
 <script>
 /* ============================================================
@@ -1644,7 +1658,7 @@ const CONFIG = {
         {label:'Holding SATs', units:[]},
         {label:'Ready to Ship',units:['SAT82-23','SAT93-11']},
       ]},
-    { id:'line2', name:'Line 2 Middle', subtitle:'EQUINIX / WDC', headerColor:'#425563', bgColor:'#ECEEEF', pctComplete:20, updated:'', notes:'',
+    { id:'line2', name:'Line 2 Middle', subtitle:'EQUINIX / WDC', headerColor:'#006A8E', bgColor:'#E6F0F3', pctComplete:20, updated:'', notes:'',
       columns:[
         {label:'In the Hole',    units:[]},
         {label:'On Deck',        units:['COMP-37']},
@@ -1668,7 +1682,7 @@ const CONFIG = {
         {label:'Remediation',    units:[]},
         {label:'Holding EQUINIX',units:['EQ10-17']},
       ]},
-    { id:'line3', name:'Line 3 South', subtitle:'COMPASS', headerColor:'#373A36', bgColor:'#EBEBEB', pctComplete:10, updated:'', notes:'',
+    { id:'line3', name:'Line 3 South', subtitle:'COMPASS', headerColor:'#006A8E', bgColor:'#E6F0F3', pctComplete:10, updated:'', notes:'',
       columns:[
         {label:'In the Hole',    units:[]},
         {label:'On Deck',        units:['COMP-38']},
@@ -1692,7 +1706,7 @@ const CONFIG = {
         {label:'Remediation',     units:[]},
         {label:'Holding COMPASS',units:[]},
       ]},
-    { id:'fok', name:'FOK Line', subtitle:'TITUS', headerColor:'#7C878E', bgColor:'#F2F3F4', pctComplete:null, updated:'', notes:'',
+    { id:'fok', name:'FOK Line', subtitle:'TITUS', headerColor:'#006A8E', bgColor:'#E6F0F3', pctComplete:null, updated:'', notes:'',
       columns:[
         {label:'In the Hole',units:[]},{label:'On Deck',units:[]},
         {label:'Station 1',  units:['TITUS(R)-2']},{label:'Station 2',units:[]},
@@ -1706,7 +1720,7 @@ const CONFIG = {
         {label:"I4's",    units:[]},
         {label:'Remediation', units:[]},
       ]},
-    { id:'dungeon', name:'Drop Dungeon', subtitle:'DROP units', headerColor:'#A03033', bgColor:'#F6EAEB', pctComplete:null, updated:'', notes:'',
+    { id:'dungeon', name:'Drop Dungeon', subtitle:'DROP units', headerColor:'#006A8E', bgColor:'#E6F0F3', pctComplete:null, updated:'', notes:'',
       columns:[
         {label:'In the Hole', units:[]},{label:'On Deck',units:[]},
         {label:'Station 7',   units:['DROP-21']},{label:'Station 8',units:['DROP-20']},
@@ -1916,6 +1930,185 @@ function setChecklistItemStatus(unitId, idx, status) {
 /* ---- PER-STATION QC CHECKLISTS ----
    Separate box, separate gating from STATION_CHECKLISTS above. Both must
    be complete before a unit can move forward or be marked complete. */
+/* ============================================================
+   STATION 2 PRODUCTION TRACKER — per-task time clock
+   Each task has its own Start / Pause / Hold-for-Material /
+   Hold-for-Engineering / Finished Job buttons and its own timer.
+   ============================================================ */
+const STATION2_TASKS = [
+  'Drill Pilot Holes into Moment Frames',
+  'Install Moment Frames',
+  'Secure Long Walls to Moment Frame Jig',
+  'Install Louver End Wall',
+  'Install Motorized Damper Short Wall',
+  'Install Gravity Damper Short Wall',
+  'Install Slanted End Wall',
+  'Install Louvers',
+  'Install Corner Brackets',
+  'Install Motorized Dampers',
+  'Install Doors',
+  'Prep Door Gutters',
+  'Install Door Gutters',
+  'Install Door Frames',
+  'Install Passthrough for CCV',
+  'Production Inspection',
+];
+
+/* Get (creating if needed) the tracker state for one task on one unit.
+   status: 'idle' | 'running' | 'paused' | 'holdMaterial' | 'holdEngineering' | 'finished'
+   Accumulated seconds are "banked" on every state change; the CURRENT
+   in-progress segment is computed live against currentSegmentStart so the
+   display can tick up in real time without needing a running total saved
+   every second. */
+function getS2TaskState(u, taskName) {
+  if (!u.station2Tasks) u.station2Tasks = {};
+  if (!u.station2Tasks[taskName]) {
+    u.station2Tasks[taskName] = {
+      status: 'idle', employeeNum: '',
+      activeSec: 0, materialHoldSec: 0, engineeringHoldSec: 0,
+      currentSegmentStart: null,
+    };
+  }
+  return u.station2Tasks[taskName];
+}
+
+/* Banks whatever segment is currently in progress into its accumulator
+   before a status change, so no time is lost/double-counted on transition. */
+function s2BankSegment(t) {
+  if (!t.currentSegmentStart) return;
+  const elapsed = (Date.now() - t.currentSegmentStart) / 1000;
+  if (t.status === 'running')          t.activeSec += elapsed;
+  else if (t.status === 'holdMaterial')    t.materialHoldSec += elapsed;
+  else if (t.status === 'holdEngineering') t.engineeringHoldSec += elapsed;
+  t.currentSegmentStart = null;
+}
+
+function s2LiveSeconds(t, category) {
+  // category: 'active' | 'materialHold' | 'engineeringHold'
+  const bankedKey = category === 'active' ? 'activeSec' : category === 'materialHold' ? 'materialHoldSec' : 'engineeringHoldSec';
+  const runningStatus = category === 'active' ? 'running' : category === 'materialHold' ? 'holdMaterial' : 'holdEngineering';
+  let sec = t[bankedKey];
+  if (t.status === runningStatus && t.currentSegmentStart) sec += (Date.now() - t.currentSegmentStart) / 1000;
+  return sec;
+}
+
+function s2FormatHM(totalSeconds) {
+  const h = Math.floor(totalSeconds / 3600);
+  const m = Math.floor((totalSeconds % 3600) / 60);
+  const s = Math.floor(totalSeconds % 60);
+  if (h > 0) return h + 'h ' + m + 'm';
+  if (m > 0) return m + 'm ' + s + 's';
+  return s + 's';
+}
+
+function s2TaskAction(unitId, taskName, action) {
+  const u = ensureBoardTracked(unitId);
+  const t = getS2TaskState(u, taskName);
+  s2BankSegment(t); // close out whatever was running before this change
+
+  if (action === 'start')             { t.status = 'running'; t.currentSegmentStart = Date.now(); }
+  else if (action === 'pause')        { t.status = 'paused'; }
+  else if (action === 'holdMaterial')    { t.status = 'holdMaterial'; t.currentSegmentStart = Date.now(); }
+  else if (action === 'holdEngineering') { t.status = 'holdEngineering'; t.currentSegmentStart = Date.now(); }
+  else if (action === 'finish')       { t.status = 'finished'; }
+  else if (action === 'reopen')       { t.status = 'idle'; } // undo a mistaken Finish
+
+  pushBoard();
+  renderStation2Tracker();
+}
+function s2SetEmployee(unitId, taskName, val) {
+  const u = ensureBoardTracked(unitId);
+  const t = getS2TaskState(u, taskName);
+  t.employeeNum = val;
+  pushBoard();
+}
+
+let s2TickTimer = null;
+function startS2Ticker() {
+  stopS2Ticker();
+  s2TickTimer = setInterval(() => { if (currentPage === 'station2') renderStation2Tracker(); }, 1000);
+}
+function stopS2Ticker() { if (s2TickTimer) { clearInterval(s2TickTimer); s2TickTimer = null; } }
+
+const S2_STATUS_LABEL = {
+  idle: 'Not started', running: 'Working', paused: 'Paused',
+  holdMaterial: 'On Hold — Material', holdEngineering: 'On Hold — Engineering', finished: 'Finished',
+};
+const S2_STATUS_COLOR = {
+  idle: '#8a96a8', running: '#0e7c3a', paused: '#b45309',
+  holdMaterial: '#4b3a9e', holdEngineering: '#006A8E', finished: '#373A36',
+};
+
+function renderStation2Tracker() {
+  const el = document.getElementById('station2-tracker-body'); if (!el) return;
+  const units = getAllBoardUnits().filter(u => u.col === 'Station 2');
+
+  if (!units.length) { el.innerHTML = '<p style="font-size:13px;color:var(--text-3,#8a96a8);">No units currently at Station 2.</p>'; return; }
+
+  el.innerHTML = units.map(u => {
+    const cs = getBoardCatStyle(u.id);
+    const taskRows = STATION2_TASKS.map(taskName => {
+      const t = getS2TaskState(u, taskName);
+      const activeSec = s2LiveSeconds(t, 'active');
+      const matSec = s2LiveSeconds(t, 'materialHold');
+      const engSec = s2LiveSeconds(t, 'engineeringHold');
+      const earnedSec = activeSec + matSec + engSec;
+      const sid = safeId(u.id + '_' + taskName);
+
+      let buttons = '';
+      if (t.status === 'idle') {
+        buttons = `<button class="success sm" onclick="s2TaskAction('${u.id}','${taskName}','start')">&#9654; Start</button>`;
+      } else if (t.status === 'running') {
+        buttons = `
+          <button class="sm" onclick="s2TaskAction('${u.id}','${taskName}','pause')">&#9208; Pause</button>
+          <button class="sm" style="border-color:#4b3a9e;color:#4b3a9e;" onclick="s2TaskAction('${u.id}','${taskName}','holdMaterial')">&#128230; Hold: Material</button>
+          <button class="sm" style="border-color:#006A8E;color:#006A8E;" onclick="s2TaskAction('${u.id}','${taskName}','holdEngineering')">&#128203; Hold: Engineering</button>
+          <button class="success sm" onclick="s2TaskAction('${u.id}','${taskName}','finish')">&#10003; Finished Job</button>`;
+      } else if (t.status === 'paused') {
+        buttons = `
+          <button class="success sm" onclick="s2TaskAction('${u.id}','${taskName}','start')">&#9654; Resume</button>
+          <button class="success sm" onclick="s2TaskAction('${u.id}','${taskName}','finish')">&#10003; Finished Job</button>`;
+      } else if (t.status === 'holdMaterial' || t.status === 'holdEngineering') {
+        buttons = `<button class="success sm" onclick="s2TaskAction('${u.id}','${taskName}','start')">&#9654; Resume (end hold)</button>`;
+      } else if (t.status === 'finished') {
+        buttons = `<button class="subtle sm" onclick="s2TaskAction('${u.id}','${taskName}','reopen')">&#8635; Reopen</button>`;
+      }
+
+      return `<div style="border:1px solid var(--border,#edebe9);border-left:4px solid ${S2_STATUS_COLOR[t.status]};border-radius:8px;padding:10px 14px;margin-bottom:8px;">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:8px;margin-bottom:8px;">
+          <div style="flex:1;min-width:200px;">
+            <div style="font-size:13px;font-weight:700;color:var(--text-1,#323130);">${taskName}</div>
+            <span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:20px;background:${S2_STATUS_COLOR[t.status]}22;color:${S2_STATUS_COLOR[t.status]};">${S2_STATUS_LABEL[t.status]}</span>
+          </div>
+          <input type="text" placeholder="Employee #" value="${t.employeeNum||''}" onchange="s2SetEmployee('${u.id}','${taskName}',this.value)"
+            style="width:110px;font-size:12px;padding:5px 8px;" />
+        </div>
+        <div style="display:flex;gap:14px;flex-wrap:wrap;margin-bottom:8px;font-size:11px;">
+          <span style="color:var(--text-2,#605e5c);">Active: <strong style="color:#0e7c3a;">${s2FormatHM(activeSec)}</strong></span>
+          <span style="color:var(--text-2,#605e5c);">Material Hold: <strong style="color:#4b3a9e;">${s2FormatHM(matSec)}</strong></span>
+          <span style="color:var(--text-2,#605e5c);">Engineering Hold: <strong style="color:#006A8E;">${s2FormatHM(engSec)}</strong></span>
+          <span style="color:var(--text-1,#323130);">Earned Hours: <strong>${s2FormatHM(earnedSec)}</strong></span>
+        </div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;">${buttons}</div>
+      </div>`;
+    }).join('');
+
+    // Unit-level earned hours roll-up across all its tasks
+    const unitEarnedSec = STATION2_TASKS.reduce((sum, taskName) => {
+      const t = getS2TaskState(u, taskName);
+      return sum + s2LiveSeconds(t,'active') + s2LiveSeconds(t,'materialHold') + s2LiveSeconds(t,'engineeringHold');
+    }, 0);
+
+    return `<div style="background:var(--surface,#fff);border:1px solid var(--border,#edebe9);border-top:4px solid ${cs.border};border-radius:10px;padding:16px 18px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
+        <span style="font-size:16px;font-weight:800;color:${cs.text};">${u.id}</span>
+        <span style="font-size:13px;font-weight:700;color:var(--text-1,#323130);">Unit total earned: ${s2FormatHM(unitEarnedSec)}</span>
+      </div>
+      ${taskRows}
+    </div>`;
+  }).join('');
+}
+
 const STATION_QC_CHECKLISTS = {
   'Station 1': [
     'Verify no FOD is present',
@@ -2497,7 +2690,7 @@ function jsonpSave(tab, rows) {
   const header = tab==='QC'
     ? ['Serial','Type','Station','InspectionStarted','Held','Remediation','RemediationOrigin','Completed','Status','HistoryJSON']
     : tab==='Board'
-    ? ['UnitID','Line','Column','Held','Completed','Notes','ESONumber','GensetSerial','ReadyForInspection','InspectionStarted','HistoryJSON','SupervisorReleased','SupervisorReleaseTs','DeviationNeeded','DeviationNote','DeviationTs','ChecklistJSON','QCChecklistJSON','FailOverridesJSON']
+    ? ['UnitID','Line','Column','Held','Completed','Notes','ESONumber','GensetSerial','ReadyForInspection','InspectionStarted','HistoryJSON','SupervisorReleased','SupervisorReleaseTs','DeviationNeeded','DeviationNote','DeviationTs','ChecklistJSON','QCChecklistJSON','FailOverridesJSON','Station2TasksJSON']
     : ['UnitID','Link','UpdatedAt'];
   const payload = JSON.stringify({action:'save', rows:[header,...rows]});
 
@@ -2546,9 +2739,10 @@ function syncFromSheetsViaGAS(onDone) {
           let checklist={}; try{checklist=JSON.parse(r[16]||'{}');}catch(e){}
           let qcChecklist={}; try{qcChecklist=JSON.parse(r[17]||'{}');}catch(e){}
           let failOverrides=[]; try{failOverrides=JSON.parse(r[18]||'[]');}catch(e){}
+          let station2Tasks={}; try{station2Tasks=JSON.parse(r[19]||'{}');}catch(e){}
           return {id:r[0],line:r[1],col:r[2],held:r[3]==='TRUE'||r[3]===true,completed:r[4]==='TRUE'||r[4]===true,notes:r[5]||'',esoNumber:r[6]||'',gensetSerial:r[7]||'',readyForInspection:r[8]==='TRUE'||r[8]===true,inspectionStarted:r[9]==='TRUE'||r[9]===true,history,
             supervisorReleased:r[11]==='TRUE'||r[11]===true,supervisorReleaseTs:r[12]||'',
-            deviationNeeded:r[13]==='TRUE'||r[13]===true,deviationNote:r[14]||'',deviationTs:r[15]||'',checklist,qcChecklist,failOverrides};
+            deviationNeeded:r[13]==='TRUE'||r[13]===true,deviationNote:r[14]||'',deviationTs:r[15]||'',checklist,qcChecklist,failOverrides,station2Tasks};
         });
       }
       jsonpCall(sheetsUrl+'?tab=Issues', function(err3, rows3) {
@@ -2575,7 +2769,7 @@ function proxySave(tab, rows) {
   const header = tab==='QC'
     ? ['Serial','Type','Station','InspectionStarted','Held','Remediation','RemediationOrigin','Completed','Status','HistoryJSON']
     : tab==='Board'
-    ? ['UnitID','Line','Column','Held','Completed','Notes','ESONumber','GensetSerial','ReadyForInspection','InspectionStarted','HistoryJSON','SupervisorReleased','SupervisorReleaseTs','DeviationNeeded','DeviationNote','DeviationTs','ChecklistJSON','QCChecklistJSON','FailOverridesJSON']
+    ? ['UnitID','Line','Column','Held','Completed','Notes','ESONumber','GensetSerial','ReadyForInspection','InspectionStarted','HistoryJSON','SupervisorReleased','SupervisorReleaseTs','DeviationNeeded','DeviationNote','DeviationTs','ChecklistJSON','QCChecklistJSON','FailOverridesJSON','Station2TasksJSON']
     : ['UnitID','Link','UpdatedAt'];
   return proxyFetch('?action=save&tab='+tab, {
     method: 'POST',
@@ -2603,9 +2797,10 @@ function syncFromSheetsViaSmartsheet(onDone) {
         let checklist={}; try{checklist=JSON.parse(r[16]||'{}');}catch(e){}
         let qcChecklist={}; try{qcChecklist=JSON.parse(r[17]||'{}');}catch(e){}
         let failOverrides=[]; try{failOverrides=JSON.parse(r[18]||'[]');}catch(e){}
+        let station2Tasks={}; try{station2Tasks=JSON.parse(r[19]||'{}');}catch(e){}
         return {id:r[0],line:r[1],col:r[2],held:r[3]==='TRUE'||r[3]===true,completed:r[4]==='TRUE'||r[4]===true,notes:r[5]||'',esoNumber:r[6]||'',gensetSerial:r[7]||'',readyForInspection:r[8]==='TRUE'||r[8]===true,inspectionStarted:r[9]==='TRUE'||r[9]===true,history,
           supervisorReleased:r[11]==='TRUE'||r[11]===true,supervisorReleaseTs:r[12]||'',
-          deviationNeeded:r[13]==='TRUE'||r[13]===true,deviationNote:r[14]||'',deviationTs:r[15]||'',checklist,qcChecklist,failOverrides};
+          deviationNeeded:r[13]==='TRUE'||r[13]===true,deviationNote:r[14]||'',deviationTs:r[15]||'',checklist,qcChecklist,failOverrides,station2Tasks};
       });
     }
     if (rows3 && rows3.length>1) {
@@ -2655,7 +2850,7 @@ function pushQC() {
 }
 function pushBoard() {
   saveLocalCache();
-  const rows = boardUnits.map(u=>[u.id,u.line,u.col,u.held,u.completed,u.notes,u.esoNumber||'',u.gensetSerial||'',u.readyForInspection||false,u.inspectionStarted||false,JSON.stringify(u.history),u.supervisorReleased||false,u.supervisorReleaseTs||'',u.deviationNeeded||false,u.deviationNote||'',u.deviationTs||'',JSON.stringify(u.checklist||{}),JSON.stringify(u.qcChecklist||{}),JSON.stringify(u.failOverrides||[])]);
+  const rows = boardUnits.map(u=>[u.id,u.line,u.col,u.held,u.completed,u.notes,u.esoNumber||'',u.gensetSerial||'',u.readyForInspection||false,u.inspectionStarted||false,JSON.stringify(u.history),u.supervisorReleased||false,u.supervisorReleaseTs||'',u.deviationNeeded||false,u.deviationNote||'',u.deviationTs||'',JSON.stringify(u.checklist||{}),JSON.stringify(u.qcChecklist||{}),JSON.stringify(u.failOverrides||[]),JSON.stringify(u.station2Tasks||{})]);
   if (syncTarget === 'smartsheet') proxySave('Board', rows); else jsonpSave('Board', rows);
 }
 function pushIssues() {
@@ -2679,7 +2874,7 @@ function showPage(page) {
 }
 function _showPage(page) {
   currentPage=page;
-  ['dashboard','floor','pm','tracker','history','admin','tv'].forEach(p => {
+  ['dashboard','floor','pm','tracker','history','admin','tv','station2'].forEach(p => {
     const el=document.getElementById('page-'+p); if(el) el.style.display=p===page?'block':'none';
     const btn=document.getElementById('nav-'+p); if(btn) btn.classList.toggle('active',p===page);
   });
@@ -2689,6 +2884,8 @@ function _showPage(page) {
   if (page==='history') { renderHistoryPage(); }
   if (page==='tv')      { renderTVMode(); startTVClock(); }
   else                  { stopTVClock(); }
+  if (page==='station2') { renderStation2Tracker(); startS2Ticker(); }
+  else                    { stopS2Ticker(); }
   if (page==='admin') {
     renderAdminQC(); renderAdminBoard(); renderOperatorList();
     document.getElementById('cfg-target').value = syncTarget;
@@ -2748,6 +2945,7 @@ function renderAll() {
   if (currentPage==='floor') { renderFloorPage(); }
   if (currentPage==='pm') { renderPMPage(); }
   if (currentPage==='tv') { renderTVMode(); }
+  if (currentPage==='station2') { renderStation2Tracker(); }
 }
 
 /* ---- STAT CARD COUNTS ---- */
@@ -2830,7 +3028,7 @@ function _addAllBoardUnits() {
   });
   if (hasError) return;
   toAdd.forEach(u => {
-    boardUnits.push({id:u.id,line:activeLine,col:u.col,held:false,completed:false,notes:u.notes,esoNumber:'',gensetSerial:'',readyForInspection:false,inspectionStarted:false,supervisorReleased:false,supervisorReleaseTs:'',deviationNeeded:false,deviationNote:'',deviationTs:'',checklist:{},qcChecklist:{},failOverrides:[],history:[{action:'Added to '+u.col,ts:now(),notes:u.notes}]});
+    boardUnits.push({id:u.id,line:activeLine,col:u.col,held:false,completed:false,notes:u.notes,esoNumber:'',gensetSerial:'',readyForInspection:false,inspectionStarted:false,supervisorReleased:false,supervisorReleaseTs:'',deviationNeeded:false,deviationNote:'',deviationTs:'',checklist:{},qcChecklist:{},failOverrides:[],station2Tasks:{},history:[{action:'Added to '+u.col,ts:now(),notes:u.notes}]});
   });
   err.textContent=''; document.getElementById('board-add-form').style.display='none';
   pushBoard(); renderAll();
@@ -3219,7 +3417,7 @@ function ensureBoardTracked(unitId) {
   if (!u) {
     const line=CONFIG.lines.find(l=>l.columns.some(c=>c.units.includes(unitId)));
     const col=line?line.columns.find(c=>c.units.includes(unitId)):null;
-    u={id:unitId,line:line?line.id:activeLine,col:col?col.label:activeCol,held:false,completed:false,notes:'',esoNumber:'',gensetSerial:'',readyForInspection:false,inspectionStarted:false,supervisorReleased:false,supervisorReleaseTs:'',deviationNeeded:false,deviationNote:'',deviationTs:'',checklist:{},qcChecklist:{},failOverrides:[],history:[]};
+    u={id:unitId,line:line?line.id:activeLine,col:col?col.label:activeCol,held:false,completed:false,notes:'',esoNumber:'',gensetSerial:'',readyForInspection:false,inspectionStarted:false,supervisorReleased:false,supervisorReleaseTs:'',deviationNeeded:false,deviationNote:'',deviationTs:'',checklist:{},qcChecklist:{},failOverrides:[],station2Tasks:{},history:[]};
     boardUnits.push(u);
   }
   return u;

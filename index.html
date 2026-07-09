@@ -15,7 +15,7 @@
   --font: 'Inter', 'Segoe UI', system-ui, sans-serif;
 
   /* Neutrals */
-  --bg:        #f0f2f5;
+  --bg:        #D0D3D4;
   --surface:   #ffffff;
   --surface-2: #f8f9fb;
   --border:    #e2e6ea;
@@ -24,20 +24,26 @@
   --text-2:    #4a5568;
   --text-3:    #8a96a8;
 
-  /* Brand */
-  --blue:      #1a6fd4;
-  --blue-lt:   #e8f1fd;
-  --blue-dk:   #1459b0;
+  /* Brand — Excellerate palette (PMS 7706C / PMS 1807C) */
+  --blue:      #006A8E;
+  --blue-lt:   #E6F0F3;
+  --blue-dk:   #005A79;
 
   /* Status */
   --green:     #0e7c3a;
   --green-lt:  #e6f7ed;
-  --red:       #c0392b;
-  --red-lt:    #fdecea;
+  --red:       #A03033;
+  --red-lt:    #F6EAEB;
   --amber:     #b45309;
   --amber-lt:  #fef3e2;
   --purple:    #5b3fcf;
   --purple-lt: #eeebfb;
+
+  /* Excellerate secondary palette — available for accents/neutrals */
+  --ex-navy:      #425563;
+  --ex-dark-gray: #373A36;
+  --ex-gray:      #7C878E;
+  --ex-light-gray:#D0D3D4;
 
   /* Radius */
   --r-sm:  6px;
@@ -185,9 +191,9 @@ button.danger {
   background: var(--red);
   color: #fff;
   border-color: var(--red);
-  box-shadow: 0 1px 4px rgba(192,57,43,.3);
+  box-shadow: 0 1px 4px rgba(160,48,51,.3);
 }
-button.danger:hover { background: #a93226; }
+button.danger:hover { background: #7A2528; }
 
 button.warn-btn {
   background: var(--amber);
@@ -481,7 +487,7 @@ label { font-size: 11px; font-weight: 600; color: var(--text-2); display: block;
 .station-chip.has-units  { border-color: var(--blue);  background: var(--blue-lt); }
 .station-chip.has-held   { border-color: var(--amber); background: var(--amber-lt); }
 .station-chip.has-done   { border-color: var(--green); background: var(--green-lt); }
-.station-chip.has-fail   { border-color: #a4262c; background: #fdecea; }
+.station-chip.has-fail   { border-color: #A03033; background: #fdecea; }
 .station-chip-label { font-size: 9px; font-weight: 700; color: var(--text-2); text-transform: uppercase; letter-spacing: .3px; }
 .station-chip-count { font-size: 16px; font-weight: 800; margin: 2px 0; }
 .station-chip-units { font-size: 9px; color: var(--text-2); }
@@ -773,7 +779,7 @@ label { font-size: 11px; font-weight: 600; color: var(--text-2); display: block;
 .floor-unit-card.held   { border-color: rgba(180,83,9,.6);  background: #231a10; }
 .floor-unit-card.remed  { border-color: rgba(192,57,43,.6); background: #231010; }
 .floor-unit-card.inspect{ border-color: rgba(91,63,207,.6); background: #161229; }
-.floor-unit-card.deviation{ border-color:#a4262c; border-width:2px; box-shadow:0 0 0 1px rgba(164,38,44,.4); }
+.floor-unit-card.deviation{ border-color:#A03033; border-width:2px; box-shadow:0 0 0 1px rgba(164,38,44,.4); }
 .floor-unit-top {
   padding: 14px 16px 10px;
   display: flex;
@@ -959,18 +965,18 @@ label { font-size: 11px; font-weight: 600; color: var(--text-2); display: block;
   <!-- Single stat line: Production + QC key stats -->
   <div style="display:grid;grid-template-columns:auto repeat(13,1fr);gap:0;margin-bottom:18px;border-radius:10px;overflow:hidden;border:1px solid #e2e6ea;box-shadow:0 1px 3px rgba(0,0,0,.08);">
     <div style="background:linear-gradient(135deg,#1a1f36,#1e3a5f);color:#fff;display:flex;align-items:center;justify-content:center;padding:6px 10px;writing-mode:vertical-rl;transform:rotate(180deg);font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;white-space:nowrap;border-radius:0;">Stats</div>
-    <div class="stat-card" style="border-radius:0;border:none;border-right:1px solid #edebe9;border-top:3px solid #1a6fd4;"><div class="stat-label">Board total</div><div class="stat-value" id="bs-total">0</div></div>
+    <div class="stat-card" style="border-radius:0;border:none;border-right:1px solid #edebe9;border-top:3px solid #006A8E;"><div class="stat-label">Board total</div><div class="stat-value" id="bs-total">0</div></div>
     <div class="stat-card" style="border-radius:0;border:none;border-right:1px solid #edebe9;border-top:3px solid #b45309;"><div class="stat-label">On hold</div><div class="stat-value" id="bs-held" style="color:#b45309;">0</div></div>
     <div class="stat-card" style="border-radius:0;border:none;border-right:1px solid #edebe9;border-top:3px solid #0e7c3a;"><div class="stat-label">Bd done</div><div class="stat-value" id="bs-done" style="color:#0e7c3a;">0</div></div>
-    <div class="stat-card" style="border-radius:0;border:none;border-right:1px solid #edebe9;border-top:3px solid #c0392b;"><div class="stat-label">Bd Remed.</div><div class="stat-value" id="cnt-remed" style="color:#c0392b;">0</div></div>
+    <div class="stat-card" style="border-radius:0;border:none;border-right:1px solid #edebe9;border-top:3px solid #A03033;"><div class="stat-label">Bd Remed.</div><div class="stat-value" id="cnt-remed" style="color:#A03033;">0</div></div>
     <div class="stat-card" style="border-radius:0;border:none;border-right:1px solid #edebe9;border-top:3px solid #5b3fcf;"><div class="stat-label">Insp. Started</div><div class="stat-value" id="cnt-insp-started" style="color:#5b3fcf;">0</div></div>
-    <div class="stat-card" style="border-radius:0;border:none;border-right:1px solid #edebe9;border-top:3px solid #1a6fd4;"><div class="stat-label">M1</div><div class="stat-value" id="cnt-m1">0</div></div>
-    <div class="stat-card" style="border-radius:0;border:none;border-right:1px solid #edebe9;border-top:3px solid #1a6fd4;"><div class="stat-label">M2</div><div class="stat-value" id="cnt-m2">0</div></div>
+    <div class="stat-card" style="border-radius:0;border:none;border-right:1px solid #edebe9;border-top:3px solid #006A8E;"><div class="stat-label">M1</div><div class="stat-value" id="cnt-m1">0</div></div>
+    <div class="stat-card" style="border-radius:0;border:none;border-right:1px solid #edebe9;border-top:3px solid #006A8E;"><div class="stat-label">M2</div><div class="stat-value" id="cnt-m2">0</div></div>
     <div class="stat-card" style="border-radius:0;border:none;border-right:1px solid #edebe9;border-top:3px solid #5b3fcf;"><div class="stat-label">I2C</div><div class="stat-value" id="cnt-i2c" style="color:#5b3fcf;">0</div></div>
     <div class="stat-card" style="border-radius:0;border:none;border-right:1px solid #edebe9;border-top:3px solid #5b3fcf;"><div class="stat-label">I3A</div><div class="stat-value" id="cnt-i3a" style="color:#5b3fcf;">0</div></div>
     <div class="stat-card" style="border-radius:0;border:none;border-right:1px solid #edebe9;border-top:3px solid #5b3fcf;"><div class="stat-label">I3B</div><div class="stat-value" id="cnt-i3b" style="color:#5b3fcf;">0</div></div>
     <div class="stat-card" style="border-radius:0;border:none;border-right:1px solid #edebe9;border-top:3px solid #0e7c3a;"><div class="stat-label">Load Bank</div><div class="stat-value" id="cnt-lb" style="color:#0e7c3a;">0</div></div>
-    <div class="stat-card" style="border-radius:0;border:none;border-right:1px solid #edebe9;border-top:3px solid #c0392b;"><div class="stat-label">I4's</div><div class="stat-value" id="cnt-i4s" style="color:#c0392b;">0</div></div>
+    <div class="stat-card" style="border-radius:0;border:none;border-right:1px solid #edebe9;border-top:3px solid #A03033;"><div class="stat-label">I4's</div><div class="stat-value" id="cnt-i4s" style="color:#A03033;">0</div></div>
     <div class="stat-card" style="border-radius:0;border:none;border-top:3px solid #0e7c3a;"><div class="stat-label">Bd done</div><div class="stat-value" id="bs-lines2" style="color:#0e7c3a;">0</div></div>
   </div>
   <!-- Hidden IDs for JS compatibility -->
@@ -999,7 +1005,7 @@ label { font-size: 11px; font-weight: 600; color: var(--text-2); display: block;
         <span id="cat-legend" style="display:inline-flex;flex-wrap:wrap;gap:6px;"></span>
         <div style="display:flex;gap:10px;flex-wrap:wrap;">
           <span style="font-size:11px;color:#605e5c;"><span style="display:inline-block;width:10px;height:10px;background:#f0eeff;border:1.5px solid #4b3a9e;border-radius:2px;margin-right:3px;"></span>Inspecting</span>
-          <span style="font-size:11px;color:#605e5c;"><span style="display:inline-block;width:10px;height:10px;background:#fde7e9;border:1.5px solid #a4262c;border-radius:2px;margin-right:3px;"></span>Remed.</span>
+          <span style="font-size:11px;color:#605e5c;"><span style="display:inline-block;width:10px;height:10px;background:#fde7e9;border:1.5px solid #A03033;border-radius:2px;margin-right:3px;"></span>Remed.</span>
           <span style="font-size:11px;color:#605e5c;"><span style="display:inline-block;width:10px;height:10px;background:#fff4ce;border:1.5px solid #7a5d00;border-radius:2px;margin-right:3px;"></span>On hold</span>
         </div>
       </div>
@@ -1121,7 +1127,7 @@ label { font-size: 11px; font-weight: 600; color: var(--text-2); display: block;
         <div style="display:flex;gap:10px;font-size:11px;flex-wrap:wrap;">
           <span><span style="display:inline-block;width:10px;height:10px;background:#4b3a9e;border-radius:2px;margin-right:3px;vertical-align:middle;"></span>RTS→Load</span>
           <span><span style="display:inline-block;width:10px;height:10px;background:#107c10;border-radius:2px;margin-right:3px;vertical-align:middle;"></span>Load→Ship</span>
-          <span><span style="display:inline-block;width:10px;height:10px;background:#a4262c;border-radius:2px;margin-right:3px;vertical-align:middle;"></span>Overdue</span>
+          <span><span style="display:inline-block;width:10px;height:10px;background:#A03033;border-radius:2px;margin-right:3px;vertical-align:middle;"></span>Overdue</span>
           <span style="color:#0078d4;font-weight:700;">| Today</span>
         </div>
       </div>
@@ -1281,7 +1287,7 @@ label { font-size: 11px; font-weight: 600; color: var(--text-2); display: block;
       <span style="font-size:11px;color:#605e5c;font-weight:600;">Notes</span><span></span>
     </div>
     <div id="unit-rows"></div>
-    <div id="add-err" style="color:#a4262c;font-size:12px;min-height:16px;margin:6px 0;"></div>
+    <div id="add-err" style="color:#A03033;font-size:12px;min-height:16px;margin:6px 0;"></div>
     <div style="display:flex;gap:8px;margin-top:4px;"><button class="primary" onclick="addAllUnits()">Add units</button><button onclick="toggleAddForm()">Cancel</button></div>
   </div>
 
@@ -1300,7 +1306,7 @@ label { font-size: 11px; font-weight: 600; color: var(--text-2); display: block;
       <span></span>
     </div>
     <div id="board-unit-rows"></div>
-    <div id="board-add-err" style="color:#a4262c;font-size:12px;min-height:16px;margin:6px 0;"></div>
+    <div id="board-add-err" style="color:#A03033;font-size:12px;min-height:16px;margin:6px 0;"></div>
     <div style="display:flex;gap:8px;"><button class="primary" onclick="addAllBoardUnits()">Add units</button><button onclick="toggleBoardAddForm()">Cancel</button></div>
   </div>
 
@@ -1380,7 +1386,7 @@ label { font-size: 11px; font-weight: 600; color: var(--text-2); display: block;
       <div><label>Employee ID</label><input id="new-op-emp" type="text" placeholder="e.g. EMP-047" /></div>
       <button class="primary" onclick="addOperator()" style="padding:7px 10px;align-self:end;">+</button>
     </div>
-    <div id="op-err" style="color:#a4262c;font-size:12px;min-height:16px;margin-top:4px;"></div>
+    <div id="op-err" style="color:#A03033;font-size:12px;min-height:16px;margin-top:4px;"></div>
   </div>
 
   <div class="card">
@@ -1569,7 +1575,7 @@ const CONFIG = {
     'CPS':   { bg: '#dff6dd', text: '#0b6a0b', border: '#107c10' },
     'EQ':    { bg: '#f0eeff', text: '#4b3a9e', border: '#4b3a9e' },
     'WDC':   { bg: '#fff4ce', text: '#7a5d00', border: '#f4c430' },
-    'TITUS': { bg: '#fde7e9', text: '#a4262c', border: '#a4262c' },
+    'TITUS': { bg: '#fde7e9', text: '#A03033', border: '#A03033' },
     'LKY':   { bg: '#e6f4ea', text: '#1e6b3c', border: '#2e7d52' },
     'CYS':   { bg: '#fce8f3', text: '#8c1a5c', border: '#b52474' },
     'EDGE':  { bg: '#fff0e0', text: '#8b4500', border: '#c46200' },
@@ -1602,7 +1608,7 @@ const CONFIG = {
     'EQ10': { bg:'#f0eeff',text:'#4b3a9e',border:'#4b3a9e' },
     'EQ11': { bg:'#f0eeff',text:'#4b3a9e',border:'#4b3a9e' },
     'COMP': { bg:'#dff6dd',text:'#0b6a0b',border:'#107c10' },
-    'DROP': { bg:'#fde7e9',text:'#a4262c',border:'#a4262c' },
+    'DROP': { bg:'#fde7e9',text:'#A03033',border:'#A03033' },
     'WDC':  { bg:'#fff4ce',text:'#7a5d00',border:'#f4c430' },
     'TITUS':{ bg:'#fff4ce',text:'#7a5d00',border:'#7a5d00' },
     'LKY':  { bg:'#e6f4ea',text:'#1e6b3c',border:'#2e7d52' },
@@ -1612,7 +1618,7 @@ const CONFIG = {
 
   /* PRODUCTION LINES */
   lines: [
-    { id:'line1', name:'Line 1 North', subtitle:'SAT82 / SAT93 / CYS43', headerColor:'#0078d4', bgColor:'#ddf3ff', pctComplete:90, updated:'6/20 @ 8:50am', notes:'ACC ISSUES LEFT — 5/11',
+    { id:'line1', name:'Line 1 North', subtitle:'SAT82 / SAT93 / CYS43', headerColor:'#006A8E', bgColor:'#E6F0F3', pctComplete:90, updated:'6/20 @ 8:50am', notes:'ACC ISSUES LEFT — 5/11',
       columns:[
         {label:'In the Hole',  units:['CYS43-6']},
         {label:'On Deck',      units:['CYS43-5']},
@@ -1638,7 +1644,7 @@ const CONFIG = {
         {label:'Holding SATs', units:[]},
         {label:'Ready to Ship',units:['SAT82-23','SAT93-11']},
       ]},
-    { id:'line2', name:'Line 2 Middle', subtitle:'EQUINIX / WDC', headerColor:'#4b3a9e', bgColor:'#f0eeff', pctComplete:20, updated:'', notes:'',
+    { id:'line2', name:'Line 2 Middle', subtitle:'EQUINIX / WDC', headerColor:'#425563', bgColor:'#ECEEEF', pctComplete:20, updated:'', notes:'',
       columns:[
         {label:'In the Hole',    units:[]},
         {label:'On Deck',        units:['COMP-37']},
@@ -1662,7 +1668,7 @@ const CONFIG = {
         {label:'Remediation',    units:[]},
         {label:'Holding EQUINIX',units:['EQ10-17']},
       ]},
-    { id:'line3', name:'Line 3 South', subtitle:'COMPASS', headerColor:'#107c10', bgColor:'#dff6dd', pctComplete:10, updated:'', notes:'',
+    { id:'line3', name:'Line 3 South', subtitle:'COMPASS', headerColor:'#373A36', bgColor:'#EBEBEB', pctComplete:10, updated:'', notes:'',
       columns:[
         {label:'In the Hole',    units:[]},
         {label:'On Deck',        units:['COMP-38']},
@@ -1686,7 +1692,7 @@ const CONFIG = {
         {label:'Remediation',     units:[]},
         {label:'Holding COMPASS',units:[]},
       ]},
-    { id:'fok', name:'FOK Line', subtitle:'TITUS', headerColor:'#7a5d00', bgColor:'#fff4ce', pctComplete:null, updated:'', notes:'',
+    { id:'fok', name:'FOK Line', subtitle:'TITUS', headerColor:'#7C878E', bgColor:'#F2F3F4', pctComplete:null, updated:'', notes:'',
       columns:[
         {label:'In the Hole',units:[]},{label:'On Deck',units:[]},
         {label:'Station 1',  units:['TITUS(R)-2']},{label:'Station 2',units:[]},
@@ -1700,7 +1706,7 @@ const CONFIG = {
         {label:"I4's",    units:[]},
         {label:'Remediation', units:[]},
       ]},
-    { id:'dungeon', name:'Drop Dungeon', subtitle:'DROP units', headerColor:'#a4262c', bgColor:'#fde7e9', pctComplete:null, updated:'', notes:'',
+    { id:'dungeon', name:'Drop Dungeon', subtitle:'DROP units', headerColor:'#A03033', bgColor:'#F6EAEB', pctComplete:null, updated:'', notes:'',
       columns:[
         {label:'In the Hole', units:[]},{label:'On Deck',units:[]},
         {label:'Station 7',   units:['DROP-21']},{label:'Station 8',units:['DROP-20']},
@@ -2023,7 +2029,7 @@ function renderChecklistBox(opts) {
   const failCount = state.filter(v => v === 'fail').length;
   const openCount = items.length - passCount - failCount;
   const ok = failCount === 0 && openCount === 0;
-  const borderColor = ok ? '#0e7c3a' : (failCount > 0 ? '#a4262c' : (dark ? '#f4a942' : '#b45309'));
+  const borderColor = ok ? '#0e7c3a' : (failCount > 0 ? '#A03033' : (dark ? '#f4a942' : '#b45309'));
   const bgColor = dark
     ? (ok ? 'rgba(14,124,58,.12)' : (failCount > 0 ? 'rgba(164,38,44,.18)' : 'rgba(180,83,9,.12)'))
     : (ok ? '#e6f7ed' : (failCount > 0 ? '#fdecea' : '#fef3e2'));
@@ -2044,7 +2050,7 @@ function renderChecklistBox(opts) {
         <button onclick="${setterName}('${unitId}',${idx},'pass')"
           style="font-size:10px;padding:2px 8px;border-radius:4px;border:1px solid ${v==='pass'?'#0e7c3a':'#8a96a8'};background:${v==='pass'?'#0e7c3a':'transparent'};color:${v==='pass'?'#fff':(dark?'#c8c6c4':'#605e5c')};cursor:pointer;font-weight:700;">Pass</button>
         <button onclick="${setterName}('${unitId}',${idx},'fail')"
-          style="font-size:10px;padding:2px 8px;border-radius:4px;border:1px solid ${v==='fail'?'#a4262c':'#8a96a8'};background:${v==='fail'?'#a4262c':'transparent'};color:${v==='fail'?'#fff':(dark?'#c8c6c4':'#605e5c')};cursor:pointer;font-weight:700;">Fail</button>
+          style="font-size:10px;padding:2px 8px;border-radius:4px;border:1px solid ${v==='fail'?'#A03033':'#8a96a8'};background:${v==='fail'?'#A03033':'transparent'};color:${v==='fail'?'#fff':(dark?'#c8c6c4':'#605e5c')};cursor:pointer;font-weight:700;">Fail</button>
       </div>
     </div>`;
   }).join('');
@@ -2091,9 +2097,9 @@ function renderChecklistKPI() {
     </div>`;
 
   const kpis =
-    pill(stats.passRate + '%', 'Pass rate', stats.passRate>=90?'#0e7c3a':stats.passRate>=70?'#b45309':'#a4262c', stats.passRate>=90?'#e6f7ed':stats.passRate>=70?'#fef3e2':'#fdecea') +
+    pill(stats.passRate + '%', 'Pass rate', stats.passRate>=90?'#0e7c3a':stats.passRate>=70?'#b45309':'#A03033', stats.passRate>=90?'#e6f7ed':stats.passRate>=70?'#fef3e2':'#fdecea') +
     pill(stats.pass, 'Passed', '#0e7c3a', '#e6f7ed') +
-    pill(stats.fail, 'Failed', '#a4262c', '#fdecea');
+    pill(stats.fail, 'Failed', '#A03033', '#fdecea');
 
   const lineBars = CONFIG.lines.map(line => {
     const s = stats.byLine[line.id];
@@ -2108,7 +2114,7 @@ function renderChecklistKPI() {
       </div>
       <div style="display:flex;height:10px;border-radius:5px;overflow:hidden;background:#f3f2f1;">
         ${passPct>0?`<div style="width:${passPct}%;background:#0e7c3a;"></div>`:''}
-        ${failPct>0?`<div style="width:${failPct}%;background:#a4262c;"></div>`:''}
+        ${failPct>0?`<div style="width:${failPct}%;background:#A03033;"></div>`:''}
         ${openPct>0?`<div style="width:${openPct}%;background:#e2e6ea;"></div>`:''}
       </div>
     </div>`;
@@ -2133,16 +2139,16 @@ function renderChecklistKPI() {
     const cs = getBoardCatStyle(pt === 'SAT' ? 'SAT82-0' : pt+'-0');
     const passRate = Math.round((s.pass / s.total) * 100);
     const r = projectReadiness[pt] || { hasFail:false, allReady:false };
-    const nameColor = r.hasFail ? '#a4262c' : r.allReady ? '#0e7c3a' : cs.text;
-    return `<div style="background:var(--surface,#fff);border:1px solid var(--border,#edebe9);border-top:3px solid ${r.hasFail?'#a4262c':r.allReady?'#0e7c3a':cs.border};border-radius:8px;padding:10px 12px;">
+    const nameColor = r.hasFail ? '#A03033' : r.allReady ? '#0e7c3a' : cs.text;
+    return `<div style="background:var(--surface,#fff);border:1px solid var(--border,#edebe9);border-top:3px solid ${r.hasFail?'#A03033':r.allReady?'#0e7c3a':cs.border};border-radius:8px;padding:10px 12px;">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
         <span style="font-size:13px;font-weight:800;color:${nameColor};">${pt}${r.hasFail?' &#9888;':r.allReady?' &#10003;':''}</span>
-        <span style="font-size:14px;font-weight:800;color:${passRate>=90?'#0e7c3a':passRate>=70?'#b45309':'#a4262c'};">${passRate}%</span>
+        <span style="font-size:14px;font-weight:800;color:${passRate>=90?'#0e7c3a':passRate>=70?'#b45309':'#A03033'};">${passRate}%</span>
       </div>
       <div style="font-size:11px;color:var(--text-3,#8a96a8);margin-bottom:6px;">${s.pass}/${s.total} pass${s.fail?`, ${s.fail} fail`:''}</div>
       <div style="display:flex;height:8px;border-radius:4px;overflow:hidden;background:#f3f2f1;">
         ${s.pass>0?`<div style="width:${Math.round(s.pass/s.total*100)}%;background:#0e7c3a;"></div>`:''}
-        ${s.fail>0?`<div style="width:${Math.round(s.fail/s.total*100)}%;background:#a4262c;"></div>`:''}
+        ${s.fail>0?`<div style="width:${Math.round(s.fail/s.total*100)}%;background:#A03033;"></div>`:''}
         ${s.open>0?`<div style="width:${Math.round(s.open/s.total*100)}%;background:#e2e6ea;"></div>`:''}
       </div>
     </div>`;
@@ -2192,7 +2198,7 @@ function renderTVMode() {
       const parts = [];
       if (deviations.length) parts.push(`<span style="font-weight:800;">${deviations.length} DEVIATION${deviations.length!==1?'S':''}</span>: ${deviations.map(u=>u.id).join(', ')}`);
       if (failReleases.length) parts.push(`<span style="font-weight:800;">${failReleases.length} FAIL RELEASE${failReleases.length!==1?'S':''}</span>: ${failReleases.map(u=>u.id).join(', ')}`);
-      alertEl.innerHTML = `<div style="background:#5c1a1a;border:2px solid #a4262c;border-radius:10px;padding:14px 20px;margin-bottom:20px;font-size:18px;color:#ffd6d6;display:flex;align-items:center;gap:12px;">
+      alertEl.innerHTML = `<div style="background:#5c1a1a;border:2px solid #A03033;border-radius:10px;padding:14px 20px;margin-bottom:20px;font-size:18px;color:#ffd6d6;display:flex;align-items:center;gap:12px;">
         <span style="font-size:24px;">&#9888;</span><div>${parts.join(' &nbsp;&middot;&nbsp; ')}</div>
       </div>`;
     } else {
@@ -2337,13 +2343,13 @@ function requireName(callback, title) {
           autocomplete="off" />
       </div>
 
-      <div id="sign-err" style="color:#c0392b;font-size:12px;min-height:18px;margin-bottom:12px;text-align:left;padding-left:2px;"></div>
+      <div id="sign-err" style="color:#A03033;font-size:12px;min-height:18px;margin-bottom:12px;text-align:left;padding-left:2px;"></div>
 
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
         <button id="sign-cancel-btn" style="padding:10px;font-size:13px;font-weight:600;background:#f0f2f5;color:#4a5568;border:none;border-radius:8px;cursor:pointer;">
           Cancel
         </button>
-        <button id="sign-confirm-btn" style="padding:10px;font-size:13px;font-weight:700;background:#1a6fd4;color:#fff;border:none;border-radius:8px;cursor:pointer;box-shadow:0 2px 8px rgba(26,111,212,.3);">
+        <button id="sign-confirm-btn" style="padding:10px;font-size:13px;font-weight:700;background:#006A8E;color:#fff;border:none;border-radius:8px;cursor:pointer;box-shadow:0 2px 8px rgba(26,111,212,.3);">
           ✓ ${title === 'Sign to Begin Inspection' ? 'Confirm Inspection' : 'Confirm Release'}
         </button>
       </div>
@@ -2365,15 +2371,15 @@ function requireName(callback, title) {
   // Focus + highlight on focus
   setTimeout(() => nameInput.focus(), 50);
   [nameInput, empInput].forEach(inp => {
-    inp.addEventListener('focus', () => inp.style.borderColor = '#1a6fd4');
+    inp.addEventListener('focus', () => inp.style.borderColor = '#006A8E');
     inp.addEventListener('blur',  () => inp.style.borderColor = '#e2e6ea');
   });
 
   const confirm = () => {
     const name = nameInput.value.trim();
     const emp  = empInput.value.trim();
-    if (!name) { err.textContent = 'Full name is required.'; nameInput.focus(); nameInput.style.borderColor='#c0392b'; return; }
-    if (!emp)  { err.textContent = 'Employee number is required.'; empInput.focus(); empInput.style.borderColor='#c0392b'; return; }
+    if (!name) { err.textContent = 'Full name is required.'; nameInput.focus(); nameInput.style.borderColor='#A03033'; return; }
+    if (!emp)  { err.textContent = 'Employee number is required.'; empInput.focus(); empInput.style.borderColor='#A03033'; return; }
     // Save for this session so getOperator() returns correct values
     currentOperatorName = name;
     currentOperatorEmp  = emp;
@@ -2476,7 +2482,7 @@ function setApiStatus(status) {
 }
 function showApiMsg(msg,isErr,isNeutral) {
   const el=document.getElementById('api-test-msg'); if(!el) return;
-  el.textContent=msg; el.style.color=isErr?'#a4262c':isNeutral?'#605e5c':'#107c10';
+  el.textContent=msg; el.style.color=isErr?'#A03033':isNeutral?'#605e5c':'#107c10';
 }
 
 /* ---- GOOGLE SHEETS (JSONP via Apps Script) ---- */
@@ -2883,7 +2889,7 @@ function renderLineSummary() {
         return (cS && cS.includes('fail')) || (qS && qS.includes('fail'));
       });
       const cls=count>0?(hasFail?'has-fail':hasHeld?'has-held':hasDone?'has-done':'has-units'):'';
-      const topColor=count>0?(hasFail?'#a4262c':hasHeld?'#7a5d00':hasDone?'#107c10':line.headerColor):'#edebe9';
+      const topColor=count>0?(hasFail?'#A03033':hasHeld?'#7a5d00':hasDone?'#107c10':line.headerColor):'#edebe9';
       const shortLabel=col.label.replace('Station ','Stn ').replace('In the Hole','Hole').replace('On Deck','Deck').replace('Ready to Ship','✓ RTS').replace('Holding ','Hold.').replace('Load Bank','LB');
       // Color each unit's name by ITS OWN checklist status — green once fully
       // passed (ready to move on), red if it currently has a Fail item.
@@ -2891,7 +2897,7 @@ function renderLineSummary() {
         const cS=getChecklistState(u), qS=getQCChecklistState(u);
         const uHasFail = (cS && cS.includes('fail')) || (qS && qS.includes('fail'));
         const uReady   = isAllChecklistsComplete(u);
-        const color = uHasFail ? '#a4262c' : uReady ? '#0e7c3a' : 'inherit';
+        const color = uHasFail ? '#A03033' : uReady ? '#0e7c3a' : 'inherit';
         const weight = (uHasFail || uReady) ? '700' : '400';
         return `<span style="color:${color};font-weight:${weight};">${u.id}</span>`;
       }).join(', ');
@@ -2906,15 +2912,15 @@ function renderLineSummary() {
         <div>
           <span style="font-size:14px;font-weight:700;color:${line.headerColor};">${line.name}</span>
           <span style="font-size:12px;color:#605e5c;margin-left:8px;">${line.subtitle}</span>
-          ${line.notes?`<span style="font-size:11px;color:#a4262c;margin-left:10px;font-weight:600;">⚠ ${line.notes}</span>`:''}
+          ${line.notes?`<span style="font-size:11px;color:#A03033;margin-left:10px;font-weight:600;">⚠ ${line.notes}</span>`:''}
         </div>
         <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;">
           ${line.updated?`<span style="font-size:11px;color:#605e5c;">Updated: ${line.updated}</span>`:''}
           <span class="badge badge-blue">${lu.length} units</span>
           ${held>0?`<span class="badge badge-orange">${held} held</span>`:''}
           ${done>0?`<span class="badge badge-green">${done} done</span>`:''}
-          ${deviations>0?`<span class="badge" style="background:#a4262c;color:#fff;">&#9888; ${deviations} deviation${deviations!==1?'s':''}</span>`:''}
-          ${failReleases>0?`<span class="badge" style="background:#a4262c;color:#fff;">&#9888; ${failReleases} fail released</span>`:''}
+          ${deviations>0?`<span class="badge" style="background:#A03033;color:#fff;">&#9888; ${deviations} deviation${deviations!==1?'s':''}</span>`:''}
+          ${failReleases>0?`<span class="badge" style="background:#A03033;color:#fff;">&#9888; ${failReleases} fail released</span>`:''}
           <div style="text-align:right;min-width:80px;">
             <div style="font-size:11px;color:#605e5c;">${pct}% complete</div>
             <div class="progress-wrap" style="width:80px;"><div class="progress-bar" style="width:${pct}%;background:${line.headerColor};"></div></div>
@@ -2948,7 +2954,7 @@ function renderUnifiedTabs() {
   // Top tab bar: Board | All Lines | Remediation | QC stations
   let html='<button class="tab-btn '+(trackerMode==='board'?'active':'')+'" style="'+(trackerMode==='board'?'color:#0078d4;border-bottom-color:#0078d4;font-weight:600;':'')+'" onclick="switchToBoard()">&#9776; All Lines</button>';
   const remedCount = getAllBoardUnits().filter(u=>u.col==='Remediation'&&!u.completed).length;
-  html+=`<button class="tab-btn ${trackerMode==='remed'?'active':''}" style="${trackerMode==='remed'?'color:#a4262c;border-bottom-color:#a4262c;font-weight:600;':''}" onclick="switchToRemed()">&#9888; Remediation${remedCount>0?'<span class="tab-count">'+remedCount+'</span>':''}</button>`;
+  html+=`<button class="tab-btn ${trackerMode==='remed'?'active':''}" style="${trackerMode==='remed'?'color:#A03033;border-bottom-color:#A03033;font-weight:600;':''}" onclick="switchToRemed()">&#9888; Remediation${remedCount>0?'<span class="tab-count">'+remedCount+'</span>':''}</button>`;
   html+='<span style="display:inline-block;width:1px;height:20px;background:#edebe9;margin:0 8px;vertical-align:middle;"></span>';
   html+='<span style="font-size:10px;font-weight:700;color:#605e5c;text-transform:uppercase;padding:8px 6px 0;letter-spacing:0.5px;display:inline-block;">QC</span>';
   html+=ALL_TABS.map(s => {
@@ -3101,8 +3107,8 @@ function renderBoardUnitCard(u) {
     // Normal move forward
     if (!isRemedCol && (!isInspectionCol || u.inspectionStarted)) {
       const lockAttr = checklistOK ? '' : 'disabled title="Complete the station checklist first"';
-      if (isLast) { actions+=`<button class="success" onclick="togglePanel('bd-done-${sid}')">&#10003; Mark complete</button>`; panels+=`<div class="action-group" id="bd-done-${sid}"><label>Notes</label><textarea id="bd-notes-done-${sid}" rows="2" placeholder="Notes..."></textarea>${!checklistOK?`<div style="font-size:11px;color:#a4262c;margin-bottom:6px;">&#9888; Complete the station checklist below before confirming.</div>`:''}<button class="success sm" ${lockAttr} onclick="doBoardAction('${u.id}','complete')">&#10003; Confirm</button></div>`; }
-      else if (nextCol && nextCol !== 'Remediation') { actions+=`<button class="success" onclick="togglePanel('bd-fwd-${sid}')">&#8594; Move to ${nextCol}</button>`; panels+=`<div class="action-group" id="bd-fwd-${sid}"><label>Notes</label><textarea id="bd-notes-fwd-${sid}" rows="2" placeholder="Notes..."></textarea>${!checklistOK?`<div style="font-size:11px;color:#a4262c;margin-bottom:6px;">&#9888; Complete the station checklist below before confirming.</div>`:''}<button class="success sm" ${lockAttr} onclick="doBoardAction('${u.id}','forward')">&#8594; Confirm move</button></div>`; }
+      if (isLast) { actions+=`<button class="success" onclick="togglePanel('bd-done-${sid}')">&#10003; Mark complete</button>`; panels+=`<div class="action-group" id="bd-done-${sid}"><label>Notes</label><textarea id="bd-notes-done-${sid}" rows="2" placeholder="Notes..."></textarea>${!checklistOK?`<div style="font-size:11px;color:#A03033;margin-bottom:6px;">&#9888; Complete the station checklist below before confirming.</div>`:''}<button class="success sm" ${lockAttr} onclick="doBoardAction('${u.id}','complete')">&#10003; Confirm</button></div>`; }
+      else if (nextCol && nextCol !== 'Remediation') { actions+=`<button class="success" onclick="togglePanel('bd-fwd-${sid}')">&#8594; Move to ${nextCol}</button>`; panels+=`<div class="action-group" id="bd-fwd-${sid}"><label>Notes</label><textarea id="bd-notes-fwd-${sid}" rows="2" placeholder="Notes..."></textarea>${!checklistOK?`<div style="font-size:11px;color:#A03033;margin-bottom:6px;">&#9888; Complete the station checklist below before confirming.</div>`:''}<button class="success sm" ${lockAttr} onclick="doBoardAction('${u.id}','forward')">&#8594; Confirm move</button></div>`; }
     }
     actions+=`<button class="${u.held?'warn-btn':''}" onclick="togglePanel('bd-hold-${sid}')">${u.held?'&#8634; Remove hold':'&#9646; Hold'}</button>`;
     panels+=`<div class="action-group" id="bd-hold-${sid}"><label>Notes</label><textarea id="bd-notes-hold-${sid}" rows="2" placeholder="Reason..."></textarea><button class="${u.held?'warn-btn':''} sm" onclick="doBoardAction('${u.id}','hold')">${u.held?'&#8634; Confirm remove hold':'&#9646; Confirm hold'}</button></div>`;
@@ -3118,24 +3124,24 @@ function renderBoardUnitCard(u) {
     const durTag = prevStay && !prevStay.inProgress ? ` <span style="color:#8a96a8;">(after ${formatDuration(prevStay.hours)} at ${prevStay.station})</span>` : '';
     return `<div class="history-row">${h.ts} — <strong>${h.action}</strong>${durTag}${h.notes?' — '+h.notes:''}</div>`;
   }).join('');
-  const remedBorder = isRemedCol ? 'border-left:3px solid #a4262c;' : '';
+  const remedBorder = isRemedCol ? 'border-left:3px solid #A03033;' : '';
   const stationDurations = getStationDurations(u);
   const currentStay = stationDurations[stationDurations.length-1];
   const timeAtStationBadge = currentStay ? `<span class="badge" style="background:#eef1f5;color:#3a4558;border:1px solid #c8d0dc;font-weight:700;">&#9201; ${formatDuration(currentStay.hours)} at ${u.col}</span>` : '';
   const remedOrigin = isRemedCol && u.remediationOrigin
-    ? `<div style="font-size:11px;color:#a4262c;font-weight:600;margin-bottom:4px;">&#9888; From: ${u.remediationOrigin}</div>` : '';
-  const deviationBadge = u.deviationNeeded ? `<span class="badge" style="background:#fdecea;color:#a4262c;border:1px solid #a4262c;font-weight:800;">&#9888; DEVIATION</span>` : '';
+    ? `<div style="font-size:11px;color:#A03033;font-weight:600;margin-bottom:4px;">&#9888; From: ${u.remediationOrigin}</div>` : '';
+  const deviationBadge = u.deviationNeeded ? `<span class="badge" style="background:#fdecea;color:#A03033;border:1px solid #A03033;font-weight:800;">&#9888; DEVIATION</span>` : '';
   const openFailOverrides = (u.failOverrides || []).filter(f => !f.resolved);
-  const failOverrideBadge = openFailOverrides.length ? `<span class="badge" style="background:#fdecea;color:#a4262c;border:1px solid #a4262c;font-weight:800;">&#9888; FAIL RELEASED (${openFailOverrides.length})</span>` : '';
+  const failOverrideBadge = openFailOverrides.length ? `<span class="badge" style="background:#fdecea;color:#A03033;border:1px solid #A03033;font-weight:800;">&#9888; FAIL RELEASED (${openFailOverrides.length})</span>` : '';
   const checklistSect = `<div style="margin-top:8px;padding:10px 12px;border:1px solid var(--border,#edebe9);border-radius:8px;background:var(--surface-2,#faf9f8);">
     <label style="display:flex;align-items:center;gap:8px;font-size:12px;font-weight:600;cursor:pointer;text-transform:none;">
       <input type="checkbox" ${u.supervisorReleased?'checked':''} onclick="event.preventDefault();toggleSupervisorRelease('${u.id}')" />
       Supervisor Release${u.supervisorReleased?` <span style="font-size:10px;color:var(--text-3,#8a96a8);font-weight:400;">— ${u.supervisorReleaseTs}</span>`:''}
     </label>
-    ${u.deviationNeeded && u.deviationNote ? `<div style="margin-top:6px;font-size:11px;color:#a4262c;background:#fdecea;border:1px solid rgba(192,57,43,.25);border-radius:6px;padding:6px 8px;">&#9888; ${u.deviationNote}${u.deviationTs?` <span style="opacity:.7;">(${u.deviationTs})</span>`:''}</div>` : ''}
+    ${u.deviationNeeded && u.deviationNote ? `<div style="margin-top:6px;font-size:11px;color:#A03033;background:#fdecea;border:1px solid rgba(192,57,43,.25);border-radius:6px;padding:6px 8px;">&#9888; ${u.deviationNote}${u.deviationTs?` <span style="opacity:.7;">(${u.deviationTs})</span>`:''}</div>` : ''}
     ${openFailOverrides.map((f, i) => {
       const realIdx = u.failOverrides.indexOf(f);
-      return `<div style="margin-top:6px;font-size:11px;color:#a4262c;background:#fdecea;border:1px solid rgba(192,57,43,.25);border-radius:6px;padding:6px 8px;">
+      return `<div style="margin-top:6px;font-size:11px;color:#A03033;background:#fdecea;border:1px solid rgba(192,57,43,.25);border-radius:6px;padding:6px 8px;">
         <div style="font-weight:700;margin-bottom:3px;">&#9888; Released with Fail at ${f.station}</div>
         <div>${f.items.join(', ')}</div>
         <div style="opacity:.8;margin-top:2px;">${f.note} <span style="opacity:.7;">(${f.ts})</span></div>
@@ -3158,7 +3164,7 @@ function renderBoardUnitCard(u) {
   const checklistsRow = (stationChecklistSect || stationQCChecklistSect)
     ? `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:10px;margin-top:8px;">${stationChecklistSect}${stationQCChecklistSect}</div>`
     : '';
-  return `<div class="unit-card ${u.held?'held':''} ${u.completed?'completed':''}" style="${remedBorder}${u.deviationNeeded||openFailOverrides.length?'border:2px solid #a4262c;':''}">
+  return `<div class="unit-card ${u.held?'held':''} ${u.completed?'completed':''}" style="${remedBorder}${u.deviationNeeded||openFailOverrides.length?'border:2px solid #A03033;':''}">
     <div class="unit-header"><div>${boardPill(u.id)}</div><div style="display:flex;gap:6px;align-items:center;">${deviationBadge}${failOverrideBadge}${statusBadge}</div></div>
     ${remedOrigin}
     ${esoGensetInfo}
@@ -3299,15 +3305,15 @@ function openFailOverrideNoteModal(unitId, action, failedItems) {
     <div style="background:#fff;border-radius:16px;padding:28px 32px;max-width:420px;width:94%;box-shadow:0 24px 64px rgba(0,0,0,.28);">
       <h2 style="font-size:16px;font-weight:800;color:#0f1923;margin-bottom:8px;letter-spacing:-.3px;">&#9888; Release with Failed Checklist — ${unitId}</h2>
       <p style="font-size:12px;color:#4a5568;margin-bottom:10px;">The following item${failedItems.length!==1?'s are':' is'} marked Fail. The unit can still move, but this stays flagged on it until a supervisor resolves it.</p>
-      <ul style="font-size:12px;color:#a4262c;margin:0 0 12px 18px;padding:0;">
+      <ul style="font-size:12px;color:#A03033;margin:0 0 12px 18px;padding:0;">
         ${failedItems.map(t=>`<li style="margin-bottom:4px;">${t}</li>`).join('')}
       </ul>
       <label style="font-size:11px;font-weight:700;color:#4a5568;text-transform:uppercase;letter-spacing:.3px;display:block;margin-bottom:5px;">Supervisor note *</label>
       <textarea id="fail-override-note" rows="3" placeholder="Why is this being released with a failed item?" style="width:100%;font-size:13px;padding:9px 12px;border:2px solid #e2e6ea;border-radius:8px;margin-bottom:6px;color:#0f1923;"></textarea>
-      <div id="fail-override-err" style="color:#c0392b;font-size:12px;min-height:16px;margin-bottom:10px;"></div>
+      <div id="fail-override-err" style="color:#A03033;font-size:12px;min-height:16px;margin-bottom:10px;"></div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
         <button id="fail-override-cancel" style="padding:10px;font-size:13px;font-weight:600;background:#f0f2f5;color:#4a5568;border:none;border-radius:8px;cursor:pointer;">Cancel</button>
-        <button id="fail-override-confirm" style="padding:10px;font-size:13px;font-weight:700;background:#a4262c;color:#fff;border:none;border-radius:8px;cursor:pointer;">&#9888; Release Anyway</button>
+        <button id="fail-override-confirm" style="padding:10px;font-size:13px;font-weight:700;background:#A03033;color:#fff;border:none;border-radius:8px;cursor:pointer;">&#9888; Release Anyway</button>
       </div>
     </div>`;
   document.body.appendChild(overlay);
@@ -3763,11 +3769,11 @@ function renderPMKpis() {
     {val:total, label:'Total Units (Board)', sub:'All lines combined', color:'#0078d4', icon:'&#9632;'},
     {val:rts, label:'Ready to Ship', sub:'Awaiting shipment', color:'#107c10', icon:'&#9650;'},
     {val:complete, label:'Board Complete', sub: pct+'% of total', color:'#107c10', icon:'&#10003;'},
-    {val:remed, label:'In Remediation', sub:'Needs attention', color:'#a4262c', icon:'&#9888;'},
+    {val:remed, label:'In Remediation', sub:'Needs attention', color:'#A03033', icon:'&#9888;'},
     {val:held, label:'On Hold', sub:'Blocked units', color:'#7a5d00', icon:'&#9646;'},
     {val:active, label:'In Production', sub:'Active + Inspecting', color:'#4b3a9e', icon:'&#9654;'},
     {val: totalHoursList.length?formatDuration(avgHours):'—', label:'Avg Time in Process', sub:'Active units', color:'#4b3a9e', icon:'&#9201;'},
-    {val: slowest?formatDuration(slowest.hours):'—', label:'Longest in Process', sub: slowest?slowest.id:'No active units', color:'#a4262c', icon:'&#9201;'},
+    {val: slowest?formatDuration(slowest.hours):'—', label:'Longest in Process', sub: slowest?slowest.id:'No active units', color:'#A03033', icon:'&#9201;'},
     {val:qcTotal, label:'QC Total', sub:qcDone+' complete', color:'#0078d4', icon:'&#9671;'},
     {val:qcDone, label:'QC Complete', sub: qcTotal?Math.round(qcDone/qcTotal*100)+'% done':'0%', color:'#107c10', icon:'&#10003;'},
   ].map(k => `<div class="pm-kpi" style="border-top-color:${k.color};">
@@ -3784,7 +3790,7 @@ function renderPMStatusChart() {
   const groups = [
     {label:'Active',       color:'#0078d4', count: all.filter(u=>u.pmStatus==='Active').length},
     {label:'Inspecting',   color:'#4b3a9e', count: all.filter(u=>u.pmStatus==='Inspecting'||u.pmStatus==='Ready for Insp.').length},
-    {label:'Remediation',  color:'#a4262c', count: all.filter(u=>u.pmStatus==='Remediation').length},
+    {label:'Remediation',  color:'#A03033', count: all.filter(u=>u.pmStatus==='Remediation').length},
     {label:'On Hold',      color:'#7a5d00', count: all.filter(u=>u.pmStatus==='On Hold').length},
     {label:'Ready to Ship',color:'#107c10', count: all.filter(u=>u.isRTS).length},
     {label:'Complete',     color:'#2ea04a', count: all.filter(u=>u.pmStatus==='Complete').length},
@@ -4179,7 +4185,7 @@ function renderPMLineCards() {
           <span><strong>${done}</strong> complete</span>
           <span><strong>${lu.length-done}</strong> active</span>
           <span><strong>${lu.length}</strong> total</span>
-          ${line.notes?`<span style="color:#a4262c;font-weight:600;">⚠ ${line.notes}</span>`:''}
+          ${line.notes?`<span style="color:#A03033;font-weight:600;">⚠ ${line.notes}</span>`:''}
         </div>
       </div>
       <div style="font-size:11px;font-weight:600;color:#605e5c;text-transform:uppercase;letter-spacing:0.4px;margin-bottom:6px;">Station Breakdown</div>
@@ -4216,7 +4222,7 @@ function renderPMUnitTable() {
   if (!units.length) { el.innerHTML='<p style="font-size:13px;color:#605e5c;padding:12px 0;">No units match the current filter.</p>'; return; }
 
   const statusColor = {
-    'Complete':'#107c10','Ready to Ship':'#107c10','Remediation':'#a4262c',
+    'Complete':'#107c10','Ready to Ship':'#107c10','Remediation':'#A03033',
     'On Hold':'#7a5d00','Inspecting':'#4b3a9e','Ready for Insp.':'#4b3a9e','Active':'#0078d4'
   };
 
@@ -4234,7 +4240,7 @@ function renderPMUnitTable() {
       <td style="font-size:11px;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${u.lastAction||'—'}</td>
       <td style="font-size:11px;color:#605e5c;white-space:nowrap;">${u.lastTs||'—'}</td>
       <td><span class="priority-badge priority-${priority}">${pLabel}</span></td>
-      <td>${u.deviationNeeded?`<span class="badge" style="background:#a4262c;color:#fff;font-weight:800;" title="${u.deviationNote}">&#9888; DEVIATION</span>`:''}</td>
+      <td>${u.deviationNeeded?`<span class="badge" style="background:#A03033;color:#fff;font-weight:800;" title="${u.deviationNote}">&#9888; DEVIATION</span>`:''}</td>
     </tr>`;
   }).join('');
 
@@ -4979,7 +4985,7 @@ function renderGantt() {
       const x1 = clamp(Math.round((excRts - minDate)/(1000*60*60*24)) * dayPx);
       const x2 = clamp(Math.round((loadDate - minDate)/(1000*60*60*24)) * dayPx);
       const w1 = Math.max(3, x2 - x1);
-      const col = isOverdue ? '#a4262c' : isSoon ? '#c17f00' : '#4b3a9e';
+      const col = isOverdue ? '#A03033' : isSoon ? '#c17f00' : '#4b3a9e';
       bar1 = `<div title="${r.ftiNum}: EXC RTS ${fmtDate(r.excRts)} → Load ${fmtDate(r.loadDate)}" style="position:absolute;left:${x1}px;top:7px;height:12px;width:${w1}px;background:${col};border-radius:3px;"></div>`;
     }
 
@@ -4996,7 +5002,7 @@ function renderGantt() {
     let markers = '';
     if (loadDate) {
       const xL = clamp(Math.round((loadDate - minDate)/(1000*60*60*24)) * dayPx) - 5;
-      const col = isOverdue?'#a4262c':isSoon?'#c17f00':'#4b3a9e';
+      const col = isOverdue?'#A03033':isSoon?'#c17f00':'#4b3a9e';
       markers += `<div title="📦 Load: ${fmtDate(r.loadDate)}" style="position:absolute;left:${xL}px;top:4px;width:10px;height:10px;background:${col};transform:rotate(45deg);border:2px solid #fff;border-radius:1px;"></div>`;
     }
     if (shipDate) {
@@ -5005,7 +5011,7 @@ function renderGantt() {
     }
 
     const rowBg = idx%2===0 ? '#fafaf9' : '#fff';
-    const labelCol = isOverdue?'#a4262c':isSoon?'#c17f00':'#323130';
+    const labelCol = isOverdue?'#A03033':isSoon?'#c17f00':'#323130';
     const short = r.ftiNum.replace(' SKID BASE','').replace(' (FOK)','');
 
     return `<div style="display:flex;align-items:center;height:${rowH}px;background:${rowBg};border-bottom:1px solid #f0eee8;">
@@ -5035,7 +5041,7 @@ function renderGantt() {
     <div style="max-height:480px;overflow-y:auto;overflow-x:hidden;border:1px solid #edebe9;border-top:none;">${rows}</div>
     <div style="margin-top:8px;font-size:10px;color:#605e5c;display:flex;gap:14px;flex-wrap:wrap;">
       <span>${visibleRows.length} units shown</span>
-      <span style="color:#c0392b;">${overdue} overdue total</span>
+      <span style="color:#A03033;">${overdue} overdue total</span>
       <span style="color:#c17f00;">${thisWeek} loading this week</span>
     </div>`;
 }
@@ -5352,8 +5358,8 @@ function exportFTIScheduleCsv() {
 const PROJECT_COLORS = [
   '#4b3a9e', // WDC          — purple
   '#0e7c3a', // AWS SBN      — green
-  '#c0392b', // EQUINIX AT10 — red
-  '#1a6fd4', // EQUINIX AT11 — blue
+  '#A03033', // EQUINIX AT10 — red
+  '#006A8E', // EQUINIX AT11 — blue
   '#b45309', // SAT82        — amber
   '#d97706', // SAT82 PICK   — orange
   '#0891b2', // COMPASS      — cyan
@@ -5574,7 +5580,7 @@ function renderAllGantt() {
       const shipDate = r.shipLooseDate ? new Date(r.shipLooseDate) : null;
       const isOverdue = loadDate && loadDate < today;
       const isSoon    = loadDate && !isOverdue && daysUntil(r.loadDate) <= 7;
-      const barColor  = isOverdue ? '#c0392b' : isSoon ? '#b45309' : color;
+      const barColor  = isOverdue ? '#A03033' : isSoon ? '#b45309' : color;
       const clamp = px => Math.max(0, Math.min(px, chartW));
 
       // Bar 1: excRts → loadDate
@@ -5631,7 +5637,7 @@ function renderAllGantt() {
     <div style="margin-top:8px;font-size:11px;color:#8a96a8;display:flex;gap:14px;flex-wrap:wrap;">
       <span>${projectGroups.length} projects shown</span>
       <span>${totalUnits} total units</span>
-      <span style="color:#c0392b;">${projectGroups.reduce((s,g)=>s+g.rows.filter(r=>r.loadDate&&new Date(r.loadDate)<today).length,0)} overdue</span>
+      <span style="color:#A03033;">${projectGroups.reduce((s,g)=>s+g.rows.filter(r=>r.loadDate&&new Date(r.loadDate)<today).length,0)} overdue</span>
       <span style="display:flex;align-items:center;gap:4px;"><span style="width:10px;height:4px;background:#4b3a9e;border-radius:2px;display:inline-block;"></span>RTS→Load</span>
       <span style="display:flex;align-items:center;gap:4px;"><span style="width:10px;height:4px;background:#0e7c3a;border-radius:2px;display:inline-block;"></span>Load→Ship</span>
     </div>`;
@@ -6031,14 +6037,14 @@ function renderFloorCard(u, line) {
 
   // Status badge
   let statusBadge = '';
-  if (isRemed) statusBadge = '<span style="background:#c0392b;color:#fff;font-size:10px;font-weight:700;padding:3px 9px;border-radius:20px;">⚠ REMED</span>';
+  if (isRemed) statusBadge = '<span style="background:#A03033;color:#fff;font-size:10px;font-weight:700;padding:3px 9px;border-radius:20px;">⚠ REMED</span>';
   else if (isHeld) statusBadge = '<span style="background:#b45309;color:#fff;font-size:10px;font-weight:700;padding:3px 9px;border-radius:20px;">⏸ HOLD</span>';
   else if (isRTS) statusBadge = '<span style="background:#0e7c3a;color:#fff;font-size:10px;font-weight:700;padding:3px 9px;border-radius:20px;">✓ RTS</span>';
   else if (isInsp) statusBadge = '<span style="background:#5b3fcf;color:#fff;font-size:10px;font-weight:700;padding:3px 9px;border-radius:20px;">&#128270; INSPECTING</span>';
-  if (u.deviationNeeded) statusBadge = '<span style="background:#a4262c;color:#fff;font-size:10px;font-weight:800;padding:3px 9px;border-radius:20px;margin-right:4px;">&#9888; DEVIATION</span>' + statusBadge;
+  if (u.deviationNeeded) statusBadge = '<span style="background:#A03033;color:#fff;font-size:10px;font-weight:800;padding:3px 9px;border-radius:20px;margin-right:4px;">&#9888; DEVIATION</span>' + statusBadge;
   if (u.deviationNeeded) cardClass += ' deviation';
   const floorOpenFailOverrides = (u.failOverrides || []).filter(f => !f.resolved);
-  if (floorOpenFailOverrides.length) statusBadge = '<span style="background:#a4262c;color:#fff;font-size:10px;font-weight:800;padding:3px 9px;border-radius:20px;margin-right:4px;">&#9888; FAIL RELEASED</span>' + statusBadge;
+  if (floorOpenFailOverrides.length) statusBadge = '<span style="background:#A03033;color:#fff;font-size:10px;font-weight:800;padding:3px 9px;border-radius:20px;margin-right:4px;">&#9888; FAIL RELEASED</span>' + statusBadge;
   if (floorOpenFailOverrides.length) cardClass += ' deviation';
 
   // Next station
@@ -6057,7 +6063,7 @@ function renderFloorCard(u, line) {
   // Release button
   let releaseBtn = '';
   if (isRemed) {
-    releaseBtn = `<button class="floor-release-btn" style="background:linear-gradient(135deg,#c0392b,#e74c3c);" onclick="floorDoAction('${u.id}','returnFromRemed')">&#8592; Return from Remediation</button>`;
+    releaseBtn = `<button class="floor-release-btn" style="background:linear-gradient(135deg,#A03033,#e74c3c);" onclick="floorDoAction('${u.id}','returnFromRemed')">&#8592; Return from Remediation</button>`;
   } else if (isRTS) {
     const lockAttr = floorChecklistOK ? '' : 'disabled title="Complete the station checklist first"';
     releaseBtn = `<button class="floor-release-btn rts" ${lockAttr} onclick="floorDoAction('${u.id}','complete')">&#10003; Mark Complete</button>`;
@@ -6085,13 +6091,13 @@ function renderFloorCard(u, line) {
   let secBtns = '';
   if (!isHeld && !isRemed) {
     secBtns += `<button class="floor-sec-btn hold" onclick="floorDoAction('${u.id}','hold')">&#9646; Hold</button>`;
-    secBtns += `<button class="floor-sec-btn" onclick="toggleDeviation('${u.id}')" style="${u.deviationNeeded?'border-color:#a4262c;color:#f87171;':''}">&#9888; ${u.deviationNeeded?'Deviation Flagged':'Deviation'}</button>`;
+    secBtns += `<button class="floor-sec-btn" onclick="toggleDeviation('${u.id}')" style="${u.deviationNeeded?'border-color:#A03033;color:#f87171;':''}">&#9888; ${u.deviationNeeded?'Deviation Flagged':'Deviation'}</button>`;
     if (!u.readyForInspection && !isInsp && !isRTS) {
       secBtns += `<button class="floor-sec-btn remed" onclick="floorDoAction('${u.id}','sendToRemed')">&#9888; Send to Remed</button>`;
     }
   } else if (isHeld) {
     secBtns += `<button class="floor-sec-btn" onclick="floorDoAction('${u.id}','removeHold')" style="border-color:rgba(74,222,128,.4);color:#4ade80;">&#9654; Remove Hold</button>`;
-    secBtns += `<button class="floor-sec-btn" onclick="toggleDeviation('${u.id}')" style="${u.deviationNeeded?'border-color:#a4262c;color:#f87171;':''}">&#9888; ${u.deviationNeeded?'Deviation Flagged':'Deviation'}</button>`;
+    secBtns += `<button class="floor-sec-btn" onclick="toggleDeviation('${u.id}')" style="${u.deviationNeeded?'border-color:#A03033;color:#f87171;':''}">&#9888; ${u.deviationNeeded?'Deviation Flagged':'Deviation'}</button>`;
     secBtns += `<button class="floor-sec-btn remed" onclick="floorDoAction('${u.id}','sendToRemed')">&#9888; Remed</button>`;
   }
   secBtns += `<button class="floor-sec-btn" onclick="toggleFloorHistory('${sid}')" style="grid-column:${secBtns.split('<button').length <= 2 ? '1/-1' : 'auto'};">&#9719; History (${u.history.length})</button>`;
@@ -6215,7 +6221,7 @@ function adminSaveSupervisorPassword() {
   const input = document.getElementById('sup-pw-admin-input');
   const msg   = document.getElementById('sup-pw-admin-msg');
   const newPw = input.value.trim();
-  if (!newPw) { msg.style.color = '#a4262c'; msg.textContent = 'Enter a new password first.'; return; }
+  if (!newPw) { msg.style.color = '#A03033'; msg.textContent = 'Enter a new password first.'; return; }
   requireSupervisorPassword(() => {
     setSupervisorPassword(newPw);
     input.value = '';
@@ -6247,10 +6253,10 @@ function requireSupervisorPassword(callback) {
       <p style="font-size:12px;color:#4a5568;margin-bottom:16px;">Enter the supervisor password to continue.</p>
       <input id="sup-pw-input" type="password" placeholder="Password"
         style="width:100%;font-size:14px;padding:10px 12px;border:2px solid #e2e6ea;border-radius:8px;margin-bottom:8px;color:#0f1923;" autocomplete="off" />
-      <div id="sup-pw-err" style="color:#c0392b;font-size:12px;min-height:16px;margin-bottom:10px;"></div>
+      <div id="sup-pw-err" style="color:#A03033;font-size:12px;min-height:16px;margin-bottom:10px;"></div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
         <button id="sup-pw-cancel" style="padding:10px;font-size:13px;font-weight:600;background:#f0f2f5;color:#4a5568;border:none;border-radius:8px;cursor:pointer;">Cancel</button>
-        <button id="sup-pw-confirm" style="padding:10px;font-size:13px;font-weight:700;background:#1a6fd4;color:#fff;border:none;border-radius:8px;cursor:pointer;">Confirm</button>
+        <button id="sup-pw-confirm" style="padding:10px;font-size:13px;font-weight:700;background:#006A8E;color:#fff;border:none;border-radius:8px;cursor:pointer;">Confirm</button>
       </div>
     </div>`;
   document.body.appendChild(overlay);
@@ -6314,10 +6320,10 @@ function openDeviationNoteModal(unitId) {
       <h2 style="font-size:16px;font-weight:800;color:#0f1923;margin-bottom:12px;letter-spacing:-.3px;">⚠ Deviation — ${unitId}</h2>
       <label style="font-size:11px;font-weight:700;color:#4a5568;text-transform:uppercase;letter-spacing:.3px;display:block;margin-bottom:5px;">Deviation Note *</label>
       <textarea id="dev-note-input" rows="3" placeholder="Describe the deviation..." style="width:100%;font-size:13px;padding:9px 12px;border:2px solid #e2e6ea;border-radius:8px;margin-bottom:6px;color:#0f1923;"></textarea>
-      <div id="dev-note-err" style="color:#c0392b;font-size:12px;min-height:16px;margin-bottom:10px;"></div>
+      <div id="dev-note-err" style="color:#A03033;font-size:12px;min-height:16px;margin-bottom:10px;"></div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
         <button id="dev-note-cancel" style="padding:10px;font-size:13px;font-weight:600;background:#f0f2f5;color:#4a5568;border:none;border-radius:8px;cursor:pointer;">Cancel</button>
-        <button id="dev-note-confirm" style="padding:10px;font-size:13px;font-weight:700;background:#a4262c;color:#fff;border:none;border-radius:8px;cursor:pointer;">⚠ Flag Deviation</button>
+        <button id="dev-note-confirm" style="padding:10px;font-size:13px;font-weight:700;background:#A03033;color:#fff;border:none;border-radius:8px;cursor:pointer;">⚠ Flag Deviation</button>
       </div>
     </div>`;
   document.body.appendChild(overlay);

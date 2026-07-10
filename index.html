@@ -1901,11 +1901,12 @@ const STATION2_TASKS = [
 function getS2TaskState(u, taskName) {
   if (!u.station2Tasks) u.station2Tasks = {};
   if (!u.station2Tasks[taskName]) {
-    u.station2Tasks[taskName] = { employees: [], refLink: '' };
+    u.station2Tasks[taskName] = { employees: [], refLink: '', notes: '' };
   }
   const t = u.station2Tasks[taskName];
   if (!Array.isArray(t.employees)) t.employees = [];
   if (t.refLink === undefined) t.refLink = '';
+  if (t.notes === undefined) t.notes = '';
   // Backward-compat: give every employee entry a full timer state, whether it's
   // brand new or came from an older version that only stored num/isTrainee.
   t.employees.forEach(e => {
@@ -1915,6 +1916,8 @@ function getS2TaskState(u, taskName) {
     if (e.engineeringHoldSec === undefined) e.engineeringHoldSec = 0;
     if (e.currentSegmentStart === undefined) e.currentSegmentStart = null;
     if (e.isTrainee === undefined) e.isTrainee = false;
+    if (e.materialHoldNote === undefined) e.materialHoldNote = '';
+    if (e.engineeringHoldNote === undefined) e.engineeringHoldNote = '';
   });
   // One-time migration from the old single shared task-level timer, if present
   if (t.status !== undefined) {
@@ -1928,6 +1931,14 @@ function getS2TaskState(u, taskName) {
     delete t.status; delete t.activeSec; delete t.materialHoldSec; delete t.engineeringHoldSec; delete t.currentSegmentStart;
   }
   return t;
+}
+function s2SetNotes(unitId, taskName, sid) {
+  const input = document.getElementById('s2-notes-input-'+sid);
+  if (!input) return;
+  const u = ensureBoardTracked(unitId);
+  const t = getS2TaskState(u, taskName);
+  t.notes = input.value;
+  pushBoard();
 }
 function s2SetLink(unitId, taskName, sid) {
   const input = document.getElementById('s2-link-input-'+sid);
@@ -2010,7 +2021,7 @@ function s2FormatHM(totalSeconds) {
 }
 
 /* Now scoped to ONE employee's timer within a task, not the whole task. */
-function s2TaskAction(unitId, taskName, empIdx, action) {
+function s2TaskAction(unitId, taskName, empIdx, action, note) {
   const u = ensureBoardTracked(unitId);
   const t = getS2TaskState(u, taskName);
   const emp = t.employees[empIdx];
@@ -2019,13 +2030,48 @@ function s2TaskAction(unitId, taskName, empIdx, action) {
 
   if (action === 'start')                { emp.status = 'running'; emp.currentSegmentStart = Date.now(); }
   else if (action === 'pause')           { emp.status = 'paused'; }
-  else if (action === 'holdMaterial')    { emp.status = 'holdMaterial'; emp.currentSegmentStart = Date.now(); }
-  else if (action === 'holdEngineering') { emp.status = 'holdEngineering'; emp.currentSegmentStart = Date.now(); }
+  else if (action === 'holdMaterial')    { emp.status = 'holdMaterial'; emp.currentSegmentStart = Date.now(); emp.materialHoldNote = note || ''; }
+  else if (action === 'holdEngineering') { emp.status = 'holdEngineering'; emp.currentSegmentStart = Date.now(); emp.engineeringHoldNote = note || ''; }
   else if (action === 'finish')          { emp.status = 'finished'; }
   else if (action === 'reopen')          { emp.status = 'idle'; } // undo a mistaken Finish
 
   pushBoard();
   renderStation2Tracker();
+}
+
+/* Hold: Material / Hold: Engineering require a reason before they'll go through. */
+function s2OpenHoldNoteModal(unitId, taskName, empIdx, holdType) {
+  const existing = document.getElementById('s2-hold-note-overlay');
+  if (existing) existing.remove();
+
+  const label = holdType === 'holdMaterial' ? 'Material' : 'Engineering';
+  const overlay = document.createElement('div');
+  overlay.id = 's2-hold-note-overlay';
+  overlay.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.55);z-index:9999;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(2px);';
+  overlay.innerHTML = `
+    <div style="background:#fff;border-radius:16px;padding:28px 32px;max-width:400px;width:94%;box-shadow:0 24px 64px rgba(0,0,0,.28);">
+      <h2 style="font-size:16px;font-weight:800;color:#0f1923;margin-bottom:10px;letter-spacing:-.3px;">Hold for ${label} — Reason</h2>
+      <textarea id="s2-hold-note-input" rows="3" placeholder="What's this hold waiting on?" style="width:100%;font-size:15px;padding:12px;border:2px solid #e2e6ea;border-radius:8px;margin-bottom:6px;min-height:80px;"></textarea>
+      <div id="s2-hold-note-err" style="color:#c0392b;font-size:12px;min-height:16px;margin-bottom:10px;"></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+        <button id="s2-hold-note-cancel" style="padding:14px;font-size:15px;font-weight:700;background:#f0f2f5;color:#4a5568;border:none;border-radius:10px;cursor:pointer;min-height:48px;">Cancel</button>
+        <button id="s2-hold-note-confirm" style="padding:14px;font-size:15px;font-weight:700;background:${holdType==='holdMaterial'?'#4b3a9e':'#006A8E'};color:#fff;border:none;border-radius:10px;cursor:pointer;min-height:48px;">Confirm Hold</button>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+
+  const textarea = overlay.querySelector('#s2-hold-note-input');
+  setTimeout(() => textarea.focus(), 50);
+
+  overlay.querySelector('#s2-hold-note-confirm').addEventListener('click', () => {
+    const note = textarea.value.trim();
+    const errEl = overlay.querySelector('#s2-hold-note-err');
+    if (!note) { errEl.textContent = 'A reason is required.'; return; }
+    s2TaskAction(unitId, taskName, empIdx, holdType, note);
+    overlay.remove();
+  });
+  overlay.querySelector('#s2-hold-note-cancel').addEventListener('click', () => overlay.remove());
+  overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
 }
 
 let s2TickTimer = null;
@@ -2101,8 +2147,8 @@ function renderStation2Tracker() {
         } else if (e.status === 'running') {
           buttons = `
             <button style="${btnBase}background:#fff;border:2px solid #b45309;color:#b45309;" onclick="s2TaskAction('${u.id}','${taskName}',${idx},'pause')">&#9208; Pause</button>
-            <button style="${btnBase}background:#fff;border:2px solid #4b3a9e;color:#4b3a9e;" onclick="s2TaskAction('${u.id}','${taskName}',${idx},'holdMaterial')">&#128230; Hold: Material</button>
-            <button style="${btnBase}background:#fff;border:2px solid #006A8E;color:#006A8E;" onclick="s2TaskAction('${u.id}','${taskName}',${idx},'holdEngineering')">&#128203; Hold: Engineering</button>
+            <button style="${btnBase}background:#fff;border:2px solid #4b3a9e;color:#4b3a9e;" onclick="s2OpenHoldNoteModal('${u.id}','${taskName}',${idx},'holdMaterial')">&#128230; Hold: Material</button>
+            <button style="${btnBase}background:#fff;border:2px solid #006A8E;color:#006A8E;" onclick="s2OpenHoldNoteModal('${u.id}','${taskName}',${idx},'holdEngineering')">&#128203; Hold: Engineering</button>
             <button class="success" style="${btnBase}" onclick="s2TaskAction('${u.id}','${taskName}',${idx},'finish')">&#10003; Finished</button>`;
         } else if (e.status === 'paused') {
           buttons = `
@@ -2134,6 +2180,8 @@ function renderStation2Tracker() {
             <span style="color:var(--text-2,#605e5c);">Engineering Hold: <strong id="s2-eng-${esid}" style="color:#006A8E;">${s2FormatHM(engSec)}</strong></span>
             <span style="color:var(--text-1,#323130);">Earned: <strong id="s2-earned-${esid}">${s2FormatHM(earnedSec)}</strong></span>
           </div>
+          ${e.status==='holdMaterial' && e.materialHoldNote ? `<div style="font-size:12px;color:#4b3a9e;background:#f0eeff;border-radius:6px;padding:6px 10px;margin-bottom:10px;"><strong>Material hold reason:</strong> ${e.materialHoldNote}</div>` : ''}
+          ${e.status==='holdEngineering' && e.engineeringHoldNote ? `<div style="font-size:12px;color:#006A8E;background:#E6F0F3;border-radius:6px;padding:6px 10px;margin-bottom:10px;"><strong>Engineering hold reason:</strong> ${e.engineeringHoldNote}</div>` : ''}
           <div style="display:flex;gap:8px;flex-wrap:wrap;">${buttons}</div>
         </div>`;
       }).join('');
@@ -2153,6 +2201,11 @@ function renderStation2Tracker() {
               style="flex:1;max-width:320px;font-size:14px;padding:10px;min-height:44px;" />
             <button class="primary" style="font-size:13px;padding:10px 16px;min-height:44px;border-radius:8px;" onclick="s2SetLink('${u.id}','${taskName}','${tsid}')">&#128279; Save Link</button>
           </div>
+        </div>
+        <div style="margin-bottom:12px;">
+          <div style="font-size:11px;font-weight:700;color:var(--text-2,#605e5c);text-transform:uppercase;letter-spacing:.3px;margin-bottom:6px;">Job notes</div>
+          <textarea id="s2-notes-input-${tsid}" placeholder="Any notes about this job..." onchange="s2SetNotes('${u.id}','${taskName}','${tsid}')"
+            style="width:100%;font-size:14px;padding:10px;min-height:44px;">${t.notes||''}</textarea>
         </div>
         <div style="margin-bottom:10px;">
           <div style="font-size:11px;font-weight:700;color:var(--text-2,#605e5c);text-transform:uppercase;letter-spacing:.3px;margin-bottom:8px;">Workers on this job — each has their own timer</div>
@@ -3119,7 +3172,7 @@ function getAllBoardUnits() {
         if (deleted.includes(uid)) return; // tombstoned — don't resurrect from the static seed
         if (!merged.find(u=>u.id===uid)) {
           const tracked=boardUnits.find(u=>u.id===uid);
-          merged.push(tracked||{id:uid,line:line.id,col:col.label,held:false,completed:false,notes:'',esoNumber:'',gensetSerial:'',history:[]});
+          merged.push(tracked||{id:uid,line:line.id,col:col.label,held:false,completed:false,notes:'',esoNumber:'',gensetSerial:'',readyForInspection:false,inspectionStarted:false,supervisorReleased:false,supervisorReleaseTs:'',deviationNeeded:false,deviationNote:'',deviationTs:'',checklist:{},qcChecklist:{},failOverrides:[],station2Tasks:{},history:[]});
         }
       });
     });
@@ -6290,8 +6343,10 @@ function init() {
   initOperatorSelect();
   // Bookmark this device's browser to .../?tv=1 to boot straight into TV Mode —
   // Admin's password gate doesn't apply since this never routes through showPage('admin').
-  const wantsTV = new URLSearchParams(window.location.search).get('tv') === '1';
-  showPage(wantsTV ? 'tv' : 'dashboard');
+  // .../?dashboard=1 still opens the old landing page if someone specifically wants it.
+  const params = new URLSearchParams(window.location.search);
+  const landingPage = params.get('tv') === '1' ? 'tv' : params.get('dashboard') === '1' ? 'dashboard' : 'station2';
+  showPage(landingPage);
   renderAll();
   const hintEl = document.getElementById('board-export-cols-hint');
   if (hintEl) hintEl.textContent = `Unit ID · Line · Station · Status · ${CONFIG.fieldLabels.field1} · ${CONFIG.fieldLabels.field2} · On Hold · Completed · Ready for Insp · Inspection Started · Last Action · Last Operator · Last Updated · History Count · Load Date · Ship Date`;

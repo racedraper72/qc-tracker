@@ -1107,68 +1107,6 @@ label { font-size: 11px; font-weight: 600; color: var(--text-2); display: block;
       <button id="fti-tab-table"    onclick="switchFTITab('table')"    style="border:none;border-bottom:3px solid transparent;border-radius:0;background:transparent;color:#605e5c;font-weight:500;padding:9px 18px;font-size:13px;cursor:pointer;white-space:nowrap;">&#9776; Table</button>
     </div>
 
-    <!-- GANTT VIEW (retired — Calendar now shows all projects together) -->
-    <div id="fti-view-gantt" style="display:none;padding:16px;">
-      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:12px;">
-        <!-- Zoom buttons -->
-        <div style="display:flex;gap:2px;background:#f0eeff;border-radius:4px;padding:3px;">
-          <button id="gz-week"  onclick="setGanttZoom('week')"  style="border:none;border-radius:3px;padding:5px 14px;font-size:12px;font-weight:600;background:#4b3a9e;color:#fff;cursor:pointer;">Week</button>
-          <button id="gz-month" onclick="setGanttZoom('month')" style="border:none;border-radius:3px;padding:5px 14px;font-size:12px;font-weight:500;background:transparent;color:#4b3a9e;cursor:pointer;">Month</button>
-          <button id="gz-year"  onclick="setGanttZoom('year')"  style="border:none;border-radius:3px;padding:5px 14px;font-size:12px;font-weight:500;background:transparent;color:#4b3a9e;cursor:pointer;">Year</button>
-          <button id="gz-all"   onclick="setGanttZoom('all')"   style="border:none;border-radius:3px;padding:5px 14px;font-size:12px;font-weight:500;background:transparent;color:#4b3a9e;cursor:pointer;">All</button>
-        </div>
-        <!-- Nav arrows + period label -->
-        <div style="display:flex;gap:6px;align-items:center;">
-          <button onclick="ganttNav(-1)" style="padding:4px 10px;font-size:14px;">&#8592;</button>
-          <span id="gantt-period-label" style="font-size:12px;font-weight:600;color:#323130;min-width:150px;text-align:center;"></span>
-          <button onclick="ganttNav(1)"  style="padding:4px 10px;font-size:14px;">&#8594;</button>
-          <button onclick="ganttNav(0)"  class="sm">Today</button>
-        </div>
-        <!-- Legend -->
-        <div style="display:flex;gap:10px;font-size:11px;flex-wrap:wrap;">
-          <span><span style="display:inline-block;width:10px;height:10px;background:#4b3a9e;border-radius:2px;margin-right:3px;vertical-align:middle;"></span>RTS→Load</span>
-          <span><span style="display:inline-block;width:10px;height:10px;background:#107c10;border-radius:2px;margin-right:3px;vertical-align:middle;"></span>Load→Ship</span>
-          <span><span style="display:inline-block;width:10px;height:10px;background:#A03033;border-radius:2px;margin-right:3px;vertical-align:middle;"></span>Overdue</span>
-          <span style="color:#0078d4;font-weight:700;">| Today</span>
-        </div>
-      </div>
-      <div id="gantt-container" style="overflow-x:auto;overflow-y:visible;"></div>
-    </div>
-
-    <!-- ALL PROJECTS GANTT VIEW (retired — Calendar now shows all projects together) -->
-    <div id="fti-view-allgantt" style="display:none;padding:16px;">
-      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:14px;">
-        <div>
-          <div style="font-size:13px;font-weight:700;color:var(--text-1);">All Projects — Overlaid Timeline</div>
-          <div style="font-size:11px;color:var(--text-2);margin-top:3px;">Each row = one project. Bars span EXC RTS → Load Date → Ship Date. Fetches all tabs simultaneously.</div>
-        </div>
-        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
-          <div style="display:flex;gap:2px;background:#f0eeff;border-radius:4px;padding:3px;">
-            <button id="agz-month" onclick="setAllGanttZoom('month')" style="border:none;border-radius:3px;padding:5px 12px;font-size:12px;font-weight:600;background:#4b3a9e;color:#fff;cursor:pointer;">Month</button>
-            <button id="agz-year"  onclick="setAllGanttZoom('year')"  style="border:none;border-radius:3px;padding:5px 12px;font-size:12px;font-weight:500;background:transparent;color:#4b3a9e;cursor:pointer;">Year</button>
-            <button id="agz-all"   onclick="setAllGanttZoom('all')"   style="border:none;border-radius:3px;padding:5px 12px;font-size:12px;font-weight:500;background:transparent;color:#4b3a9e;cursor:pointer;">All</button>
-          </div>
-          <div style="display:flex;gap:4px;align-items:center;">
-            <button onclick="allGanttNav(-1)" style="padding:4px 10px;font-size:13px;">&#8592;</button>
-            <span id="all-gantt-period" style="font-size:12px;font-weight:600;min-width:130px;text-align:center;"></span>
-            <button onclick="allGanttNav(1)"  style="padding:4px 10px;font-size:13px;">&#8594;</button>
-            <button onclick="allGanttNav(0)"  class="sm">Today</button>
-          </div>
-          <label style="font-size:11px;font-weight:600;color:var(--text-2);display:flex;align-items:center;gap:5px;text-transform:none;letter-spacing:0;">
-            <input type="checkbox" id="ag-show-ships" onchange="renderAllGantt()" checked style="width:auto;margin:0;" />
-            Show ship dates
-          </label>
-          <button class="sm" onclick="fetchAllProjects()" style="border-color:#4b3a9e;color:#4b3a9e;">&#8635; Load All</button>
-        </div>
-      </div>
-      <!-- Legend built dynamically -->
-      <div id="all-gantt-legend" style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px;font-size:11px;"></div>
-      <!-- Status -->
-      <div id="all-gantt-status" style="font-size:11px;color:var(--text-2);margin-bottom:8px;"></div>
-      <!-- Chart -->
-      <div id="all-gantt-container" style="overflow-x:auto;"></div>
-    </div>
-
     <!-- CALENDAR VIEW -->
     <div id="fti-view-calendar" style="padding:16px;">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px;">
@@ -1964,18 +1902,63 @@ function getS2TaskState(u, taskName) {
   if (!u.station2Tasks) u.station2Tasks = {};
   if (!u.station2Tasks[taskName]) {
     u.station2Tasks[taskName] = {
-      status: 'idle', employeeNum: '', isTrainee: false,
+      status: 'idle', employees: [], refLink: '', // [{ num:'123', isTrainee:false }, ...]
       activeSec: 0, materialHoldSec: 0, engineeringHoldSec: 0,
       currentSegmentStart: null,
     };
   }
-  if (u.station2Tasks[taskName].isTrainee === undefined) u.station2Tasks[taskName].isTrainee = false; // backward-compat for tasks already synced
-  return u.station2Tasks[taskName];
+  const t = u.station2Tasks[taskName];
+  // Backward-compat: migrate old single employeeNum/isTrainee tasks already synced
+  if (!Array.isArray(t.employees)) {
+    t.employees = t.employeeNum ? [{ num: t.employeeNum, isTrainee: !!t.isTrainee }] : [];
+    delete t.employeeNum; delete t.isTrainee;
+  }
+  if (t.refLink === undefined) t.refLink = '';
+  return t;
 }
-function s2ToggleTrainee(unitId, taskName) {
+function s2SetLink(unitId, taskName, sid) {
+  const input = document.getElementById('s2-link-input-'+sid);
+  if (!input) return;
   const u = ensureBoardTracked(unitId);
   const t = getS2TaskState(u, taskName);
-  t.isTrainee = !t.isTrainee;
+  t.refLink = input.value.trim();
+  pushBoard();
+  renderStation2Tracker();
+}
+function s2ToggleLinkInput(sid) {
+  const display = document.getElementById('s2-link-display-'+sid);
+  const input = document.getElementById('s2-link-edit-'+sid);
+  if (!display || !input) return;
+  const showing = input.style.display !== 'none';
+  display.style.display = showing ? 'flex' : 'none';
+  input.style.display = showing ? 'none' : 'flex';
+  if (!showing) setTimeout(() => document.getElementById('s2-link-input-'+sid)?.focus(), 50);
+}
+function s2AddEmployee(unitId, taskName, sid) {
+  const input = document.getElementById('s2-emp-input-'+sid);
+  if (!input) return;
+  const num = input.value.trim();
+  if (!num) return;
+  const u = ensureBoardTracked(unitId);
+  const t = getS2TaskState(u, taskName);
+  if (t.employees.some(e => e.num === num)) { input.value = ''; return; } // no duplicates
+  t.employees.push({ num, isTrainee: false });
+  input.value = '';
+  pushBoard();
+  renderStation2Tracker();
+}
+function s2RemoveEmployee(unitId, taskName, idx) {
+  const u = ensureBoardTracked(unitId);
+  const t = getS2TaskState(u, taskName);
+  t.employees.splice(idx, 1);
+  pushBoard();
+  renderStation2Tracker();
+}
+function s2ToggleTrainee(unitId, taskName, idx) {
+  const u = ensureBoardTracked(unitId);
+  const t = getS2TaskState(u, taskName);
+  if (!t.employees[idx]) return;
+  t.employees[idx].isTrainee = !t.employees[idx].isTrainee;
   pushBoard();
   renderStation2Tracker();
 }
@@ -2023,12 +2006,6 @@ function s2TaskAction(unitId, taskName, action) {
 
   pushBoard();
   renderStation2Tracker();
-}
-function s2SetEmployee(unitId, taskName, val) {
-  const u = ensureBoardTracked(unitId);
-  const t = getS2TaskState(u, taskName);
-  t.employeeNum = val;
-  pushBoard();
 }
 
 let s2TickTimer = null;
@@ -2083,23 +2060,44 @@ function renderStation2Tracker() {
         buttons = `<button class="subtle" style="${btnBase}" onclick="s2TaskAction('${u.id}','${taskName}','reopen')">&#8635; Reopen</button>`;
       }
 
+      const empChips = t.employees.map((e, idx) => `
+        <div style="display:flex;align-items:center;gap:8px;background:${e.isTrainee?'#fff4ce':'#f0f2f5'};border:2px solid ${e.isTrainee?'#c17f00':'#c8d0dc'};border-radius:20px;padding:6px 8px 6px 14px;">
+          <span style="font-size:15px;font-weight:700;color:var(--text-1,#323130);">${e.num}</span>
+          <button onclick="s2ToggleTrainee('${u.id}','${taskName}',${idx})" title="${e.isTrainee?'Trainee — tap to unmark':'Mark as trainee'}"
+            style="display:flex;align-items:center;gap:4px;min-height:36px;padding:0 10px;font-size:13px;font-weight:700;border-radius:8px;cursor:pointer;background:${e.isTrainee?'#c17f00':'#fff'};border:2px solid ${e.isTrainee?'#c17f00':'#c8d0dc'};color:${e.isTrainee?'#fff':'#605e5c'};">
+            &#127891; ${e.isTrainee?'Trainee':'Mark trainee'}
+          </button>
+          <button onclick="s2RemoveEmployee('${u.id}','${taskName}',${idx})" title="Remove"
+            style="min-width:36px;min-height:36px;font-size:16px;border-radius:8px;cursor:pointer;background:transparent;border:none;color:#a03033;padding:0;">&#10005;</button>
+        </div>`).join('');
+
       return `<div style="border:1px solid var(--border,#edebe9);border-left:6px solid ${S2_STATUS_COLOR[t.status]};border-radius:10px;padding:16px 18px;margin-bottom:12px;">
         <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:12px;margin-bottom:12px;">
           <div style="flex:1;min-width:220px;">
             <div style="font-size:16px;font-weight:700;color:var(--text-1,#323130);margin-bottom:4px;">${taskName}</div>
             <span style="font-size:12px;font-weight:700;padding:3px 10px;border-radius:20px;background:${S2_STATUS_COLOR[t.status]}22;color:${S2_STATUS_COLOR[t.status]};">${S2_STATUS_LABEL[t.status]}</span>
           </div>
-          <div style="display:flex;gap:8px;align-items:center;">
-            <input type="text" placeholder="Employee #" value="${t.employeeNum||''}" onchange="s2SetEmployee('${u.id}','${taskName}',this.value)"
-              style="width:130px;font-size:16px;padding:12px 10px;min-height:48px;" />
-            <button onclick="s2ToggleTrainee('${u.id}','${taskName}')"
-              title="${t.isTrainee?'Trainee — tap to unmark':'Mark as trainee'}"
-              style="min-width:48px;min-height:48px;font-size:22px;border-radius:10px;cursor:pointer;background:${t.isTrainee?'#fff4ce':'#fff'};border:2px solid ${t.isTrainee?'#c17f00':'#c8d0dc'};">
-              &#127891;
-            </button>
+        </div>
+        <div style="margin-bottom:12px;">
+          <div id="s2-link-display-${sid}" style="display:${t.refLink?'flex':'none'};align-items:center;gap:8px;">
+            <a href="${t.refLink}" target="_blank" rel="noopener" style="font-size:14px;color:#006A8E;text-decoration:none;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:320px;" onmouseover="this.style.textDecoration='underline'" onmouseout="this.style.textDecoration='none'" title="${t.refLink}">&#128279; ${(t.refLink||'').replace(/^https?:\/\//,'')}</a>
+            <button onclick="s2ToggleLinkInput('${sid}')" style="font-size:12px;padding:6px 12px;min-height:36px;border-radius:8px;border:1px solid #c8d0dc;background:#fff;cursor:pointer;color:var(--text-2,#605e5c);">Edit</button>
+          </div>
+          <div id="s2-link-edit-${sid}" style="display:${t.refLink?'none':'flex'};gap:8px;">
+            <input id="s2-link-input-${sid}" type="url" placeholder="Paste ABI / reference link..." value="${t.refLink||''}" onkeydown="if(event.key==='Enter')s2SetLink('${u.id}','${taskName}','${sid}')"
+              style="flex:1;max-width:320px;font-size:14px;padding:10px;min-height:44px;" />
+            <button class="primary" style="font-size:13px;padding:10px 16px;min-height:44px;border-radius:8px;" onclick="s2SetLink('${u.id}','${taskName}','${sid}')">&#128279; Save Link</button>
           </div>
         </div>
-        ${t.isTrainee ? `<div style="font-size:12px;font-weight:700;color:#c17f00;background:#fff4ce;border-radius:6px;padding:4px 10px;display:inline-block;margin-bottom:10px;">&#127891; Trainee</div>` : ''}
+        <div style="margin-bottom:12px;">
+          <div style="font-size:11px;font-weight:700;color:var(--text-2,#605e5c);text-transform:uppercase;letter-spacing:.3px;margin-bottom:6px;">Workers on this job</div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:8px;">${empChips || '<span style="font-size:13px;color:var(--text-3,#8a96a8);font-style:italic;">No one added yet</span>'}</div>
+          <div style="display:flex;gap:8px;">
+            <input id="s2-emp-input-${sid}" type="text" placeholder="Employee #" onkeydown="if(event.key==='Enter')s2AddEmployee('${u.id}','${taskName}','${sid}')"
+              style="flex:1;max-width:200px;font-size:16px;padding:12px 10px;min-height:48px;" />
+            <button class="primary" style="font-size:15px;font-weight:700;padding:12px 20px;min-height:48px;border-radius:10px;" onclick="s2AddEmployee('${u.id}','${taskName}','${sid}')">+ Add</button>
+          </div>
+        </div>
         <div style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:12px;font-size:13px;">
           <span style="color:var(--text-2,#605e5c);">Active: <strong style="color:#0e7c3a;">${s2FormatHM(activeSec)}</strong></span>
           <span style="color:var(--text-2,#605e5c);">Material Hold: <strong style="color:#4b3a9e;">${s2FormatHM(matSec)}</strong></span>
@@ -4057,14 +4055,21 @@ function renderPMLineProgress() {
 
 let pmTimeSelectedProject = 'all';
 let pmTimeSelectedUnit = 'all';
+let pmTimeSelectedStation = 'all';
 
 function pmTimeProjectChanged(val) {
   pmTimeSelectedProject = val;
   pmTimeSelectedUnit = 'all'; // reset unit choice when project changes
+  pmTimeSelectedStation = 'all';
   renderPMTimeChart();
 }
 function pmTimeUnitChanged(val) {
   pmTimeSelectedUnit = val;
+  pmTimeSelectedStation = 'all'; // reset station choice when unit changes
+  renderPMTimeChart();
+}
+function pmTimeStationChanged(val) {
+  pmTimeSelectedStation = val;
   renderPMTimeChart();
 }
 
@@ -4088,16 +4093,53 @@ function renderPMTimeChart() {
   const projects = [...new Set(allRows.map(r=>r.pt))].sort();
   if (pmTimeSelectedProject !== 'all' && !projects.includes(pmTimeSelectedProject)) pmTimeSelectedProject = 'all';
 
+  // ---- LEVEL 4: Station 2 selected on a unit that has job-level data ----
+  if (pmTimeSelectedProject !== 'all' && pmTimeSelectedUnit !== 'all' && pmTimeSelectedStation === 'Station 2') {
+    const u = getAllBoardUnits().find(x => x.id === pmTimeSelectedUnit);
+    const r = allRows.find(x=>x.id===pmTimeSelectedUnit && x.pt===pmTimeSelectedProject);
+    if (u && r) {
+      const jobRows = STATION2_TASKS.map(taskName => {
+        const t = getS2TaskState(u, taskName);
+        const hrs = (s2LiveSeconds(t,'active') + s2LiveSeconds(t,'materialHold') + s2LiveSeconds(t,'engineeringHold')) / 3600;
+        return { taskName, hrs, employees: t.employees.map(e=>e.num).join(', ') || '—' };
+      }).filter(j => j.hrs > 0);
+      if (jobRows.length) {
+        const maxJ = Math.max(...jobRows.map(j=>j.hrs), 0.01);
+        const jobBars = jobRows.map(j => {
+          const w = Math.round((j.hrs/maxJ)*100);
+          return `<div class="chart-row">
+            <div class="chart-bar-label" title="${j.taskName}">${j.taskName}</div>
+            <div class="chart-bar-track">
+              <div class="chart-bar-fill" style="width:${w}%;background:${r.cs.border};">
+                <span class="chart-bar-num">${formatDuration(j.hrs)} &middot; ${j.employees}</span>
+              </div>
+            </div>
+          </div>`;
+        }).join('');
+        el.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:14px;">
+            <div class="chart-title" style="margin:0;">Time in Process <span class="chart-subtitle">${r.id} &middot; Station 2 jobs</span></div>
+            ${exportBtn}
+          </div>
+          <button class="subtle sm" onclick="pmTimeStationChanged('all')" style="font-size:11px;margin-bottom:12px;">&larr; ${r.id} stations</button>
+          ${jobBars}`;
+        return;
+      }
+    }
+    pmTimeSelectedStation = 'all'; // fall through if no job data after all
+  }
+
   // ---- LEVEL 3: a unit is selected — station breakdown ----
   if (pmTimeSelectedProject !== 'all' && pmTimeSelectedUnit !== 'all') {
     const r = allRows.find(x=>x.id===pmTimeSelectedUnit && x.pt===pmTimeSelectedProject);
     if (!r) { pmTimeSelectedUnit = 'all'; renderPMTimeChart(); return; }
+    const u = getAllBoardUnits().find(x => x.id === pmTimeSelectedUnit);
     const stationRows = r.durations.filter(d => d.hours > 0);
     const maxS = Math.max(...stationRows.map(d=>d.hours), 1);
     const bars = stationRows.map(d => {
       const w = Math.round((d.hours/maxS)*100);
+      const hasJobs = d.station === 'Station 2' && u && Object.keys(u.station2Tasks||{}).length > 0;
       return `<div class="chart-row">
-        <div class="chart-bar-label" title="${d.station}">${d.station}</div>
+        <div class="chart-bar-label" title="${d.station}" style="${hasJobs?'cursor:pointer;color:#006A8E;text-decoration:underline;':''}" ${hasJobs?`onclick="pmTimeStationChanged('Station 2')"`:''}>${d.station}${hasJobs?' &rarr;':''}</div>
         <div class="chart-bar-track">
           <div class="chart-bar-fill" style="width:${w}%;background:${r.cs.border};${d.inProgress?'opacity:.6;':''}">
             <span class="chart-bar-num">${formatDuration(d.hours)}${d.inProgress?' (current)':''}</span>
@@ -4157,7 +4199,17 @@ function renderPMTimeChart() {
 
 function exportPMTimeChartCsv() {
   let header, rowsOut, filename;
-  if (pmTimeSelectedUnit !== 'all') {
+  if (pmTimeSelectedUnit !== 'all' && pmTimeSelectedStation === 'Station 2') {
+    const u = getAllBoardUnits().find(x=>x.id===pmTimeSelectedUnit);
+    if (!u) return;
+    header = ['Unit','Job','Employees','Hours','Duration'];
+    rowsOut = STATION2_TASKS.map(taskName => {
+      const t = getS2TaskState(u, taskName);
+      const hrs = (s2LiveSeconds(t,'active') + s2LiveSeconds(t,'materialHold') + s2LiveSeconds(t,'engineeringHold')) / 3600;
+      return { taskName, hrs, employees: t.employees.map(e=>e.num).join('; ') || '' };
+    }).filter(j => j.hrs > 0).map(j => [pmTimeSelectedUnit, j.taskName, j.employees, j.hrs.toFixed(2), formatDuration(j.hrs)]);
+    filename = 'time_in_process_'+pmTimeSelectedUnit+'_station2_jobs_'+new Date().toISOString().slice(0,10)+'.csv';
+  } else if (pmTimeSelectedUnit !== 'all') {
     const u = getAllBoardUnits().find(x=>x.id===pmTimeSelectedUnit);
     if (!u) return;
     const durations = getStationDurations(u).filter(d=>d.hours>0);
@@ -5059,215 +5111,12 @@ function switchSheetTab(idx) {
 }
 
 /* ============================================================
-   GANTT — zoom state
+   CALENDAR — view state
    ============================================================ */
-let ganttZoom   = 'year';   // 'week' | 'month' | 'year' | 'all'
-let ganttOffset = 0;        // number of periods offset from today
-
-function setGanttZoom(z) {
-  ganttZoom = z; ganttOffset = 0;
-  updateGanttZoomBtns();
-  renderGantt();
-}
-function ganttNav(dir) {
-  if (dir === 0) { ganttOffset = 0; }
-  else { ganttOffset += dir; }
-  renderGantt();
-}
-function updateGanttZoomBtns() {
-  ['week','month','year','all'].forEach(z => {
-    const btn = document.getElementById('gz-'+z); if (!btn) return;
-    const on = z === ganttZoom;
-    btn.style.background  = on ? '#4b3a9e' : 'transparent';
-    btn.style.color       = on ? '#fff'    : '#4b3a9e';
-    btn.style.fontWeight  = on ? '600'     : '500';
-  });
-}
-
-function renderGantt() {
-  const el = document.getElementById('gantt-container'); if (!el) return;
-  if (!FTI_SHIP_DATA.length) {
-    el.innerHTML = '<p style="padding:20px;color:#605e5c;font-size:13px;">⟳ Loading from Google Sheet…</p>';
-    return;
-  }
-  updateGanttZoomBtns();
-
-  const today = new Date(); today.setHours(0,0,0,0);
-  let minDate, maxDate, periodLabel, tickUnit;
-
-  if (ganttZoom === 'week') {
-    // Anchor to start of current week (Mon)
-    const dow = today.getDay(); // 0=Sun
-    const weekStart = new Date(today);
-    weekStart.setDate(today.getDate() - ((dow+6)%7)); // Mon
-    weekStart.setDate(weekStart.getDate() + ganttOffset * 7);
-    const weekEnd = new Date(weekStart); weekEnd.setDate(weekStart.getDate()+6);
-    minDate = new Date(weekStart); minDate.setDate(minDate.getDate()-1);
-    maxDate = new Date(weekEnd);   maxDate.setDate(maxDate.getDate()+1);
-    periodLabel = `Week of ${weekStart.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})}`;
-    tickUnit = 'day';
-  } else if (ganttZoom === 'month') {
-    const base = new Date(today.getFullYear(), today.getMonth() + ganttOffset, 1);
-    minDate = new Date(base.getFullYear(), base.getMonth(), 1);
-    maxDate = new Date(base.getFullYear(), base.getMonth()+1, 0);
-    periodLabel = base.toLocaleDateString('en-US',{month:'long',year:'numeric'});
-    tickUnit = 'week';
-  } else if (ganttZoom === 'year') {
-    const yr = today.getFullYear() + ganttOffset;
-    minDate = new Date(yr, 0, 1);
-    maxDate = new Date(yr, 11, 31);
-    periodLabel = String(yr);
-    tickUnit = 'month';
-  } else { // all
-    minDate = new Date(today); maxDate = new Date(today);
-    FTI_SHIP_DATA.forEach(r => {
-      ['excRts','loadDate','shipLooseDate'].forEach(k => {
-        if (!r[k]) return;
-        const d = new Date(r[k]); if (isNaN(d)) return;
-        if (d < minDate) minDate = new Date(d);
-        if (d > maxDate) maxDate = new Date(d);
-      });
-    });
-    minDate.setDate(minDate.getDate()-14);
-    maxDate.setDate(maxDate.getDate()+14);
-    periodLabel = 'All dates';
-    tickUnit = 'month';
-  }
-
-  const lbl = document.getElementById('gantt-period-label');
-  if (lbl) lbl.textContent = periodLabel;
-
-  const totalDays = Math.max(1, Math.round((maxDate - minDate)/(1000*60*60*24)));
-  const labelW    = 120;
-  const availW    = Math.max(400, (window.innerWidth||1200) - labelW - 80);
-  const dayPx     = Math.max(1.5, Math.floor(availW / totalDays));
-  const chartW    = totalDays * dayPx;
-  const rowH      = 30;
-  const headerH   = 40;
-
-  // Build timeline ticks
-  const ticks = [];
-  if (tickUnit === 'day') {
-    let d = new Date(minDate);
-    while (d <= maxDate) {
-      const off = Math.round((d - minDate)/(1000*60*60*24));
-      ticks.push({ label: d.toLocaleDateString('en-US',{weekday:'short',month:'numeric',day:'numeric'}), left: off*dayPx, major: true });
-      d.setDate(d.getDate()+1);
-    }
-  } else if (tickUnit === 'week') {
-    // Mon of each week
-    let d = new Date(minDate);
-    const dow = d.getDay(); d.setDate(d.getDate() - ((dow+6)%7));
-    while (d <= maxDate) {
-      const off = Math.round((d - minDate)/(1000*60*60*24));
-      if (off >= 0) ticks.push({ label: 'W/'+d.toLocaleDateString('en-US',{month:'numeric',day:'numeric'}), left: off*dayPx, major: true });
-      d.setDate(d.getDate()+7);
-    }
-  } else { // month
-    let d = new Date(minDate.getFullYear(), minDate.getMonth(), 1);
-    while (d <= maxDate) {
-      const off = Math.round((d - minDate)/(1000*60*60*24));
-      ticks.push({ label: d.toLocaleDateString('en-US',{month:'short',year:'2-digit'}), left: Math.max(0,off*dayPx), major: true });
-      d = new Date(d.getFullYear(), d.getMonth()+1, 1);
-    }
-  }
-
-  const todayOff = Math.round((today - minDate)/(1000*60*60*24)) * dayPx;
-
-  // Build rows — only show units that have any date in range
-  const visibleRows = FTI_SHIP_DATA.filter(r => {
-    const dates = [r.excRts, r.loadDate, r.shipLooseDate].filter(Boolean).map(d=>new Date(d)).filter(d=>!isNaN(d));
-    return dates.some(d => d >= minDate && d <= maxDate);
-  });
-
-  if (!visibleRows.length) {
-    el.innerHTML = `<div style="padding:30px;text-align:center;color:#605e5c;font-size:13px;">No units have dates in this period.<br><span style="font-size:11px;">Try navigating or switching to a wider zoom level.</span></div>`;
-    return;
-  }
-
-  const rows = visibleRows.map((r, idx) => {
-    const excRts   = r.excRts        ? new Date(r.excRts)        : null;
-    const loadDate = r.loadDate      ? new Date(r.loadDate)      : null;
-    const shipDate = r.shipLooseDate ? new Date(r.shipLooseDate) : null;
-    const isOverdue = loadDate && loadDate < today;
-    const isSoon    = loadDate && !isOverdue && daysUntil(r.loadDate) <= 7;
-
-    const clamp = px => Math.max(0, Math.min(px, chartW));
-
-    // Purple bar: excRts → loadDate
-    let bar1 = '';
-    if (excRts && loadDate) {
-      const x1 = clamp(Math.round((excRts - minDate)/(1000*60*60*24)) * dayPx);
-      const x2 = clamp(Math.round((loadDate - minDate)/(1000*60*60*24)) * dayPx);
-      const w1 = Math.max(3, x2 - x1);
-      const col = isOverdue ? '#A03033' : isSoon ? '#c17f00' : '#4b3a9e';
-      bar1 = `<div title="${r.ftiNum}: EXC RTS ${fmtDate(r.excRts)} → Load ${fmtDate(r.loadDate)}" style="position:absolute;left:${x1}px;top:7px;height:12px;width:${w1}px;background:${col};border-radius:3px;"></div>`;
-    }
-
-    // Green bar: loadDate → shipDate
-    let bar2 = '';
-    if (loadDate && shipDate && shipDate > loadDate) {
-      const x2 = clamp(Math.round((loadDate - minDate)/(1000*60*60*24)) * dayPx);
-      const x3 = clamp(Math.round((shipDate - minDate)/(1000*60*60*24)) * dayPx);
-      const w2 = Math.max(3, x3 - x2);
-      bar2 = `<div title="${r.ftiNum}: Load ${fmtDate(r.loadDate)} → Ship ${fmtDate(r.shipLooseDate)}" style="position:absolute;left:${x2}px;top:7px;height:12px;width:${w2}px;background:#107c10;border-radius:3px;opacity:0.85;"></div>`;
-    }
-
-    // Markers
-    let markers = '';
-    if (loadDate) {
-      const xL = clamp(Math.round((loadDate - minDate)/(1000*60*60*24)) * dayPx) - 5;
-      const col = isOverdue?'#A03033':isSoon?'#c17f00':'#4b3a9e';
-      markers += `<div title="📦 Load: ${fmtDate(r.loadDate)}" style="position:absolute;left:${xL}px;top:4px;width:10px;height:10px;background:${col};transform:rotate(45deg);border:2px solid #fff;border-radius:1px;"></div>`;
-    }
-    if (shipDate) {
-      const xS = clamp(Math.round((shipDate - minDate)/(1000*60*60*24)) * dayPx) - 5;
-      markers += `<div title="🚚 Ship: ${fmtDate(r.shipLooseDate)}" style="position:absolute;left:${xS}px;top:4px;width:10px;height:10px;background:#107c10;border-radius:50%;border:2px solid #fff;"></div>`;
-    }
-
-    const rowBg = idx%2===0 ? '#fafaf9' : '#fff';
-    const labelCol = isOverdue?'#A03033':isSoon?'#c17f00':'#323130';
-    const short = r.ftiNum.replace(' SKID BASE','').replace(' (FOK)','');
-
-    return `<div style="display:flex;align-items:center;height:${rowH}px;background:${rowBg};border-bottom:1px solid #f0eee8;">
-      <div style="width:${labelW}px;flex-shrink:0;font-size:11px;font-weight:600;color:${labelCol};padding:0 8px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${r.ftiNum}">${short}</div>
-      <div style="position:relative;height:${rowH}px;width:${chartW}px;flex-shrink:0;overflow:hidden;">
-        ${bar1}${bar2}${markers}
-        ${todayOff>=0&&todayOff<=chartW?`<div style="position:absolute;left:${todayOff}px;top:0;width:2px;height:100%;background:#0078d4;opacity:0.5;pointer-events:none;"></div>`:''}
-      </div>
-    </div>`;
-  }).join('');
-
-  const ticksHtml = ticks.map(t =>
-    `<div style="position:absolute;left:${t.left}px;top:0;font-size:9px;font-weight:600;color:#605e5c;white-space:nowrap;padding-left:4px;border-left:1px solid #d8d4f0;height:${headerH}px;line-height:${headerH}px;">${t.label}</div>`
-  ).join('');
-
-  const overdue = FTI_SHIP_DATA.filter(r=>r.loadDate&&new Date(r.loadDate)<today).length;
-  const thisWeek = FTI_SHIP_DATA.filter(r=>{ const d=daysUntil(r.loadDate); return d!==null&&d>=0&&d<=7; }).length;
-
-  el.innerHTML = `
-    <div style="display:flex;">
-      <div style="width:${labelW}px;flex-shrink:0;height:${headerH}px;background:#f9f8ff;border-bottom:2px solid #c4b8f3;"></div>
-      <div style="position:relative;height:${headerH}px;width:${chartW}px;overflow:hidden;flex-shrink:0;background:#f9f8ff;border-bottom:2px solid #c4b8f3;">
-        ${ticksHtml}
-        ${todayOff>=0&&todayOff<=chartW?`<div style="position:absolute;left:${todayOff}px;top:0;width:2px;height:100%;background:#0078d4;opacity:0.7;"></div><div style="position:absolute;left:${todayOff+3}px;bottom:3px;font-size:8px;font-weight:700;color:#0078d4;white-space:nowrap;">TODAY</div>`:''}
-      </div>
-    </div>
-    <div style="max-height:480px;overflow-y:auto;overflow-x:hidden;border:1px solid #edebe9;border-top:none;">${rows}</div>
-    <div style="margin-top:8px;font-size:10px;color:#605e5c;display:flex;gap:14px;flex-wrap:wrap;">
-      <span>${visibleRows.length} units shown</span>
-      <span style="color:#A03033;">${overdue} overdue total</span>
-      <span style="color:#c17f00;">${thisWeek} loading this week</span>
-    </div>`;
-}
-
-/* ============================================================
-   CALENDAR — view mode state
-   ============================================================ */
-let calYear  = new Date().getFullYear();
-let calMonth = new Date().getMonth();
-let calView  = 'month'; // 'week' | 'month' | 'year'
-let calWeekOffset = 0;  // for week view
+let calView       = 'month';   // 'month' | 'week' | 'year'
+let calYear       = new Date().getFullYear();
+let calMonth      = new Date().getMonth();
+let calWeekOffset = 0;
 
 function setCalView(v) {
   calView = v;
@@ -5588,26 +5437,7 @@ const PROJECT_COLORS = [
 // Stores fetched data per tab: { gid: [ ...rows ] }
 let allProjectsData    = {};
 let allProjectsFetched = {};  // gid → true/false
-let allGanttZoom       = 'year';
-let allGanttOffset     = 0;
 
-function setAllGanttZoom(z) {
-  allGanttZoom = z; allGanttOffset = 0;
-  ['month','year','all'].forEach(v => {
-    const btn = document.getElementById('agz-'+v); if (!btn) return;
-    const on = v === z;
-    btn.style.background = on ? '#4b3a9e' : 'transparent';
-    btn.style.color      = on ? '#fff'    : '#4b3a9e';
-    btn.style.fontWeight = on ? '600'     : '500';
-  });
-  renderAllGantt();
-}
-
-function allGanttNav(dir) {
-  if (dir === 0) allGanttOffset = 0;
-  else allGanttOffset += dir;
-  renderAllGantt();
-}
 
 /*  fetchAllProjects — fires a JSONP request for every schedule tab in parallel,
     stores results in allProjectsData, then renders when all done (or timeout). */
@@ -5692,173 +5522,6 @@ function fetchAllProjects() {
 }
 
 /* ── Render the all-projects overlay Gantt ── */
-function renderAllGantt() {
-  const el = document.getElementById('all-gantt-container'); if (!el) return;
-
-  const scheduleTabs = FTI_TABS.filter(t => t.type === 'schedule');
-  const showShips = (document.getElementById('ag-show-ships')||{}).checked !== false;
-
-  // Flatten all rows from all fetched projects — group by project
-  const projectGroups = scheduleTabs.map((tab, tIdx) => {
-    const rows = allProjectsData[tab.gid] || [];
-    return { tab, rows, color: PROJECT_COLORS[tIdx % PROJECT_COLORS.length] };
-  }).filter(g => g.rows.length > 0);
-
-  const today = new Date(); today.setHours(0,0,0,0);
-
-  // Determine date range
-  let minDate = new Date(today);
-  let maxDate = new Date(today);
-
-  if (allGanttZoom === 'month') {
-    const base = new Date(today.getFullYear(), today.getMonth() + allGanttOffset, 1);
-    minDate = new Date(base.getFullYear(), base.getMonth(), 1);
-    maxDate = new Date(base.getFullYear(), base.getMonth()+1, 0);
-    const lbl = document.getElementById('all-gantt-period');
-    if (lbl) lbl.textContent = base.toLocaleDateString('en-US',{month:'long',year:'numeric'});
-  } else if (allGanttZoom === 'year') {
-    const yr = today.getFullYear() + allGanttOffset;
-    minDate = new Date(yr, 0, 1);
-    maxDate = new Date(yr, 11, 31);
-    const lbl = document.getElementById('all-gantt-period');
-    if (lbl) lbl.textContent = String(yr);
-  } else {
-    // All — span all data
-    projectGroups.forEach(g => g.rows.forEach(r => {
-      ['excRts','loadDate','shipLooseDate'].forEach(k => {
-        if (!r[k]) return;
-        const d = new Date(r[k]); if (isNaN(d)) return;
-        if (d < minDate) minDate = new Date(d);
-        if (d > maxDate) maxDate = new Date(d);
-      });
-    }));
-    minDate.setDate(minDate.getDate()-14);
-    maxDate.setDate(maxDate.getDate()+14);
-    const lbl = document.getElementById('all-gantt-period');
-    if (lbl) lbl.textContent = 'All dates';
-  }
-
-  const totalDays = Math.max(1, Math.round((maxDate - minDate)/(1000*60*60*24)));
-  const labelW    = 110;
-  const availW    = Math.max(500, (window.innerWidth||1280) - labelW - 80);
-  const dayPx     = Math.max(1.5, Math.floor(availW / totalDays));
-  const chartW    = totalDays * dayPx;
-  const rowH      = 22;
-  const groupGap  = 10;
-  const headerH   = 36;
-  const todayOff  = Math.round((today - minDate)/(1000*60*60*24)) * dayPx;
-
-  // Month ticks
-  const ticks = [];
-  let tc = new Date(minDate.getFullYear(), minDate.getMonth(), 1);
-  while (tc <= maxDate) {
-    ticks.push({ label: tc.toLocaleDateString('en-US',{month:'short', year:allGanttZoom==='all'?'2-digit':undefined}), left: Math.max(0, Math.round((tc - minDate)/(1000*60*60*24)) * dayPx) });
-    tc = new Date(tc.getFullYear(), tc.getMonth()+1, 1);
-  }
-
-  const ticksHtml = ticks.map(t =>
-    `<div style="position:absolute;left:${t.left}px;top:0;font-size:9px;font-weight:600;color:#8a96a8;white-space:nowrap;padding-left:4px;border-left:1px solid #e2e6ea;height:${headerH}px;line-height:${headerH}px;">${t.label}</div>`
-  ).join('');
-
-  // Build legend
-  const legendEl = document.getElementById('all-gantt-legend');
-  if (legendEl) {
-    legendEl.innerHTML = projectGroups.map(g =>
-      `<span style="display:inline-flex;align-items:center;gap:5px;background:${g.color}18;border:1px solid ${g.color}40;border-radius:20px;padding:3px 10px;">
-        <span style="width:10px;height:10px;border-radius:2px;background:${g.color};display:inline-block;flex-shrink:0;"></span>
-        <span style="font-weight:600;color:${g.color};">${g.tab.name}</span>
-        <span style="color:#8a96a8;">${g.rows.length}</span>
-      </span>`
-    ).join('');
-  }
-
-  // Build rows grouped by project
-  let allRows = '';
-  let totalUnits = 0;
-
-  projectGroups.forEach((g, gIdx) => {
-    const color = g.color;
-    const colorLight = color + '22';
-
-    // Project label row
-    allRows += `<div style="display:flex;align-items:center;height:24px;background:#f8f9fb;border-bottom:1px solid #e2e6ea;${gIdx>0?'border-top:2px solid #e2e6ea;':''}">
-      <div style="width:${labelW}px;flex-shrink:0;font-size:10px;font-weight:800;color:${color};padding:0 8px;text-transform:uppercase;letter-spacing:.4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${g.tab.name}</div>
-      <div style="flex:1;height:100%;background:${colorLight};position:relative;">
-        <div style="position:absolute;left:${Math.max(0,todayOff)}px;top:0;width:2px;height:100%;background:#0078d4;opacity:.4;"></div>
-      </div>
-    </div>`;
-
-    // Unit rows
-    g.rows.forEach((r, rIdx) => {
-      const excRts   = r.excRts        ? new Date(r.excRts)        : null;
-      const loadDate = r.loadDate      ? new Date(r.loadDate)      : null;
-      const shipDate = r.shipLooseDate ? new Date(r.shipLooseDate) : null;
-      const isOverdue = loadDate && loadDate < today;
-      const isSoon    = loadDate && !isOverdue && daysUntil(r.loadDate) <= 7;
-      const barColor  = isOverdue ? '#A03033' : isSoon ? '#b45309' : color;
-      const clamp = px => Math.max(0, Math.min(px, chartW));
-
-      // Bar 1: excRts → loadDate
-      let bar1 = '';
-      if (excRts && loadDate) {
-        const x1 = clamp(Math.round((excRts - minDate)/(1000*60*60*24)) * dayPx);
-        const x2 = clamp(Math.round((loadDate - minDate)/(1000*60*60*24)) * dayPx);
-        bar1 = `<div title="${r.ftiNum}: RTS→Load" style="position:absolute;left:${x1}px;top:4px;height:${rowH-8}px;width:${Math.max(3,x2-x1)}px;background:${barColor};border-radius:3px;opacity:.85;"></div>`;
-      }
-      // Bar 2: loadDate → shipDate
-      let bar2 = '';
-      if (showShips && loadDate && shipDate && shipDate > loadDate) {
-        const x2 = clamp(Math.round((loadDate - minDate)/(1000*60*60*24)) * dayPx);
-        const x3 = clamp(Math.round((shipDate - minDate)/(1000*60*60*24)) * dayPx);
-        bar2 = `<div title="${r.ftiNum}: Load→Ship" style="position:absolute;left:${x2}px;top:4px;height:${rowH-8}px;width:${Math.max(3,x3-x2)}px;background:#0e7c3a;border-radius:3px;opacity:.75;"></div>`;
-      }
-      // Load marker
-      let loadMarker = '';
-      if (loadDate) {
-        const xL = clamp(Math.round((loadDate - minDate)/(1000*60*60*24)) * dayPx) - 4;
-        loadMarker = `<div title="📦 Load: ${fmtDate(r.loadDate)}" style="position:absolute;left:${xL}px;top:3px;width:8px;height:8px;background:${barColor};transform:rotate(45deg);border:1.5px solid #fff;"></div>`;
-      }
-
-      const rowBg = rIdx%2===0 ? '#fff' : '#fafafa';
-      const short = r.ftiNum.replace(' SKID BASE','').replace(' (FOK)','');
-
-      allRows += `<div style="display:flex;align-items:center;height:${rowH}px;background:${rowBg};border-bottom:1px solid #f0eee8;">
-        <div style="width:${labelW}px;flex-shrink:0;font-size:10px;font-weight:600;color:#4a5568;padding:0 8px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${r.ftiNum}">${short}</div>
-        <div style="position:relative;height:${rowH}px;width:${chartW}px;flex-shrink:0;overflow:hidden;">
-          ${bar1}${bar2}${loadMarker}
-          <div style="position:absolute;left:${Math.max(0,todayOff)}px;top:0;width:2px;height:100%;background:#0078d4;opacity:.4;pointer-events:none;"></div>
-        </div>
-      </div>`;
-      totalUnits++;
-    });
-  });
-
-  if (!projectGroups.length) {
-    el.innerHTML = `<div style="padding:40px;text-align:center;color:#8a96a8;font-size:13px;">
-      Click <strong>↻ Load All</strong> to fetch all projects from the Google Sheet.
-    </div>`;
-    return;
-  }
-
-  el.innerHTML = `
-    <div style="display:flex;">
-      <div style="width:${labelW}px;flex-shrink:0;height:${headerH}px;background:#f9f8ff;border-bottom:2px solid #c4b8f3;"></div>
-      <div style="position:relative;height:${headerH}px;width:${chartW}px;overflow:hidden;flex-shrink:0;background:#f9f8ff;border-bottom:2px solid #c4b8f3;">
-        ${ticksHtml}
-        ${todayOff>=0&&todayOff<=chartW?`<div style="position:absolute;left:${todayOff}px;top:0;width:2px;height:100%;background:#0078d4;opacity:.7;"></div><div style="position:absolute;left:${todayOff+3}px;bottom:3px;font-size:8px;font-weight:700;color:#0078d4;white-space:nowrap;">TODAY</div>`:''}
-      </div>
-    </div>
-    <div style="max-height:560px;overflow-y:auto;overflow-x:hidden;border:1px solid #e2e6ea;border-top:none;border-radius:0 0 8px 8px;">${allRows}</div>
-    <div style="margin-top:8px;font-size:11px;color:#8a96a8;display:flex;gap:14px;flex-wrap:wrap;">
-      <span>${projectGroups.length} projects shown</span>
-      <span>${totalUnits} total units</span>
-      <span style="color:#A03033;">${projectGroups.reduce((s,g)=>s+g.rows.filter(r=>r.loadDate&&new Date(r.loadDate)<today).length,0)} overdue</span>
-      <span style="display:flex;align-items:center;gap:4px;"><span style="width:10px;height:4px;background:#4b3a9e;border-radius:2px;display:inline-block;"></span>RTS→Load</span>
-      <span style="display:flex;align-items:center;gap:4px;"><span style="width:10px;height:4px;background:#0e7c3a;border-radius:2px;display:inline-block;"></span>Load→Ship</span>
-    </div>`;
-}
-
-/* ============================================================ END ALL PROJECTS GANTT */
 /* ============================================================ END FTI SHIP SCHEDULE */
 /* ============================================================ END PM DASHBOARD */
 

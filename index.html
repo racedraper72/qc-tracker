@@ -1964,12 +1964,20 @@ function getS2TaskState(u, taskName) {
   if (!u.station2Tasks) u.station2Tasks = {};
   if (!u.station2Tasks[taskName]) {
     u.station2Tasks[taskName] = {
-      status: 'idle', employeeNum: '',
+      status: 'idle', employeeNum: '', isTrainee: false,
       activeSec: 0, materialHoldSec: 0, engineeringHoldSec: 0,
       currentSegmentStart: null,
     };
   }
+  if (u.station2Tasks[taskName].isTrainee === undefined) u.station2Tasks[taskName].isTrainee = false; // backward-compat for tasks already synced
   return u.station2Tasks[taskName];
+}
+function s2ToggleTrainee(unitId, taskName) {
+  const u = ensureBoardTracked(unitId);
+  const t = getS2TaskState(u, taskName);
+  t.isTrainee = !t.isTrainee;
+  pushBoard();
+  renderStation2Tracker();
 }
 
 /* Banks whatever segment is currently in progress into its accumulator
@@ -2056,40 +2064,49 @@ function renderStation2Tracker() {
       const sid = safeId(u.id + '_' + taskName);
 
       let buttons = '';
+      const btnBase = 'font-size:16px;font-weight:700;padding:16px 20px;border-radius:10px;min-height:52px;cursor:pointer;flex:1;min-width:150px;';
       if (t.status === 'idle') {
-        buttons = `<button class="success sm" onclick="s2TaskAction('${u.id}','${taskName}','start')">&#9654; Start</button>`;
+        buttons = `<button class="success" style="${btnBase}" onclick="s2TaskAction('${u.id}','${taskName}','start')">&#9654; Start</button>`;
       } else if (t.status === 'running') {
         buttons = `
-          <button class="sm" onclick="s2TaskAction('${u.id}','${taskName}','pause')">&#9208; Pause</button>
-          <button class="sm" style="border-color:#4b3a9e;color:#4b3a9e;" onclick="s2TaskAction('${u.id}','${taskName}','holdMaterial')">&#128230; Hold: Material</button>
-          <button class="sm" style="border-color:#006A8E;color:#006A8E;" onclick="s2TaskAction('${u.id}','${taskName}','holdEngineering')">&#128203; Hold: Engineering</button>
-          <button class="success sm" onclick="s2TaskAction('${u.id}','${taskName}','finish')">&#10003; Finished Job</button>`;
+          <button style="${btnBase}background:#fff;border:2px solid #b45309;color:#b45309;" onclick="s2TaskAction('${u.id}','${taskName}','pause')">&#9208; Pause</button>
+          <button style="${btnBase}background:#fff;border:2px solid #4b3a9e;color:#4b3a9e;" onclick="s2TaskAction('${u.id}','${taskName}','holdMaterial')">&#128230; Hold: Material</button>
+          <button style="${btnBase}background:#fff;border:2px solid #006A8E;color:#006A8E;" onclick="s2TaskAction('${u.id}','${taskName}','holdEngineering')">&#128203; Hold: Engineering</button>
+          <button class="success" style="${btnBase}" onclick="s2TaskAction('${u.id}','${taskName}','finish')">&#10003; Finished Job</button>`;
       } else if (t.status === 'paused') {
         buttons = `
-          <button class="success sm" onclick="s2TaskAction('${u.id}','${taskName}','start')">&#9654; Resume</button>
-          <button class="success sm" onclick="s2TaskAction('${u.id}','${taskName}','finish')">&#10003; Finished Job</button>`;
+          <button class="success" style="${btnBase}" onclick="s2TaskAction('${u.id}','${taskName}','start')">&#9654; Resume</button>
+          <button class="success" style="${btnBase}" onclick="s2TaskAction('${u.id}','${taskName}','finish')">&#10003; Finished Job</button>`;
       } else if (t.status === 'holdMaterial' || t.status === 'holdEngineering') {
-        buttons = `<button class="success sm" onclick="s2TaskAction('${u.id}','${taskName}','start')">&#9654; Resume (end hold)</button>`;
+        buttons = `<button class="success" style="${btnBase}" onclick="s2TaskAction('${u.id}','${taskName}','start')">&#9654; Resume (end hold)</button>`;
       } else if (t.status === 'finished') {
-        buttons = `<button class="subtle sm" onclick="s2TaskAction('${u.id}','${taskName}','reopen')">&#8635; Reopen</button>`;
+        buttons = `<button class="subtle" style="${btnBase}" onclick="s2TaskAction('${u.id}','${taskName}','reopen')">&#8635; Reopen</button>`;
       }
 
-      return `<div style="border:1px solid var(--border,#edebe9);border-left:4px solid ${S2_STATUS_COLOR[t.status]};border-radius:8px;padding:10px 14px;margin-bottom:8px;">
-        <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:8px;margin-bottom:8px;">
-          <div style="flex:1;min-width:200px;">
-            <div style="font-size:13px;font-weight:700;color:var(--text-1,#323130);">${taskName}</div>
-            <span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:20px;background:${S2_STATUS_COLOR[t.status]}22;color:${S2_STATUS_COLOR[t.status]};">${S2_STATUS_LABEL[t.status]}</span>
+      return `<div style="border:1px solid var(--border,#edebe9);border-left:6px solid ${S2_STATUS_COLOR[t.status]};border-radius:10px;padding:16px 18px;margin-bottom:12px;">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:12px;margin-bottom:12px;">
+          <div style="flex:1;min-width:220px;">
+            <div style="font-size:16px;font-weight:700;color:var(--text-1,#323130);margin-bottom:4px;">${taskName}</div>
+            <span style="font-size:12px;font-weight:700;padding:3px 10px;border-radius:20px;background:${S2_STATUS_COLOR[t.status]}22;color:${S2_STATUS_COLOR[t.status]};">${S2_STATUS_LABEL[t.status]}</span>
           </div>
-          <input type="text" placeholder="Employee #" value="${t.employeeNum||''}" onchange="s2SetEmployee('${u.id}','${taskName}',this.value)"
-            style="width:110px;font-size:12px;padding:5px 8px;" />
+          <div style="display:flex;gap:8px;align-items:center;">
+            <input type="text" placeholder="Employee #" value="${t.employeeNum||''}" onchange="s2SetEmployee('${u.id}','${taskName}',this.value)"
+              style="width:130px;font-size:16px;padding:12px 10px;min-height:48px;" />
+            <button onclick="s2ToggleTrainee('${u.id}','${taskName}')"
+              title="${t.isTrainee?'Trainee — tap to unmark':'Mark as trainee'}"
+              style="min-width:48px;min-height:48px;font-size:22px;border-radius:10px;cursor:pointer;background:${t.isTrainee?'#fff4ce':'#fff'};border:2px solid ${t.isTrainee?'#c17f00':'#c8d0dc'};">
+              &#127891;
+            </button>
+          </div>
         </div>
-        <div style="display:flex;gap:14px;flex-wrap:wrap;margin-bottom:8px;font-size:11px;">
+        ${t.isTrainee ? `<div style="font-size:12px;font-weight:700;color:#c17f00;background:#fff4ce;border-radius:6px;padding:4px 10px;display:inline-block;margin-bottom:10px;">&#127891; Trainee</div>` : ''}
+        <div style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:12px;font-size:13px;">
           <span style="color:var(--text-2,#605e5c);">Active: <strong style="color:#0e7c3a;">${s2FormatHM(activeSec)}</strong></span>
           <span style="color:var(--text-2,#605e5c);">Material Hold: <strong style="color:#4b3a9e;">${s2FormatHM(matSec)}</strong></span>
           <span style="color:var(--text-2,#605e5c);">Engineering Hold: <strong style="color:#006A8E;">${s2FormatHM(engSec)}</strong></span>
           <span style="color:var(--text-1,#323130);">Earned Hours: <strong>${s2FormatHM(earnedSec)}</strong></span>
         </div>
-        <div style="display:flex;gap:6px;flex-wrap:wrap;">${buttons}</div>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;">${buttons}</div>
       </div>`;
     }).join('');
 

@@ -1901,19 +1901,32 @@ const STATION2_TASKS = [
 function getS2TaskState(u, taskName) {
   if (!u.station2Tasks) u.station2Tasks = {};
   if (!u.station2Tasks[taskName]) {
-    u.station2Tasks[taskName] = {
-      status: 'idle', employees: [], refLink: '', // [{ num:'123', isTrainee:false }, ...]
-      activeSec: 0, materialHoldSec: 0, engineeringHoldSec: 0,
-      currentSegmentStart: null,
-    };
+    u.station2Tasks[taskName] = { employees: [], refLink: '' };
   }
   const t = u.station2Tasks[taskName];
-  // Backward-compat: migrate old single employeeNum/isTrainee tasks already synced
-  if (!Array.isArray(t.employees)) {
-    t.employees = t.employeeNum ? [{ num: t.employeeNum, isTrainee: !!t.isTrainee }] : [];
-    delete t.employeeNum; delete t.isTrainee;
-  }
+  if (!Array.isArray(t.employees)) t.employees = [];
   if (t.refLink === undefined) t.refLink = '';
+  // Backward-compat: give every employee entry a full timer state, whether it's
+  // brand new or came from an older version that only stored num/isTrainee.
+  t.employees.forEach(e => {
+    if (e.status === undefined) e.status = 'idle';
+    if (e.activeSec === undefined) e.activeSec = 0;
+    if (e.materialHoldSec === undefined) e.materialHoldSec = 0;
+    if (e.engineeringHoldSec === undefined) e.engineeringHoldSec = 0;
+    if (e.currentSegmentStart === undefined) e.currentSegmentStart = null;
+    if (e.isTrainee === undefined) e.isTrainee = false;
+  });
+  // One-time migration from the old single shared task-level timer, if present
+  if (t.status !== undefined) {
+    if (t.employees.length && t.employees[0].activeSec === 0 && t.status !== 'idle') {
+      t.employees[0].status = t.status;
+      t.employees[0].activeSec = t.activeSec || 0;
+      t.employees[0].materialHoldSec = t.materialHoldSec || 0;
+      t.employees[0].engineeringHoldSec = t.engineeringHoldSec || 0;
+      t.employees[0].currentSegmentStart = t.currentSegmentStart || null;
+    }
+    delete t.status; delete t.activeSec; delete t.materialHoldSec; delete t.engineeringHoldSec; delete t.currentSegmentStart;
+  }
   return t;
 }
 function s2SetLink(unitId, taskName, sid) {
@@ -1942,7 +1955,10 @@ function s2AddEmployee(unitId, taskName, sid) {
   const u = ensureBoardTracked(unitId);
   const t = getS2TaskState(u, taskName);
   if (t.employees.some(e => e.num === num)) { input.value = ''; return; } // no duplicates
-  t.employees.push({ num, isTrainee: false });
+  t.employees.push({
+    num, isTrainee: false, status: 'idle',
+    activeSec: 0, materialHoldSec: 0, engineeringHoldSec: 0, currentSegmentStart: null,
+  });
   input.value = '';
   pushBoard();
   renderStation2Tracker();
@@ -1964,22 +1980,23 @@ function s2ToggleTrainee(unitId, taskName, idx) {
 }
 
 /* Banks whatever segment is currently in progress into its accumulator
-   before a status change, so no time is lost/double-counted on transition. */
-function s2BankSegment(t) {
-  if (!t.currentSegmentStart) return;
-  const elapsed = (Date.now() - t.currentSegmentStart) / 1000;
-  if (t.status === 'running')          t.activeSec += elapsed;
-  else if (t.status === 'holdMaterial')    t.materialHoldSec += elapsed;
-  else if (t.status === 'holdEngineering') t.engineeringHoldSec += elapsed;
-  t.currentSegmentStart = null;
+   before a status change, so no time is lost/double-counted on transition.
+   Operates on one EMPLOYEE's timer state now, not a shared task timer. */
+function s2BankSegment(emp) {
+  if (!emp.currentSegmentStart) return;
+  const elapsed = (Date.now() - emp.currentSegmentStart) / 1000;
+  if (emp.status === 'running')             emp.activeSec += elapsed;
+  else if (emp.status === 'holdMaterial')    emp.materialHoldSec += elapsed;
+  else if (emp.status === 'holdEngineering') emp.engineeringHoldSec += elapsed;
+  emp.currentSegmentStart = null;
 }
 
-function s2LiveSeconds(t, category) {
+function s2LiveSeconds(emp, category) {
   // category: 'active' | 'materialHold' | 'engineeringHold'
   const bankedKey = category === 'active' ? 'activeSec' : category === 'materialHold' ? 'materialHoldSec' : 'engineeringHoldSec';
   const runningStatus = category === 'active' ? 'running' : category === 'materialHold' ? 'holdMaterial' : 'holdEngineering';
-  let sec = t[bankedKey];
-  if (t.status === runningStatus && t.currentSegmentStart) sec += (Date.now() - t.currentSegmentStart) / 1000;
+  let sec = emp[bankedKey];
+  if (emp.status === runningStatus && emp.currentSegmentStart) sec += (Date.now() - emp.currentSegmentStart) / 1000;
   return sec;
 }
 
@@ -1992,17 +2009,20 @@ function s2FormatHM(totalSeconds) {
   return s + 's';
 }
 
-function s2TaskAction(unitId, taskName, action) {
+/* Now scoped to ONE employee's timer within a task, not the whole task. */
+function s2TaskAction(unitId, taskName, empIdx, action) {
   const u = ensureBoardTracked(unitId);
   const t = getS2TaskState(u, taskName);
-  s2BankSegment(t); // close out whatever was running before this change
+  const emp = t.employees[empIdx];
+  if (!emp) return;
+  s2BankSegment(emp); // close out whatever was running before this change
 
-  if (action === 'start')             { t.status = 'running'; t.currentSegmentStart = Date.now(); }
-  else if (action === 'pause')        { t.status = 'paused'; }
-  else if (action === 'holdMaterial')    { t.status = 'holdMaterial'; t.currentSegmentStart = Date.now(); }
-  else if (action === 'holdEngineering') { t.status = 'holdEngineering'; t.currentSegmentStart = Date.now(); }
-  else if (action === 'finish')       { t.status = 'finished'; }
-  else if (action === 'reopen')       { t.status = 'idle'; } // undo a mistaken Finish
+  if (action === 'start')                { emp.status = 'running'; emp.currentSegmentStart = Date.now(); }
+  else if (action === 'pause')           { emp.status = 'paused'; }
+  else if (action === 'holdMaterial')    { emp.status = 'holdMaterial'; emp.currentSegmentStart = Date.now(); }
+  else if (action === 'holdEngineering') { emp.status = 'holdEngineering'; emp.currentSegmentStart = Date.now(); }
+  else if (action === 'finish')          { emp.status = 'finished'; }
+  else if (action === 'reopen')          { emp.status = 'idle'; } // undo a mistaken Finish
 
   pushBoard();
   renderStation2Tracker();
@@ -2011,9 +2031,37 @@ function s2TaskAction(unitId, taskName, action) {
 let s2TickTimer = null;
 function startS2Ticker() {
   stopS2Ticker();
-  s2TickTimer = setInterval(() => { if (currentPage === 'station2') renderStation2Tracker(); }, 1000);
+  s2TickTimer = setInterval(() => { if (currentPage === 'station2') s2TickUpdate(); }, 1000);
 }
 function stopS2Ticker() { if (s2TickTimer) { clearInterval(s2TickTimer); s2TickTimer = null; } }
+
+/* Updates only the running timer numbers in place, without touching the
+   rest of the DOM — a full renderStation2Tracker() rebuild every second
+   was wiping out whatever anyone was mid-typing into an input. */
+function s2TickUpdate() {
+  const units = getAllBoardUnits().filter(u => u.col === 'Station 2');
+  const setText = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
+  units.forEach(u => {
+    STATION2_TASKS.forEach(taskName => {
+      const t = getS2TaskState(u, taskName);
+      let taskEarned = 0;
+      t.employees.forEach((emp, idx) => {
+        const activeSec = s2LiveSeconds(emp, 'active');
+        const matSec = s2LiveSeconds(emp, 'materialHold');
+        const engSec = s2LiveSeconds(emp, 'engineeringHold');
+        taskEarned += activeSec + matSec + engSec;
+        if (emp.status !== 'running' && emp.status !== 'holdMaterial' && emp.status !== 'holdEngineering') return;
+        const esid = safeId(u.id + '_' + taskName + '_' + idx);
+        setText('s2-active-'+esid, s2FormatHM(activeSec));
+        setText('s2-mat-'+esid, s2FormatHM(matSec));
+        setText('s2-eng-'+esid, s2FormatHM(engSec));
+        setText('s2-earned-'+esid, s2FormatHM(activeSec+matSec+engSec));
+      });
+      const tsid = safeId(u.id + '_' + taskName);
+      setText('s2-task-total-'+tsid, s2FormatHM(taskEarned));
+    });
+  });
+}
 
 const S2_STATUS_LABEL = {
   idle: 'Not started', running: 'Working', paused: 'Paused',
@@ -2034,84 +2082,94 @@ function renderStation2Tracker() {
     const cs = getBoardCatStyle(u.id);
     const taskRows = STATION2_TASKS.map(taskName => {
       const t = getS2TaskState(u, taskName);
-      const activeSec = s2LiveSeconds(t, 'active');
-      const matSec = s2LiveSeconds(t, 'materialHold');
-      const engSec = s2LiveSeconds(t, 'engineeringHold');
-      const earnedSec = activeSec + matSec + engSec;
-      const sid = safeId(u.id + '_' + taskName);
+      const tsid = safeId(u.id + '_' + taskName);
+      const btnBase = 'font-size:15px;font-weight:700;padding:14px 18px;border-radius:10px;min-height:48px;cursor:pointer;flex:1;min-width:140px;';
 
-      let buttons = '';
-      const btnBase = 'font-size:16px;font-weight:700;padding:16px 20px;border-radius:10px;min-height:52px;cursor:pointer;flex:1;min-width:150px;';
-      if (t.status === 'idle') {
-        buttons = `<button class="success" style="${btnBase}" onclick="s2TaskAction('${u.id}','${taskName}','start')">&#9654; Start</button>`;
-      } else if (t.status === 'running') {
-        buttons = `
-          <button style="${btnBase}background:#fff;border:2px solid #b45309;color:#b45309;" onclick="s2TaskAction('${u.id}','${taskName}','pause')">&#9208; Pause</button>
-          <button style="${btnBase}background:#fff;border:2px solid #4b3a9e;color:#4b3a9e;" onclick="s2TaskAction('${u.id}','${taskName}','holdMaterial')">&#128230; Hold: Material</button>
-          <button style="${btnBase}background:#fff;border:2px solid #006A8E;color:#006A8E;" onclick="s2TaskAction('${u.id}','${taskName}','holdEngineering')">&#128203; Hold: Engineering</button>
-          <button class="success" style="${btnBase}" onclick="s2TaskAction('${u.id}','${taskName}','finish')">&#10003; Finished Job</button>`;
-      } else if (t.status === 'paused') {
-        buttons = `
-          <button class="success" style="${btnBase}" onclick="s2TaskAction('${u.id}','${taskName}','start')">&#9654; Resume</button>
-          <button class="success" style="${btnBase}" onclick="s2TaskAction('${u.id}','${taskName}','finish')">&#10003; Finished Job</button>`;
-      } else if (t.status === 'holdMaterial' || t.status === 'holdEngineering') {
-        buttons = `<button class="success" style="${btnBase}" onclick="s2TaskAction('${u.id}','${taskName}','start')">&#9654; Resume (end hold)</button>`;
-      } else if (t.status === 'finished') {
-        buttons = `<button class="subtle" style="${btnBase}" onclick="s2TaskAction('${u.id}','${taskName}','reopen')">&#8635; Reopen</button>`;
-      }
+      const taskEarned = t.employees.reduce((sum, emp) =>
+        sum + s2LiveSeconds(emp,'active') + s2LiveSeconds(emp,'materialHold') + s2LiveSeconds(emp,'engineeringHold'), 0);
 
-      const empChips = t.employees.map((e, idx) => `
-        <div style="display:flex;align-items:center;gap:8px;background:${e.isTrainee?'#fff4ce':'#f0f2f5'};border:2px solid ${e.isTrainee?'#c17f00':'#c8d0dc'};border-radius:20px;padding:6px 8px 6px 14px;">
-          <span style="font-size:15px;font-weight:700;color:var(--text-1,#323130);">${e.num}</span>
-          <button onclick="s2ToggleTrainee('${u.id}','${taskName}',${idx})" title="${e.isTrainee?'Trainee — tap to unmark':'Mark as trainee'}"
-            style="display:flex;align-items:center;gap:4px;min-height:36px;padding:0 10px;font-size:13px;font-weight:700;border-radius:8px;cursor:pointer;background:${e.isTrainee?'#c17f00':'#fff'};border:2px solid ${e.isTrainee?'#c17f00':'#c8d0dc'};color:${e.isTrainee?'#fff':'#605e5c'};">
-            &#127891; ${e.isTrainee?'Trainee':'Mark trainee'}
-          </button>
-          <button onclick="s2RemoveEmployee('${u.id}','${taskName}',${idx})" title="Remove"
-            style="min-width:36px;min-height:36px;font-size:16px;border-radius:8px;cursor:pointer;background:transparent;border:none;color:#a03033;padding:0;">&#10005;</button>
-        </div>`).join('');
+      const empRows = t.employees.map((e, idx) => {
+        const activeSec = s2LiveSeconds(e, 'active');
+        const matSec = s2LiveSeconds(e, 'materialHold');
+        const engSec = s2LiveSeconds(e, 'engineeringHold');
+        const earnedSec = activeSec + matSec + engSec;
+        const esid = safeId(u.id + '_' + taskName + '_' + idx);
 
-      return `<div style="border:1px solid var(--border,#edebe9);border-left:6px solid ${S2_STATUS_COLOR[t.status]};border-radius:10px;padding:16px 18px;margin-bottom:12px;">
+        let buttons = '';
+        if (e.status === 'idle') {
+          buttons = `<button class="success" style="${btnBase}" onclick="s2TaskAction('${u.id}','${taskName}',${idx},'start')">&#9654; Start</button>`;
+        } else if (e.status === 'running') {
+          buttons = `
+            <button style="${btnBase}background:#fff;border:2px solid #b45309;color:#b45309;" onclick="s2TaskAction('${u.id}','${taskName}',${idx},'pause')">&#9208; Pause</button>
+            <button style="${btnBase}background:#fff;border:2px solid #4b3a9e;color:#4b3a9e;" onclick="s2TaskAction('${u.id}','${taskName}',${idx},'holdMaterial')">&#128230; Hold: Material</button>
+            <button style="${btnBase}background:#fff;border:2px solid #006A8E;color:#006A8E;" onclick="s2TaskAction('${u.id}','${taskName}',${idx},'holdEngineering')">&#128203; Hold: Engineering</button>
+            <button class="success" style="${btnBase}" onclick="s2TaskAction('${u.id}','${taskName}',${idx},'finish')">&#10003; Finished</button>`;
+        } else if (e.status === 'paused') {
+          buttons = `
+            <button class="success" style="${btnBase}" onclick="s2TaskAction('${u.id}','${taskName}',${idx},'start')">&#9654; Resume</button>
+            <button class="success" style="${btnBase}" onclick="s2TaskAction('${u.id}','${taskName}',${idx},'finish')">&#10003; Finished</button>`;
+        } else if (e.status === 'holdMaterial' || e.status === 'holdEngineering') {
+          buttons = `<button class="success" style="${btnBase}" onclick="s2TaskAction('${u.id}','${taskName}',${idx},'start')">&#9654; Resume (end hold)</button>`;
+        } else if (e.status === 'finished') {
+          buttons = `<button class="subtle" style="${btnBase}" onclick="s2TaskAction('${u.id}','${taskName}',${idx},'reopen')">&#8635; Reopen</button>`;
+        }
+
+        return `<div style="border:1px solid var(--border,#edebe9);border-left:5px solid ${S2_STATUS_COLOR[e.status]};border-radius:10px;padding:12px 14px;margin-bottom:10px;background:${e.isTrainee?'#fffdf5':'transparent'};">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:10px;margin-bottom:10px;">
+            <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+              <span style="font-size:17px;font-weight:800;color:var(--text-1,#323130);">${e.num}</span>
+              <span style="font-size:11px;font-weight:700;padding:2px 9px;border-radius:20px;background:${S2_STATUS_COLOR[e.status]}22;color:${S2_STATUS_COLOR[e.status]};">${S2_STATUS_LABEL[e.status]}</span>
+              ${e.isTrainee ? `<span style="font-size:11px;font-weight:700;padding:2px 9px;border-radius:20px;background:#fff4ce;color:#c17f00;">&#127891; Trainee</span>` : ''}
+            </div>
+            <div style="display:flex;gap:6px;">
+              <button onclick="s2ToggleTrainee('${u.id}','${taskName}',${idx})" title="${e.isTrainee?'Trainee — tap to unmark':'Mark as trainee'}"
+                style="min-height:36px;padding:0 10px;font-size:12px;font-weight:700;border-radius:8px;cursor:pointer;background:${e.isTrainee?'#c17f00':'#fff'};border:2px solid ${e.isTrainee?'#c17f00':'#c8d0dc'};color:${e.isTrainee?'#fff':'#605e5c'};">&#127891;</button>
+              <button onclick="s2RemoveEmployee('${u.id}','${taskName}',${idx})" title="Remove"
+                style="min-width:36px;min-height:36px;font-size:15px;border-radius:8px;cursor:pointer;background:#fff;border:2px solid #c8d0dc;color:#A03033;padding:0;">&#10005;</button>
+            </div>
+          </div>
+          <div style="display:flex;gap:14px;flex-wrap:wrap;margin-bottom:10px;font-size:12px;">
+            <span style="color:var(--text-2,#605e5c);">Active: <strong id="s2-active-${esid}" style="color:#0e7c3a;">${s2FormatHM(activeSec)}</strong></span>
+            <span style="color:var(--text-2,#605e5c);">Material Hold: <strong id="s2-mat-${esid}" style="color:#4b3a9e;">${s2FormatHM(matSec)}</strong></span>
+            <span style="color:var(--text-2,#605e5c);">Engineering Hold: <strong id="s2-eng-${esid}" style="color:#006A8E;">${s2FormatHM(engSec)}</strong></span>
+            <span style="color:var(--text-1,#323130);">Earned: <strong id="s2-earned-${esid}">${s2FormatHM(earnedSec)}</strong></span>
+          </div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;">${buttons}</div>
+        </div>`;
+      }).join('');
+
+      return `<div style="border:1px solid var(--border,#edebe9);border-radius:10px;padding:16px 18px;margin-bottom:12px;background:var(--surface-2,#faf9f8);">
         <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:12px;margin-bottom:12px;">
-          <div style="flex:1;min-width:220px;">
-            <div style="font-size:16px;font-weight:700;color:var(--text-1,#323130);margin-bottom:4px;">${taskName}</div>
-            <span style="font-size:12px;font-weight:700;padding:3px 10px;border-radius:20px;background:${S2_STATUS_COLOR[t.status]}22;color:${S2_STATUS_COLOR[t.status]};">${S2_STATUS_LABEL[t.status]}</span>
-          </div>
+          <div style="font-size:16px;font-weight:700;color:var(--text-1,#323130);">${taskName}</div>
+          <span style="font-size:13px;font-weight:700;color:var(--text-1,#323130);">Job total: <span id="s2-task-total-${tsid}">${s2FormatHM(taskEarned)}</span></span>
         </div>
         <div style="margin-bottom:12px;">
-          <div id="s2-link-display-${sid}" style="display:${t.refLink?'flex':'none'};align-items:center;gap:8px;">
+          <div id="s2-link-display-${tsid}" style="display:${t.refLink?'flex':'none'};align-items:center;gap:8px;">
             <a href="${t.refLink}" target="_blank" rel="noopener" style="font-size:14px;color:#006A8E;text-decoration:none;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:320px;" onmouseover="this.style.textDecoration='underline'" onmouseout="this.style.textDecoration='none'" title="${t.refLink}">&#128279; ${(t.refLink||'').replace(/^https?:\/\//,'')}</a>
-            <button onclick="s2ToggleLinkInput('${sid}')" style="font-size:12px;padding:6px 12px;min-height:36px;border-radius:8px;border:1px solid #c8d0dc;background:#fff;cursor:pointer;color:var(--text-2,#605e5c);">Edit</button>
+            <button onclick="s2ToggleLinkInput('${tsid}')" style="font-size:12px;padding:6px 12px;min-height:36px;border-radius:8px;border:1px solid #c8d0dc;background:#fff;cursor:pointer;color:var(--text-2,#605e5c);">Edit</button>
           </div>
-          <div id="s2-link-edit-${sid}" style="display:${t.refLink?'none':'flex'};gap:8px;">
-            <input id="s2-link-input-${sid}" type="url" placeholder="Paste ABI / reference link..." value="${t.refLink||''}" onkeydown="if(event.key==='Enter')s2SetLink('${u.id}','${taskName}','${sid}')"
+          <div id="s2-link-edit-${tsid}" style="display:${t.refLink?'none':'flex'};gap:8px;">
+            <input id="s2-link-input-${tsid}" type="url" placeholder="Paste ABI / reference link..." value="${t.refLink||''}" onkeydown="if(event.key==='Enter')s2SetLink('${u.id}','${taskName}','${tsid}')"
               style="flex:1;max-width:320px;font-size:14px;padding:10px;min-height:44px;" />
-            <button class="primary" style="font-size:13px;padding:10px 16px;min-height:44px;border-radius:8px;" onclick="s2SetLink('${u.id}','${taskName}','${sid}')">&#128279; Save Link</button>
+            <button class="primary" style="font-size:13px;padding:10px 16px;min-height:44px;border-radius:8px;" onclick="s2SetLink('${u.id}','${taskName}','${tsid}')">&#128279; Save Link</button>
           </div>
         </div>
-        <div style="margin-bottom:12px;">
-          <div style="font-size:11px;font-weight:700;color:var(--text-2,#605e5c);text-transform:uppercase;letter-spacing:.3px;margin-bottom:6px;">Workers on this job</div>
-          <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:8px;">${empChips || '<span style="font-size:13px;color:var(--text-3,#8a96a8);font-style:italic;">No one added yet</span>'}</div>
+        <div style="margin-bottom:10px;">
+          <div style="font-size:11px;font-weight:700;color:var(--text-2,#605e5c);text-transform:uppercase;letter-spacing:.3px;margin-bottom:8px;">Workers on this job — each has their own timer</div>
+          ${empRows || '<p style="font-size:13px;color:var(--text-3,#8a96a8);font-style:italic;margin-bottom:8px;">No one added yet</p>'}
           <div style="display:flex;gap:8px;">
-            <input id="s2-emp-input-${sid}" type="text" placeholder="Employee #" onkeydown="if(event.key==='Enter')s2AddEmployee('${u.id}','${taskName}','${sid}')"
+            <input id="s2-emp-input-${tsid}" type="text" placeholder="Employee #" onkeydown="if(event.key==='Enter')s2AddEmployee('${u.id}','${taskName}','${tsid}')"
               style="flex:1;max-width:200px;font-size:16px;padding:12px 10px;min-height:48px;" />
-            <button class="primary" style="font-size:15px;font-weight:700;padding:12px 20px;min-height:48px;border-radius:10px;" onclick="s2AddEmployee('${u.id}','${taskName}','${sid}')">+ Add</button>
+            <button class="primary" style="font-size:15px;font-weight:700;padding:12px 20px;min-height:48px;border-radius:10px;" onclick="s2AddEmployee('${u.id}','${taskName}','${tsid}')">+ Add Worker</button>
           </div>
         </div>
-        <div style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:12px;font-size:13px;">
-          <span style="color:var(--text-2,#605e5c);">Active: <strong style="color:#0e7c3a;">${s2FormatHM(activeSec)}</strong></span>
-          <span style="color:var(--text-2,#605e5c);">Material Hold: <strong style="color:#4b3a9e;">${s2FormatHM(matSec)}</strong></span>
-          <span style="color:var(--text-2,#605e5c);">Engineering Hold: <strong style="color:#006A8E;">${s2FormatHM(engSec)}</strong></span>
-          <span style="color:var(--text-1,#323130);">Earned Hours: <strong>${s2FormatHM(earnedSec)}</strong></span>
-        </div>
-        <div style="display:flex;gap:10px;flex-wrap:wrap;">${buttons}</div>
       </div>`;
     }).join('');
 
-    // Unit-level earned hours roll-up across all its tasks
+    // Unit-level earned hours roll-up across all its tasks and employees
     const unitEarnedSec = STATION2_TASKS.reduce((sum, taskName) => {
       const t = getS2TaskState(u, taskName);
-      return sum + s2LiveSeconds(t,'active') + s2LiveSeconds(t,'materialHold') + s2LiveSeconds(t,'engineeringHold');
+      return sum + t.employees.reduce((s,e) => s + s2LiveSeconds(e,'active') + s2LiveSeconds(e,'materialHold') + s2LiveSeconds(e,'engineeringHold'), 0);
     }, 0);
 
     return `<div style="background:var(--surface,#fff);border:1px solid var(--border,#edebe9);border-top:4px solid ${cs.border};border-radius:10px;padding:16px 18px;">
@@ -4100,7 +4158,7 @@ function renderPMTimeChart() {
     if (u && r) {
       const jobRows = STATION2_TASKS.map(taskName => {
         const t = getS2TaskState(u, taskName);
-        const hrs = (s2LiveSeconds(t,'active') + s2LiveSeconds(t,'materialHold') + s2LiveSeconds(t,'engineeringHold')) / 3600;
+        const hrs = t.employees.reduce((s,e) => s + s2LiveSeconds(e,'active') + s2LiveSeconds(e,'materialHold') + s2LiveSeconds(e,'engineeringHold'), 0) / 3600;
         return { taskName, hrs, employees: t.employees.map(e=>e.num).join(', ') || '—' };
       }).filter(j => j.hrs > 0);
       if (jobRows.length) {
@@ -4205,7 +4263,7 @@ function exportPMTimeChartCsv() {
     header = ['Unit','Job','Employees','Hours','Duration'];
     rowsOut = STATION2_TASKS.map(taskName => {
       const t = getS2TaskState(u, taskName);
-      const hrs = (s2LiveSeconds(t,'active') + s2LiveSeconds(t,'materialHold') + s2LiveSeconds(t,'engineeringHold')) / 3600;
+      const hrs = t.employees.reduce((s,e) => s + s2LiveSeconds(e,'active') + s2LiveSeconds(e,'materialHold') + s2LiveSeconds(e,'engineeringHold'), 0) / 3600;
       return { taskName, hrs, employees: t.employees.map(e=>e.num).join('; ') || '' };
     }).filter(j => j.hrs > 0).map(j => [pmTimeSelectedUnit, j.taskName, j.employees, j.hrs.toFixed(2), formatDuration(j.hrs)]);
     filename = 'time_in_process_'+pmTimeSelectedUnit+'_station2_jobs_'+new Date().toISOString().slice(0,10)+'.csv';

@@ -1330,6 +1330,12 @@ label { font-size: 11px; font-weight: 600; color: var(--text-2); display: block;
       <button class="subtle sm" onclick="adminResetSupervisorPassword()" style="font-size:11px;">Forgot it? Reset to default</button>
     </div>
   </div>
+  <!-- CHECKLIST EDITOR -->
+  <div class="card">
+    <div class="section-title">&#9989; Checklist editor</div>
+    <p style="font-size:12px;color:#605e5c;margin-bottom:12px;">Edit checklist item text or add new items per station — no code changes needed. Syncs to every device.</p>
+    <div id="checklist-editor-body"></div>
+  </div>
   <!-- OPERATOR MANAGEMENT -->
   <div class="card">
     <div class="section-title">&#128100; Operator management</div>
@@ -1691,7 +1697,7 @@ const CONFIG = {
    items must ALL be checked before that unit can move forward or be
    marked complete from that station. Add more stations by adding more
    keys — the gating logic (isChecklistComplete) works for any of them. */
-const STATION_CHECKLISTS = {
+let STATION_CHECKLISTS = {
   'Station 1': [
     'Butyl tape has been applied between all wall panels',
     'Install Roof Mounting Brackets',
@@ -2250,7 +2256,7 @@ function renderStation2Tracker() {
   }).join('');
 }
 
-const STATION_QC_CHECKLISTS = {
+let STATION_QC_CHECKLISTS = {
   'Station 1': [
     'Verify no FOD is present',
     'All hardware present and tight',
@@ -2317,6 +2323,113 @@ const STATION_QC_CHECKLISTS = {
    "Station 5"/"Station 6" — give them the same checklists as every other line. */
 STATION_QC_CHECKLISTS['Station 5W'] = STATION_QC_CHECKLISTS['Station 5'];
 STATION_QC_CHECKLISTS['Station 6W'] = STATION_QC_CHECKLISTS['Station 6'];
+
+/* ============================================================
+   CHECKLIST EDITOR — lets Admin edit checklist item text and add
+   new items without touching code. Deliberately does NOT support
+   reordering or deleting from the middle: checklist progress on
+   in-progress units is stored as pass/fail values at ARRAY
+   POSITIONS matching these lists — shifting an index would silently
+   relabel someone's existing checklist marks to a different task.
+   Safe operations only: edit text at an existing position, append
+   a new item at the end, or remove the LAST item.
+   ============================================================ */
+const STATION_CHECKLISTS_DEFAULT = JSON.parse(JSON.stringify(STATION_CHECKLISTS));
+const STATION_QC_CHECKLISTS_DEFAULT = JSON.parse(JSON.stringify(STATION_QC_CHECKLISTS));
+
+function getChecklistOverrides() {
+  const synced = unitIssues['__config__checklist_overrides'] && unitIssues['__config__checklist_overrides'].url;
+  if (synced) { try { return JSON.parse(synced); } catch(e) {} }
+  try { return JSON.parse(localStorage.getItem('checklist_overrides_local') || '{}'); } catch(e) { return {}; }
+}
+function saveChecklistOverrides(overrides) {
+  const json = JSON.stringify(overrides);
+  unitIssues['__config__checklist_overrides'] = { url: json, updatedAt: now() };
+  localStorage.setItem('checklist_overrides_local', json);
+  saveIssues();
+}
+function applyChecklistOverrides() {
+  const overrides = getChecklistOverrides();
+  if (overrides.prod) Object.keys(overrides.prod).forEach(station => {
+    if (STATION_CHECKLISTS[station]) STATION_CHECKLISTS[station] = overrides.prod[station];
+  });
+  if (overrides.qc) Object.keys(overrides.qc).forEach(station => {
+    if (STATION_QC_CHECKLISTS[station]) STATION_QC_CHECKLISTS[station] = overrides.qc[station];
+  });
+}
+
+function ceGetList(type, station) {
+  return (type === 'qc' ? STATION_QC_CHECKLISTS : STATION_CHECKLISTS)[station] || [];
+}
+function ceSaveList(type, station, items) {
+  const overrides = getChecklistOverrides();
+  if (!overrides.prod) overrides.prod = {};
+  if (!overrides.qc) overrides.qc = {};
+  (type === 'qc' ? overrides.qc : overrides.prod)[station] = items;
+  saveChecklistOverrides(overrides);
+  if (type === 'qc') STATION_QC_CHECKLISTS[station] = items; else STATION_CHECKLISTS[station] = items;
+  renderChecklistEditor();
+}
+function ceAddItem(type, station) {
+  const items = ceGetList(type, station).slice();
+  items.push('New checklist item');
+  ceSaveList(type, station, items);
+}
+function ceRemoveLastItem(type, station) {
+  const items = ceGetList(type, station).slice();
+  if (!items.length) return;
+  if (!confirm('Remove the last item ("' + items[items.length-1] + '")? Any unit currently marked Pass/Fail on it will lose that mark.')) return;
+  items.pop();
+  ceSaveList(type, station, items);
+}
+function ceEditItem(type, station, idx, val) {
+  const items = ceGetList(type, station).slice();
+  items[idx] = val;
+  ceSaveList(type, station, items);
+}
+function ceResetStation(type, station) {
+  if (!confirm('Reset ' + station + ' back to the default checklist? This discards any edits made here.')) return;
+  const defaults = (type === 'qc' ? STATION_QC_CHECKLISTS_DEFAULT : STATION_CHECKLISTS_DEFAULT)[station];
+  ceSaveList(type, station, JSON.parse(JSON.stringify(defaults || [])));
+}
+
+let ceActiveType = 'prod';
+let ceActiveStation = null;
+function ceSwitchType(type) { ceActiveType = type; ceActiveStation = null; renderChecklistEditor(); }
+function ceSwitchStation(station) { ceActiveStation = station; renderChecklistEditor(); }
+
+function renderChecklistEditor() {
+  const el = document.getElementById('checklist-editor-body'); if (!el) return;
+  const stations = Object.keys(ceActiveType === 'qc' ? STATION_QC_CHECKLISTS : STATION_CHECKLISTS)
+    .filter(s => !s.endsWith('W')); // hide the 5W/6W aliases, they mirror 5/6
+  if (!ceActiveStation || !stations.includes(ceActiveStation)) ceActiveStation = stations[0];
+
+  const typeTabs = `<div style="display:flex;gap:6px;margin-bottom:14px;">
+    <button onclick="ceSwitchType('prod')" style="font-size:12px;font-weight:700;padding:6px 14px;border-radius:6px;border:1px solid ${ceActiveType==='prod'?'#892729':'#c8d0dc'};background:${ceActiveType==='prod'?'#892729':'#fff'};color:${ceActiveType==='prod'?'#fff':'#605e5c'};cursor:pointer;">Production</button>
+    <button onclick="ceSwitchType('qc')" style="font-size:12px;font-weight:700;padding:6px 14px;border-radius:6px;border:1px solid ${ceActiveType==='qc'?'#892729':'#c8d0dc'};background:${ceActiveType==='qc'?'#892729':'#fff'};color:${ceActiveType==='qc'?'#fff':'#605e5c'};cursor:pointer;">QC</button>
+  </div>`;
+
+  const stationTabs = `<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:16px;">
+    ${stations.map(s => `<button onclick="ceSwitchStation('${s}')" style="font-size:12px;font-weight:600;padding:5px 12px;border-radius:20px;border:1px solid ${s===ceActiveStation?'#006A8E':'#c8d0dc'};background:${s===ceActiveStation?'#006A8E':'#fff'};color:${s===ceActiveStation?'#fff':'#605e5c'};cursor:pointer;">${s}</button>`).join('')}
+  </div>`;
+
+  const items = ceGetList(ceActiveType, ceActiveStation);
+  const rows = items.map((text, idx) => `<div style="display:flex;gap:8px;align-items:center;margin-bottom:8px;">
+    <span style="font-size:11px;color:var(--text-3,#8a96a8);width:20px;text-align:right;">${idx+1}.</span>
+    <input value="${text.replace(/"/g,'&quot;')}" onchange="ceEditItem('${ceActiveType}','${ceActiveStation}',${idx},this.value)" style="flex:1;font-size:13px;padding:8px 10px;" />
+  </div>`).join('');
+
+  el.innerHTML = `${typeTabs}${stationTabs}
+    <div style="font-size:12px;color:var(--text-2,#605e5c);margin-bottom:10px;">${ceActiveStation} &middot; ${items.length} item${items.length!==1?'s':''}</div>
+    ${rows || '<p style="font-size:13px;color:var(--text-3,#8a96a8);font-style:italic;">No items yet.</p>'}
+    <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap;">
+      <button class="primary sm" onclick="ceAddItem('${ceActiveType}','${ceActiveStation}')">+ Add Item</button>
+      <button class="sm" onclick="ceRemoveLastItem('${ceActiveType}','${ceActiveStation}')" ${!items.length?'disabled':''}>&#10005; Remove Last Item</button>
+      <button class="subtle sm" onclick="ceResetStation('${ceActiveType}','${ceActiveStation}')" style="margin-left:auto;">&#8635; Reset to Default</button>
+    </div>
+    <p style="font-size:11px;color:var(--text-3,#8a96a8);margin-top:12px;">Editing text or adding new items is always safe. Removing only works from the bottom of the list — reordering or deleting a middle item isn't offered here because it would silently relabel Pass/Fail marks already saved on in-progress units.</p>`;
+}
+
 function getQCChecklistState(u) {
   const items = STATION_QC_CHECKLISTS[u.col];
   if (!items) return null;
@@ -3028,7 +3141,7 @@ function _showPage(page) {
   if (page==='station2') { renderStation2Tracker(); startS2Ticker(); }
   else                    { stopS2Ticker(); }
   if (page==='admin') {
-    renderAdminQC(); renderAdminBoard(); renderOperatorList();
+    renderAdminQC(); renderAdminBoard(); renderOperatorList(); renderChecklistEditor();
     document.getElementById('cfg-target').value = syncTarget;
     document.getElementById('cfg-url-sheets').value = sheetsUrl;
     document.getElementById('cfg-url-smartsheet').value = smartsheetUrl;
@@ -3077,6 +3190,7 @@ function renderQCContent(el) {
 
 /* ---- RENDER ALL ---- */
 function renderAll() {
+  applyChecklistOverrides();
   renderCatLegend(); initMatrixFilter();
   renderColCounts();
   renderBoardStats(); renderLineSummary(); renderBoardCompleted();
@@ -6367,6 +6481,7 @@ function openDeviationNoteModal(unitId) {
 function init() {
   loadLocalCache();   // restore units saved in THIS browser first — never lose data even if remote sync fails
   loadIssues();
+  applyChecklistOverrides();
   initOperatorSelect();
   // Bookmark this device's browser to .../?tv=1 to boot straight into TV Mode —
   // Admin's password gate doesn't apply since this never routes through showPage('admin').

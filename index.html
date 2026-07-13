@@ -1247,14 +1247,14 @@ label { font-size: 11px; font-weight: 600; color: var(--text-2); display: block;
 
   <!-- Add board unit form -->
   <div id="board-add-form" style="display:none;" class="card">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
-      <h3 style="font-size:14px;font-weight:600;">Add units — <span id="board-add-line-name">In the Hole</span></h3>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px;">
+      <h3 style="font-size:14px;font-weight:600;margin:0;">Add board units</h3>
       <button class="primary sm" onclick="addBoardUnitRow()">+ Add row</button>
     </div>
-    <div style="display:grid;grid-template-columns:140px 80px 60px 100px 1fr 32px;gap:8px;margin-bottom:4px;">
+    <div style="display:grid;grid-template-columns:140px 130px 100px 130px 1fr 32px;gap:8px;margin-bottom:4px;">
+      <span style="font-size:11px;color:#605e5c;font-weight:600;">Line</span>
       <span style="font-size:11px;color:#605e5c;font-weight:600;">Product type</span>
-      <span style="font-size:11px;color:#605e5c;font-weight:600;">Start unit #</span>
-      <span style="font-size:11px;color:#605e5c;font-weight:600;">Qty</span>
+      <span style="font-size:11px;color:#605e5c;font-weight:600;">Unit #</span>
       <span style="font-size:11px;color:#605e5c;font-weight:600;">Column</span>
       <span style="font-size:11px;color:#605e5c;font-weight:600;">Notes</span>
       <span></span>
@@ -3119,22 +3119,28 @@ function renderColCounts() {
 function toggleBoardAddForm() {
   const f=document.getElementById('board-add-form');
   if (f.style.display!=='none') { f.style.display='none'; return; }
-  const line=CONFIG.lines.find(l=>l.id===activeLine);
-  const nameEl=document.getElementById('board-add-line-name');
-  if (nameEl) nameEl.textContent=line?line.name:'Line';
   f.style.display='block'; document.getElementById('board-unit-rows').innerHTML=''; boardRowCtr=0; addBoardUnitRow();
 }
+function boardRowLineChanged(id) {
+  // Repopulate just this row's Column dropdown to match its own newly selected line
+  const lineId = document.getElementById('buline-'+id).value;
+  const line = CONFIG.lines.find(l=>l.id===lineId);
+  const colSel = document.getElementById('bucol-'+id);
+  if (colSel) colSel.innerHTML = line ? line.columns.map(c=>`<option value="${c.label}" ${c.label==='In the Hole'?'selected':''}>${c.label}</option>`).join('') : '';
+}
 function addBoardUnitRow() {
-  const id=boardRowCtr++; const line=CONFIG.lines.find(l=>l.id===activeLine);
-  const colOpts=line?line.columns.map(c=>`<option value="${c.label}" ${c.label==='In the Hole'?'selected':''}>${c.label}</option>`).join(''):'';
+  const id=boardRowCtr++;
+  const lineOpts=CONFIG.lines.map(l=>`<option value="${l.id}" ${l.id===activeLine?'selected':''}>${l.name}</option>`).join('');
+  const defaultLine=CONFIG.lines.find(l=>l.id===activeLine)||CONFIG.lines[0];
+  const colOpts=defaultLine?defaultLine.columns.map(c=>`<option value="${c.label}" ${c.label==='In the Hole'?'selected':''}>${c.label}</option>`).join(''):'';
   const productTypes=['CYS43','COMP','EQ10','TITUS','DROP','EDGE','SAT93','SAT82','EQ100','WDC','LKY','CYS'];
   const typeOpts=productTypes.map(t=>`<option value="${t}">${t}</option>`).join('');
   const div=document.createElement('div'); div.id='burow-'+id;
-  div.style.cssText='display:grid;grid-template-columns:140px 80px 60px 100px 1fr 32px;gap:8px;align-items:end;margin-bottom:8px;';
+  div.style.cssText='display:grid;grid-template-columns:140px 130px 100px 130px 1fr 32px;gap:8px;align-items:end;margin-bottom:8px;';
   div.innerHTML=`
+    <select id="buline-${id}" onchange="boardRowLineChanged(${id})">${lineOpts}</select>
     <select id="butype-${id}"><option value="">Select type...</option>${typeOpts}</select>
     <input id="bunum-${id}" type="number" min="1" placeholder="e.g. 27" />
-    <input id="buqty-${id}" type="number" min="1" max="50" value="1" placeholder="1" />
     <select id="bucol-${id}">${colOpts}</select>
     <input id="bunotes-${id}" type="text" placeholder="Notes..." />
     <button class="remove-row" onclick="removeBoardRow(${id})">&times;</button>`;
@@ -3152,24 +3158,21 @@ function _addAllBoardUnits() {
   const toAdd=[]; let hasError=false;
   rows.forEach(row => {
     const id=row.id.replace('burow-','');
+    const line=document.getElementById('buline-'+id).value;
     const typeEl=document.getElementById('butype-'+id);
     const numEl=document.getElementById('bunum-'+id);
-    const qtyEl=document.getElementById('buqty-'+id);
     const col=document.getElementById('bucol-'+id).value;
     const notes=document.getElementById('bunotes-'+id).value.trim();
     const type=typeEl?typeEl.value.trim():'';
-    const startNum=numEl?parseInt(numEl.value)||0:0;
-    const qty=qtyEl?Math.max(1,parseInt(qtyEl.value)||1):1;
-    if (!type||!startNum) { err.textContent='Select a product type and enter a starting unit number for every row.'; hasError=true; return; }
-    for (let i=0; i<qty; i++) {
-      const uid=type+'-'+(startNum+i);
-      if (getAllBoardUnits().find(u=>u.id===uid)||toAdd.find(u=>u.id===uid)) { err.textContent='Unit '+uid+' already exists.'; hasError=true; return; }
-      toAdd.push({id:uid,col,notes});
-    }
+    const num=numEl?parseInt(numEl.value)||0:0;
+    if (!type||!num) { err.textContent='Select a product type and enter a unit number for every row.'; hasError=true; return; }
+    const uid=type+'-'+num;
+    if (getAllBoardUnits().find(u=>u.id===uid)||toAdd.find(u=>u.id===uid)) { err.textContent='Unit '+uid+' already exists.'; hasError=true; return; }
+    toAdd.push({id:uid,line,col,notes});
   });
   if (hasError) return;
   toAdd.forEach(u => {
-    boardUnits.push({id:u.id,line:activeLine,col:u.col,held:false,completed:false,notes:u.notes,esoNumber:'',gensetSerial:'',readyForInspection:false,inspectionStarted:false,supervisorReleased:false,supervisorReleaseTs:'',deviationNeeded:false,deviationNote:'',deviationTs:'',checklist:{},qcChecklist:{},failOverrides:[],station2Tasks:{},history:[{action:'Added to '+u.col,ts:now(),notes:u.notes}]});
+    boardUnits.push({id:u.id,line:u.line,col:u.col,held:false,completed:false,notes:u.notes,esoNumber:'',gensetSerial:'',readyForInspection:false,inspectionStarted:false,supervisorReleased:false,supervisorReleaseTs:'',deviationNeeded:false,deviationNote:'',deviationTs:'',checklist:{},qcChecklist:{},failOverrides:[],station2Tasks:{},history:[{action:'Added to '+u.col,ts:now(),notes:u.notes}]});
   });
   err.textContent=''; document.getElementById('board-add-form').style.display='none';
   pushBoard(); renderAll();

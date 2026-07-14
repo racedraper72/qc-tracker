@@ -947,6 +947,7 @@ label { font-size: 11px; font-weight: 600; color: var(--text-2); display: block;
   </div>
   <div class="header-nav">
     <button class="nav-btn active" id="nav-dashboard" onclick="showPage('dashboard')">&#9632; Dashboard</button>
+    <button class="nav-btn" id="nav-cat" onclick="showPage('cat')">&#128663; Cat Dashboard</button>
     <button class="nav-btn" id="nav-pm" onclick="showPage('pm')">&#128200; PM View</button>
     <button class="nav-btn" id="nav-tracker" onclick="showPage('tracker')">&#9776; Tracker</button>
     <button class="nav-btn" id="nav-floor" onclick="showPage('floor')" style="background:rgba(14,124,58,.25);color:#4ade80;font-weight:700;">&#9654; Floor Mode</button>
@@ -955,7 +956,6 @@ label { font-size: 11px; font-weight: 600; color: var(--text-2); display: block;
     <button class="nav-btn" id="nav-admin" onclick="showPage('admin')">&#9881; Admin</button>
     <button class="nav-btn" id="nav-tv" onclick="showPage('tv')">&#128250; TV Mode</button>
     <button class="nav-btn" id="nav-station2" onclick="showPage('station2')">&#9201; Station 2 Tracker</button>
-    <button class="nav-btn" id="nav-cat" onclick="showPage('cat')">&#128663; Cat Dashboard</button>
   </div>
   <div style="display:flex;align-items:center;gap:8px;">
 <span style="font-size:12px;color:rgba(255,255,255,0.85);" id="sync-status-mini"></span>
@@ -3566,10 +3566,12 @@ function renderBoardUnitCard(u) {
   const checklistOK = isAllChecklistsComplete(u);
   let actions=''; let panels='';
   if (!u.completed) {
-    // ESO/Genset/Solutions ESO — available at any station
+    // ESO/Genset are Station-7-only; Solutions ESO is independent and available anywhere
     {
-      actions+=`<button class="primary" onclick="togglePanel('bd-eso-${sid}')">&#9998; ESO / Genset #s</button>`;
-      panels+=`<div class="action-group" id="bd-eso-${sid}"><div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:8px;"><div><label>${CONFIG.fieldLabels.field1}</label><input id="bd-eso-num-${sid}" type="text" placeholder="e.g. ESO-12345" value="${u.esoNumber||''}" /></div><div><label>${CONFIG.fieldLabels.field2}</label><input id="bd-genset-${sid}" type="text" placeholder="e.g. GEN-98765" value="${u.gensetSerial||''}" /></div><div><label>Solutions ESO #</label><input id="bd-sol-eso-${sid}" type="text" placeholder="e.g. SOL-4521" value="${u.solutionsEso||''}" /></div></div><button class="primary sm" onclick="saveStation7Data('${u.id}')">&#10003; Save</button></div>`;
+      const atStation7 = u.col === 'Station 7';
+      actions+=`<button class="primary" onclick="togglePanel('bd-eso-${sid}')">&#9998; ${atStation7?'ESO / Genset #s':'Solutions ESO #'}</button>`;
+      const esoGensetFields = atStation7 ? `<div><label>${CONFIG.fieldLabels.field1}</label><input id="bd-eso-num-${sid}" type="text" placeholder="e.g. ESO-12345" value="${u.esoNumber||''}" /></div><div><label>${CONFIG.fieldLabels.field2}</label><input id="bd-genset-${sid}" type="text" placeholder="e.g. GEN-98765" value="${u.gensetSerial||''}" /></div>` : '';
+      panels+=`<div class="action-group" id="bd-eso-${sid}">${!atStation7?`<p style="font-size:11px;color:#8a96a8;margin-bottom:8px;">${CONFIG.fieldLabels.field1} and ${CONFIG.fieldLabels.field2} are only set at Station 7.</p>`:''}<div style="display:grid;grid-template-columns:${atStation7?'1fr 1fr 1fr':'1fr'};gap:10px;margin-bottom:8px;">${esoGensetFields}<div><label>Solutions ESO #</label><input id="bd-sol-eso-${sid}" type="text" placeholder="e.g. SOL-4521" value="${u.solutionsEso||''}" /></div></div><button class="primary sm" onclick="saveStation7Data('${u.id}')">&#10003; Save</button></div>`;
     }
     // REMEDIATION column — Started + Return to options
     if (isRemedCol) {
@@ -3734,9 +3736,15 @@ function saveStation7Data(unitId) {
   const esoEl=document.getElementById('bd-eso-num-'+sid);
   const genEl=document.getElementById('bd-genset-'+sid);
   const solEl=document.getElementById('bd-sol-eso-'+sid);
-  const eso=esoEl?esoEl.value.trim():''; const gen=genEl?genEl.value.trim():''; const sol=solEl?solEl.value.trim():'';
-  u.esoNumber=eso; u.gensetSerial=gen; u.solutionsEso=sol;
-  u.history.push({action:'ESO/Genset recorded — ESO: '+(eso||'—')+' | Genset: '+(gen||'—')+' | Solutions ESO: '+(sol||'—'),ts:now(),notes:''});
+  const sol=solEl?solEl.value.trim():'';
+  u.solutionsEso=sol;
+  let historyMsg='Solutions ESO recorded — '+(sol||'—');
+  if (esoEl && genEl) { // only present (and only ever saved) when the unit is at Station 7
+    const eso=esoEl.value.trim(); const gen=genEl.value.trim();
+    u.esoNumber=eso; u.gensetSerial=gen;
+    historyMsg='ESO/Genset recorded — ESO: '+(eso||'—')+' | Genset: '+(gen||'—')+' | Solutions ESO: '+(sol||'—');
+  }
+  u.history.push({action:historyMsg,ts:now(),notes:''});
   togglePanel('bd-eso-'+sid); pushBoard(); renderAll();
 }
 
@@ -4036,7 +4044,7 @@ function renderAdminBoard() {
       return `<tr><td><strong>${u.id}</strong></td><td>${lc?lc.name:u.line}</td>
         <td><select id="badm-col-${sid}" style="width:130px;font-size:12px;">${colOpts}</select></td>
         <td>${u.held?'<span class="badge badge-orange">On hold</span>':'<span class="badge badge-blue">Active</span>'}</td>
-        <td style="display:flex;gap:4px;"><button class="sm primary" onclick="adminMoveBoard('${u.id}')">Move</button><button class="sm ${u.held?'warn-btn':''}" onclick="adminToggleHoldBoard('${u.id}')">${u.held?'Unhold':'Hold'}</button><button class="sm danger" onclick="adminDeleteBoard('${u.id}')">Delete</button></td>
+        <td style="display:flex;gap:4px;"><button class="sm primary" onclick="adminMoveBoard('${u.id}')">Move</button><button class="sm ${u.held?'warn-btn':''}" onclick="adminToggleHoldBoard('${u.id}')">${u.held?'Unhold':'Hold'}</button><button class="sm" onclick="adminEditBoard('${u.id}')">Edit</button><button class="sm danger" onclick="adminDeleteBoard('${u.id}')">Delete</button></td>
       </tr>`;
     }).join('')}
   </tbody></table>`;
@@ -4044,6 +4052,96 @@ function renderAdminBoard() {
 function adminMoveBoard(uid){const u=ensureBoardTracked(uid);const sid=safeId(uid);const dest=document.getElementById('badm-col-'+sid).value;u.history.push({action:'Admin moved to '+dest,ts:now(),notes:''});u.col=dest;pushBoard();renderAll();renderAdminBoard();}
 function adminToggleHoldBoard(uid){const u=ensureBoardTracked(uid);u.held=!u.held;u.history.push({action:u.held?'Admin placed on hold':'Admin removed hold',ts:now(),notes:''});pushBoard();renderAll();renderAdminBoard();}
 function adminDeleteBoard(uid){if(!confirm('Delete '+uid+'?'))return;boardUnits=boardUnits.filter(u=>u.id!==uid);CONFIG.lines.forEach(l=>l.columns.forEach(c=>{c.units=c.units.filter(u=>u!==uid);}));addDeletedUnitId(uid);pushBoard();renderAll();renderAdminBoard();}
+
+/* ---- EDIT UNIT ----
+   Covers everything Move/Hold/Delete don't: renaming the Unit ID itself,
+   reassigning which Line it belongs to, and its ESO/Genset/Solutions ESO/
+   notes fields — all from one place instead of deleting and re-adding. */
+function adminEditBoard(uid) {
+  const u = ensureBoardTracked(uid);
+  const existing = document.getElementById('edit-unit-overlay');
+  if (existing) existing.remove();
+
+  const lineOpts = CONFIG.lines.map(l => `<option value="${l.id}" ${l.id===u.line?'selected':''}>${l.name}</option>`).join('');
+
+  const overlay = document.createElement('div');
+  overlay.id = 'edit-unit-overlay';
+  overlay.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.55);z-index:9999;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(2px);';
+  overlay.innerHTML = `
+    <div style="background:#fff;border-radius:16px;padding:28px 32px;max-width:440px;width:94%;box-shadow:0 24px 64px rgba(0,0,0,.28);max-height:90vh;overflow-y:auto;">
+      <h2 style="font-size:16px;font-weight:800;color:#0f1923;margin-bottom:16px;letter-spacing:-.3px;">Edit Unit — ${u.id}</h2>
+
+      <label style="font-size:11px;font-weight:700;color:#4a5568;text-transform:uppercase;">Unit ID</label>
+      <input id="eu-id" type="text" value="${u.id}" style="width:100%;font-size:14px;padding:9px 12px;border:2px solid #e2e6ea;border-radius:8px;margin-bottom:6px;" />
+      <p style="font-size:11px;color:#8a96a8;margin-bottom:12px;">Renaming keeps all history, checklists, and time tracking attached — it just changes the label.</p>
+
+      <label style="font-size:11px;font-weight:700;color:#4a5568;text-transform:uppercase;">Line</label>
+      <select id="eu-line" style="width:100%;font-size:14px;padding:9px 12px;border:2px solid #e2e6ea;border-radius:8px;margin-bottom:12px;">${lineOpts}</select>
+
+      <label style="font-size:11px;font-weight:700;color:#4a5568;text-transform:uppercase;">${CONFIG.fieldLabels.field1}</label>
+      <input id="eu-eso" type="text" value="${u.esoNumber||''}" style="width:100%;font-size:14px;padding:9px 12px;border:2px solid #e2e6ea;border-radius:8px;margin-bottom:12px;" />
+
+      <label style="font-size:11px;font-weight:700;color:#4a5568;text-transform:uppercase;">${CONFIG.fieldLabels.field2}</label>
+      <input id="eu-genset" type="text" value="${u.gensetSerial||''}" style="width:100%;font-size:14px;padding:9px 12px;border:2px solid #e2e6ea;border-radius:8px;margin-bottom:12px;" />
+
+      <label style="font-size:11px;font-weight:700;color:#4a5568;text-transform:uppercase;">Solutions ESO #</label>
+      <input id="eu-soleso" type="text" value="${u.solutionsEso||''}" style="width:100%;font-size:14px;padding:9px 12px;border:2px solid #e2e6ea;border-radius:8px;margin-bottom:12px;" />
+
+      <label style="font-size:11px;font-weight:700;color:#4a5568;text-transform:uppercase;">Notes</label>
+      <textarea id="eu-notes" rows="2" style="width:100%;font-size:14px;padding:9px 12px;border:2px solid #e2e6ea;border-radius:8px;margin-bottom:6px;">${u.notes||''}</textarea>
+
+      <div id="eu-err" style="color:#c0392b;font-size:12px;min-height:16px;margin-bottom:10px;"></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+        <button id="eu-cancel" style="padding:12px;font-size:14px;font-weight:600;background:#f0f2f5;color:#4a5568;border:none;border-radius:10px;cursor:pointer;">Cancel</button>
+        <button id="eu-save" style="padding:12px;font-size:14px;font-weight:700;background:#892729;color:#fff;border:none;border-radius:10px;cursor:pointer;">&#10003; Save Changes</button>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+
+  overlay.querySelector('#eu-save').addEventListener('click', () => adminSaveEditBoard(uid));
+  overlay.querySelector('#eu-cancel').addEventListener('click', () => overlay.remove());
+  overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
+}
+
+function adminSaveEditBoard(oldId) {
+  const errEl = document.getElementById('eu-err');
+  const newId = document.getElementById('eu-id').value.trim();
+  const newLine = document.getElementById('eu-line').value;
+  const eso = document.getElementById('eu-eso').value.trim();
+  const genset = document.getElementById('eu-genset').value.trim();
+  const solEso = document.getElementById('eu-soleso').value.trim();
+  const notes = document.getElementById('eu-notes').value.trim();
+
+  if (!newId) { errEl.textContent = 'Unit ID cannot be blank.'; return; }
+  if (newId !== oldId && getAllBoardUnits().some(u => u.id === newId)) { errEl.textContent = 'A unit with ID "'+newId+'" already exists.'; return; }
+
+  const u = ensureBoardTracked(oldId);
+  const lineChanged = newLine !== u.line;
+  const idChanged = newId !== oldId;
+
+  if (idChanged) {
+    // Update the static seed reference too, if this unit originated there,
+    // so a refresh doesn't resurrect a duplicate under the old name.
+    CONFIG.lines.forEach(l => l.columns.forEach(c => { c.units = c.units.map(x => x===oldId ? newId : x); }));
+    u.history.push({ action: 'Renamed from '+oldId+' to '+newId, ts: now(), notes: '' });
+    u.id = newId;
+  }
+  if (lineChanged) {
+    const lineObj = CONFIG.lines.find(l=>l.id===newLine);
+    u.history.push({ action: 'Moved to line '+(lineObj?lineObj.name:newLine), ts: now(), notes: '' });
+    u.line = newLine;
+    // Land on the new line's first column if the unit's current column doesn't exist there
+    if (lineObj && !lineObj.columns.some(c=>c.label===u.col)) u.col = lineObj.columns[0] ? lineObj.columns[0].label : u.col;
+  }
+  u.esoNumber = eso;
+  u.gensetSerial = genset;
+  u.solutionsEso = solEso;
+  u.notes = notes;
+
+  document.getElementById('edit-unit-overlay').remove();
+  pushBoard(); renderAll(); renderAdminBoard();
+}
+
 
 /* ---- CSV EXPORT ---- */
 function exportCSV() {

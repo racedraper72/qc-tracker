@@ -3418,13 +3418,20 @@ function renderLineSummary() {
         const uReady   = isAllChecklistsComplete(u);
         const color = uHasFail ? '#A03033' : uReady ? '#0e7c3a' : 'inherit';
         const weight = (uHasFail || uReady) ? '700' : '400';
-        return `<span style="color:${color};font-weight:${weight};">${u.id}</span>`;
-      }).join(', ');
+        let dueTag = '';
+        if (u.dueDate) {
+          const d = new Date(u.dueDate+'T00:00:00'); const today = new Date(); today.setHours(0,0,0,0);
+          const weekOut = new Date(today); weekOut.setDate(weekOut.getDate()+7);
+          const dueColor = (!isNaN(d) && d < today) ? '#A03033' : (!isNaN(d) && d <= weekOut) ? '#b45309' : '#8a96a8';
+          dueTag = ` <span style="color:${dueColor};font-weight:600;font-size:10px;">(${u.dueDate})</span>`;
+        }
+        return `<div style="color:${color};font-weight:${weight};">${u.id}${dueTag}</div>`;
+      }).join('');
       return `<div class="station-chip ${cls}" onclick="event.stopPropagation();jumpToLine('${line.id}');setTimeout(()=>switchCol('${col.label}'),50)">
         <div class="station-chip-header">${shortLabel}</div>
         <div class="station-chip-body">
           <div class="station-chip-count" style="color:${count>0?'#006A8E':'#c8c6c4'}">${count||'—'}</div>
-          <div class="station-chip-units">${unitNames}${cu.length>2?' +'+(cu.length-2):''}</div>
+          <div class="station-chip-units">${unitNames}${cu.length>2?`<div style="opacity:.7;">+${cu.length-2} more</div>`:''}</div>
         </div>
       </div>`;
     }).join('');

@@ -955,6 +955,7 @@ label { font-size: 11px; font-weight: 600; color: var(--text-2); display: block;
     <button class="nav-btn" id="nav-admin" onclick="showPage('admin')">&#9881; Admin</button>
     <button class="nav-btn" id="nav-tv" onclick="showPage('tv')">&#128250; TV Mode</button>
     <button class="nav-btn" id="nav-station2" onclick="showPage('station2')">&#9201; Station 2 Tracker</button>
+    <button class="nav-btn" id="nav-cat" onclick="showPage('cat')">&#128663; Cat Dashboard</button>
   </div>
   <div style="display:flex;align-items:center;gap:8px;">
 <span style="font-size:12px;color:rgba(255,255,255,0.85);" id="sync-status-mini"></span>
@@ -1251,11 +1252,12 @@ label { font-size: 11px; font-weight: 600; color: var(--text-2); display: block;
       <h3 style="font-size:14px;font-weight:600;margin:0;">Add board units</h3>
       <button class="primary sm" onclick="addBoardUnitRow()">+ Add row</button>
     </div>
-    <div style="display:grid;grid-template-columns:140px 130px 100px 130px 1fr 32px;gap:8px;margin-bottom:4px;">
+    <div style="display:grid;grid-template-columns:140px 130px 100px 130px 130px 1fr 32px;gap:8px;margin-bottom:4px;">
       <span style="font-size:11px;color:#605e5c;font-weight:600;">Line</span>
       <span style="font-size:11px;color:#605e5c;font-weight:600;">Product type</span>
       <span style="font-size:11px;color:#605e5c;font-weight:600;">Unit #</span>
       <span style="font-size:11px;color:#605e5c;font-weight:600;">Column</span>
+      <span style="font-size:11px;color:#605e5c;font-weight:600;">Solutions ESO #</span>
       <span style="font-size:11px;color:#605e5c;font-weight:600;">Notes</span>
       <span></span>
     </div>
@@ -1512,6 +1514,16 @@ label { font-size: 11px; font-weight: 600; color: var(--text-2); display: block;
   <div id="station2-tracker-body" style="display:flex;flex-direction:column;gap:16px;"></div>
 </div>
 <!-- ============================================================ END STATION 2 PRODUCTION TRACKER PAGE -->
+
+<!-- ============================================================ CAT DASHBOARD PAGE -->
+<div id="page-cat" class="app-body" style="display:none;">
+  <div style="margin-bottom:16px;">
+    <h2 style="font-size:16px;font-weight:800;letter-spacing:-.3px;">&#128663; Cat Dashboard</h2>
+    <p style="font-size:12px;color:var(--text-2);margin-top:3px;">Read-only view — Unit # and Solutions ESO # only, by line and station.</p>
+  </div>
+  <div id="cat-dashboard-body" style="display:flex;flex-direction:column;gap:16px;"></div>
+</div>
+<!-- ============================================================ END CAT DASHBOARD PAGE -->
 
 <!-- ============================================================ SCRIPT -->
 <script>
@@ -2944,7 +2956,7 @@ function jsonpSave(tab, rows) {
   const header = tab==='QC'
     ? ['Serial','Type','Station','InspectionStarted','Held','Remediation','RemediationOrigin','Completed','Status','HistoryJSON']
     : tab==='Board'
-    ? ['UnitID','Line','Column','Held','Completed','Notes','ESONumber','GensetSerial','ReadyForInspection','InspectionStarted','HistoryJSON','SupervisorReleased','SupervisorReleaseTs','DeviationNeeded','DeviationNote','DeviationTs','ChecklistJSON','QCChecklistJSON','FailOverridesJSON','Station2TasksJSON']
+    ? ['UnitID','Line','Column','Held','Completed','Notes','ESONumber','GensetSerial','ReadyForInspection','InspectionStarted','HistoryJSON','SupervisorReleased','SupervisorReleaseTs','DeviationNeeded','DeviationNote','DeviationTs','ChecklistJSON','QCChecklistJSON','FailOverridesJSON','Station2TasksJSON','SolutionsESO']
     : ['UnitID','Link','UpdatedAt'];
   const payload = JSON.stringify({action:'save', rows:[header,...rows]});
 
@@ -2996,7 +3008,7 @@ function syncFromSheetsViaGAS(onDone) {
           let station2Tasks={}; try{station2Tasks=JSON.parse(r[19]||'{}');}catch(e){}
           return {id:r[0],line:r[1],col:r[2],held:r[3]==='TRUE'||r[3]===true,completed:r[4]==='TRUE'||r[4]===true,notes:r[5]||'',esoNumber:r[6]||'',gensetSerial:r[7]||'',readyForInspection:r[8]==='TRUE'||r[8]===true,inspectionStarted:r[9]==='TRUE'||r[9]===true,history,
             supervisorReleased:r[11]==='TRUE'||r[11]===true,supervisorReleaseTs:r[12]||'',
-            deviationNeeded:r[13]==='TRUE'||r[13]===true,deviationNote:r[14]||'',deviationTs:r[15]||'',checklist,qcChecklist,failOverrides,station2Tasks};
+            deviationNeeded:r[13]==='TRUE'||r[13]===true,deviationNote:r[14]||'',deviationTs:r[15]||'',checklist,qcChecklist,failOverrides,station2Tasks,solutionsEso:r[20]||''};
         });
       }
       jsonpCall(sheetsUrl+'?tab=Issues', function(err3, rows3) {
@@ -3023,7 +3035,7 @@ function proxySave(tab, rows) {
   const header = tab==='QC'
     ? ['Serial','Type','Station','InspectionStarted','Held','Remediation','RemediationOrigin','Completed','Status','HistoryJSON']
     : tab==='Board'
-    ? ['UnitID','Line','Column','Held','Completed','Notes','ESONumber','GensetSerial','ReadyForInspection','InspectionStarted','HistoryJSON','SupervisorReleased','SupervisorReleaseTs','DeviationNeeded','DeviationNote','DeviationTs','ChecklistJSON','QCChecklistJSON','FailOverridesJSON','Station2TasksJSON']
+    ? ['UnitID','Line','Column','Held','Completed','Notes','ESONumber','GensetSerial','ReadyForInspection','InspectionStarted','HistoryJSON','SupervisorReleased','SupervisorReleaseTs','DeviationNeeded','DeviationNote','DeviationTs','ChecklistJSON','QCChecklistJSON','FailOverridesJSON','Station2TasksJSON','SolutionsESO']
     : ['UnitID','Link','UpdatedAt'];
   return proxyFetch('?action=save&tab='+tab, {
     method: 'POST',
@@ -3054,7 +3066,7 @@ function syncFromSheetsViaSmartsheet(onDone) {
         let station2Tasks={}; try{station2Tasks=JSON.parse(r[19]||'{}');}catch(e){}
         return {id:r[0],line:r[1],col:r[2],held:r[3]==='TRUE'||r[3]===true,completed:r[4]==='TRUE'||r[4]===true,notes:r[5]||'',esoNumber:r[6]||'',gensetSerial:r[7]||'',readyForInspection:r[8]==='TRUE'||r[8]===true,inspectionStarted:r[9]==='TRUE'||r[9]===true,history,
           supervisorReleased:r[11]==='TRUE'||r[11]===true,supervisorReleaseTs:r[12]||'',
-          deviationNeeded:r[13]==='TRUE'||r[13]===true,deviationNote:r[14]||'',deviationTs:r[15]||'',checklist,qcChecklist,failOverrides,station2Tasks};
+          deviationNeeded:r[13]==='TRUE'||r[13]===true,deviationNote:r[14]||'',deviationTs:r[15]||'',checklist,qcChecklist,failOverrides,station2Tasks,solutionsEso:r[20]||''};
       });
     }
     if (rows3 && rows3.length>1) {
@@ -3104,7 +3116,7 @@ function pushQC() {
 }
 function pushBoard() {
   saveLocalCache();
-  const rows = boardUnits.map(u=>[u.id,u.line,u.col,u.held,u.completed,u.notes,u.esoNumber||'',u.gensetSerial||'',u.readyForInspection||false,u.inspectionStarted||false,JSON.stringify(u.history),u.supervisorReleased||false,u.supervisorReleaseTs||'',u.deviationNeeded||false,u.deviationNote||'',u.deviationTs||'',JSON.stringify(u.checklist||{}),JSON.stringify(u.qcChecklist||{}),JSON.stringify(u.failOverrides||[]),JSON.stringify(u.station2Tasks||{})]);
+  const rows = boardUnits.map(u=>[u.id,u.line,u.col,u.held,u.completed,u.notes,u.esoNumber||'',u.gensetSerial||'',u.readyForInspection||false,u.inspectionStarted||false,JSON.stringify(u.history),u.supervisorReleased||false,u.supervisorReleaseTs||'',u.deviationNeeded||false,u.deviationNote||'',u.deviationTs||'',JSON.stringify(u.checklist||{}),JSON.stringify(u.qcChecklist||{}),JSON.stringify(u.failOverrides||[]),JSON.stringify(u.station2Tasks||{}),u.solutionsEso||'']);
   if (syncTarget === 'smartsheet') proxySave('Board', rows); else jsonpSave('Board', rows);
 }
 function pushIssues() {
@@ -3128,7 +3140,7 @@ function showPage(page) {
 }
 function _showPage(page) {
   currentPage=page;
-  ['dashboard','floor','pm','tracker','history','admin','tv','station2'].forEach(p => {
+  ['dashboard','floor','pm','tracker','history','admin','tv','station2','cat'].forEach(p => {
     const el=document.getElementById('page-'+p); if(el) el.style.display=p===page?'block':'none';
     const btn=document.getElementById('nav-'+p); if(btn) btn.classList.toggle('active',p===page);
   });
@@ -3140,6 +3152,7 @@ function _showPage(page) {
   else                  { stopTVClock(); }
   if (page==='station2') { renderStation2Tracker(); startS2Ticker(); }
   else                    { stopS2Ticker(); }
+  if (page==='cat')      { renderCatDashboard(); }
   if (page==='admin') {
     renderAdminQC(); renderAdminBoard(); renderOperatorList(); renderChecklistEditor();
     document.getElementById('cfg-target').value = syncTarget;
@@ -3201,6 +3214,7 @@ function renderAll() {
   if (currentPage==='pm') { renderPMPage(); }
   if (currentPage==='tv') { renderTVMode(); }
   if (currentPage==='station2') { renderStation2Tracker(); }
+  if (currentPage==='cat') { renderCatDashboard(); }
 }
 
 /* ---- STAT CARD COUNTS ---- */
@@ -3250,12 +3264,13 @@ function addBoardUnitRow() {
   const productTypes=['CYS43','COMP','EQ10','TITUS','DROP','EDGE','SAT93','SAT82','EQ100','WDC','LKY','CYS'];
   const typeOpts=productTypes.map(t=>`<option value="${t}">${t}</option>`).join('');
   const div=document.createElement('div'); div.id='burow-'+id;
-  div.style.cssText='display:grid;grid-template-columns:140px 130px 100px 130px 1fr 32px;gap:8px;align-items:end;margin-bottom:8px;';
+  div.style.cssText='display:grid;grid-template-columns:140px 130px 100px 130px 130px 1fr 32px;gap:8px;align-items:end;margin-bottom:8px;';
   div.innerHTML=`
     <select id="buline-${id}" onchange="boardRowLineChanged(${id})">${lineOpts}</select>
     <select id="butype-${id}"><option value="">Select type...</option>${typeOpts}</select>
     <input id="bunum-${id}" type="number" min="1" placeholder="e.g. 27" />
     <select id="bucol-${id}">${colOpts}</select>
+    <input id="busoleso-${id}" type="text" placeholder="e.g. SOL-4521" />
     <input id="bunotes-${id}" type="text" placeholder="Notes..." />
     <button class="remove-row" onclick="removeBoardRow(${id})">&times;</button>`;
   document.getElementById('board-unit-rows').appendChild(div);
@@ -3276,17 +3291,18 @@ function _addAllBoardUnits() {
     const typeEl=document.getElementById('butype-'+id);
     const numEl=document.getElementById('bunum-'+id);
     const col=document.getElementById('bucol-'+id).value;
+    const solEso=document.getElementById('busoleso-'+id).value.trim();
     const notes=document.getElementById('bunotes-'+id).value.trim();
     const type=typeEl?typeEl.value.trim():'';
     const num=numEl?parseInt(numEl.value)||0:0;
     if (!type||!num) { err.textContent='Select a product type and enter a unit number for every row.'; hasError=true; return; }
     const uid=type+'-'+num;
     if (getAllBoardUnits().find(u=>u.id===uid)||toAdd.find(u=>u.id===uid)) { err.textContent='Unit '+uid+' already exists.'; hasError=true; return; }
-    toAdd.push({id:uid,line,col,notes});
+    toAdd.push({id:uid,line,col,notes,solEso});
   });
   if (hasError) return;
   toAdd.forEach(u => {
-    boardUnits.push({id:u.id,line:u.line,col:u.col,held:false,completed:false,notes:u.notes,esoNumber:'',gensetSerial:'',readyForInspection:false,inspectionStarted:false,supervisorReleased:false,supervisorReleaseTs:'',deviationNeeded:false,deviationNote:'',deviationTs:'',checklist:{},qcChecklist:{},failOverrides:[],station2Tasks:{},history:[{action:'Added to '+u.col,ts:now(),notes:u.notes}]});
+    boardUnits.push({id:u.id,line:u.line,col:u.col,held:false,completed:false,notes:u.notes,esoNumber:'',gensetSerial:'',solutionsEso:u.solEso||'',readyForInspection:false,inspectionStarted:false,supervisorReleased:false,supervisorReleaseTs:'',deviationNeeded:false,deviationNote:'',deviationTs:'',checklist:{},qcChecklist:{},failOverrides:[],station2Tasks:{},history:[{action:'Added to '+u.col,ts:now(),notes:u.notes}]});
   });
   err.textContent=''; document.getElementById('board-add-form').style.display='none';
   pushBoard(); renderAll();
@@ -3304,7 +3320,7 @@ function getAllBoardUnits() {
         if (deleted.includes(uid)) return; // tombstoned — don't resurrect from the static seed
         if (!merged.find(u=>u.id===uid)) {
           const tracked=boardUnits.find(u=>u.id===uid);
-          merged.push(tracked||{id:uid,line:line.id,col:col.label,held:false,completed:false,notes:'',esoNumber:'',gensetSerial:'',readyForInspection:false,inspectionStarted:false,supervisorReleased:false,supervisorReleaseTs:'',deviationNeeded:false,deviationNote:'',deviationTs:'',checklist:{},qcChecklist:{},failOverrides:[],station2Tasks:{},history:[]});
+          merged.push(tracked||{id:uid,line:line.id,col:col.label,held:false,completed:false,notes:'',esoNumber:'',gensetSerial:'',solutionsEso:'',readyForInspection:false,inspectionStarted:false,supervisorReleased:false,supervisorReleaseTs:'',deviationNeeded:false,deviationNote:'',deviationTs:'',checklist:{},qcChecklist:{},failOverrides:[],station2Tasks:{},history:[]});
         }
       });
     });
@@ -3386,6 +3402,34 @@ function renderLineSummary() {
           </div>
           <span style="font-size:12px;color:#fff;font-weight:600;">View ›</span>
         </div>
+      </div>
+      <div class="line-summary-body"><div class="station-chips">${chips}</div></div>
+    </div>`;
+  }).join('');
+}
+
+function renderCatDashboard() {
+  const el=document.getElementById('cat-dashboard-body'); if(!el) return;
+  el.innerHTML=CONFIG.lines.map(line => {
+    const lu=getLineUnits(line.id);
+    const chips=line.columns.map(col => {
+      const cu=getColUnits(line.id,col.label);
+      const shortLabel=col.label.replace('Station ','Stn ').replace('In the Hole','Hole').replace('On Deck','Deck').replace('Ready to Ship','✓ RTS').replace('Holding ','Hold.').replace('Load Bank','LB');
+      const rows = cu.map(u => `<div style="display:flex;justify-content:space-between;gap:8px;font-size:11px;padding:2px 0;">
+        <span style="font-weight:700;color:var(--text-1,#323130);">${u.id}</span>
+        <span style="color:${u.solutionsEso?'#006A8E':'#c8c6c4'};">${u.solutionsEso||'—'}</span>
+      </div>`).join('');
+      return `<div class="station-chip has-units" style="cursor:default;text-align:left;">
+        <div class="station-chip-header">${shortLabel}</div>
+        <div class="station-chip-body" style="text-align:left;">
+          ${rows || '<div style="font-size:11px;color:#c8c6c4;">No units</div>'}
+        </div>
+      </div>`;
+    }).join('');
+    return `<div class="line-summary-card">
+      <div class="line-summary-header" style="background:${line.bgColor};border-left:4px solid ${line.headerColor};">
+        <span style="font-size:14px;font-weight:700;color:#fff;">${line.name}</span>
+        <span style="font-size:12px;color:rgba(255,255,255,.8);margin-left:8px;">${lu.length} unit${lu.length!==1?'s':''}</span>
       </div>
       <div class="line-summary-body"><div class="station-chips">${chips}</div></div>
     </div>`;
@@ -3509,7 +3553,8 @@ function renderBoardUnitCard(u) {
   if (u.completed) statusBadge=`<span class="badge badge-green">Complete</span>`;
   const esoDisplay=u.esoNumber?`<span style="font-size:11px;background:#f0eeff;color:#4b3a9e;border:1px solid #4b3a9e;border-radius:20px;padding:2px 9px;font-weight:600;margin-right:4px;">${CONFIG.fieldLabels.field1}: ${u.esoNumber}</span>`:'';
   const gensetDisplay=u.gensetSerial?`<span style="font-size:11px;background:#dff6dd;color:#0b6a0b;border:1px solid #107c10;border-radius:20px;padding:2px 9px;font-weight:600;">${CONFIG.fieldLabels.field2}: ${u.gensetSerial}</span>`:'';
-  const esoGensetInfo=(esoDisplay||gensetDisplay)?`<div style="margin-bottom:6px;">${esoDisplay}${gensetDisplay}</div>`:'';
+  const solutionsEsoDisplay=u.solutionsEso?`<span style="font-size:11px;background:#E6F0F3;color:#006A8E;border:1px solid #006A8E;border-radius:20px;padding:2px 9px;font-weight:600;margin-left:4px;">Solutions ESO: ${u.solutionsEso}</span>`:'';
+  const esoGensetInfo=(esoDisplay||gensetDisplay||solutionsEsoDisplay)?`<div style="margin-bottom:6px;">${esoDisplay}${gensetDisplay}${solutionsEsoDisplay}</div>`:'';
   const isInspectionCol = CONFIG.boardInspectionCols.includes(u.col);
   const canSendToRemed  = CONFIG.boardInspectionCols.includes(u.col);
   const isRemedCol      = u.col === 'Remediation';
@@ -3521,10 +3566,10 @@ function renderBoardUnitCard(u) {
   const checklistOK = isAllChecklistsComplete(u);
   let actions=''; let panels='';
   if (!u.completed) {
-    // ESO/Genset — Station 7 (all lines)
-    if (u.col==='Station 7') {
+    // ESO/Genset/Solutions ESO — available at any station
+    {
       actions+=`<button class="primary" onclick="togglePanel('bd-eso-${sid}')">&#9998; ESO / Genset #s</button>`;
-      panels+=`<div class="action-group" id="bd-eso-${sid}"><div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:8px;"><div><label>${CONFIG.fieldLabels.field1}</label><input id="bd-eso-num-${sid}" type="text" placeholder="e.g. ESO-12345" value="${u.esoNumber||''}" /></div><div><label>${CONFIG.fieldLabels.field2}</label><input id="bd-genset-${sid}" type="text" placeholder="e.g. GEN-98765" value="${u.gensetSerial||''}" /></div></div><button class="primary sm" onclick="saveStation7Data('${u.id}')">&#10003; Save ${CONFIG.fieldLabels.field1} &amp; ${CONFIG.fieldLabels.field2}</button></div>`;
+      panels+=`<div class="action-group" id="bd-eso-${sid}"><div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:8px;"><div><label>${CONFIG.fieldLabels.field1}</label><input id="bd-eso-num-${sid}" type="text" placeholder="e.g. ESO-12345" value="${u.esoNumber||''}" /></div><div><label>${CONFIG.fieldLabels.field2}</label><input id="bd-genset-${sid}" type="text" placeholder="e.g. GEN-98765" value="${u.gensetSerial||''}" /></div><div><label>Solutions ESO #</label><input id="bd-sol-eso-${sid}" type="text" placeholder="e.g. SOL-4521" value="${u.solutionsEso||''}" /></div></div><button class="primary sm" onclick="saveStation7Data('${u.id}')">&#10003; Save</button></div>`;
     }
     // REMEDIATION column — Started + Return to options
     if (isRemedCol) {
@@ -3678,7 +3723,7 @@ function ensureBoardTracked(unitId) {
   if (!u) {
     const line=CONFIG.lines.find(l=>l.columns.some(c=>c.units.includes(unitId)));
     const col=line?line.columns.find(c=>c.units.includes(unitId)):null;
-    u={id:unitId,line:line?line.id:activeLine,col:col?col.label:activeCol,held:false,completed:false,notes:'',esoNumber:'',gensetSerial:'',readyForInspection:false,inspectionStarted:false,supervisorReleased:false,supervisorReleaseTs:'',deviationNeeded:false,deviationNote:'',deviationTs:'',checklist:{},qcChecklist:{},failOverrides:[],station2Tasks:{},history:[]};
+    u={id:unitId,line:line?line.id:activeLine,col:col?col.label:activeCol,held:false,completed:false,notes:'',esoNumber:'',gensetSerial:'',solutionsEso:'',readyForInspection:false,inspectionStarted:false,supervisorReleased:false,supervisorReleaseTs:'',deviationNeeded:false,deviationNote:'',deviationTs:'',checklist:{},qcChecklist:{},failOverrides:[],station2Tasks:{},history:[]};
     boardUnits.push(u);
   }
   return u;
@@ -3688,9 +3733,10 @@ function saveStation7Data(unitId) {
   const u=ensureBoardTracked(unitId); const sid=safeId(unitId);
   const esoEl=document.getElementById('bd-eso-num-'+sid);
   const genEl=document.getElementById('bd-genset-'+sid);
-  const eso=esoEl?esoEl.value.trim():''; const gen=genEl?genEl.value.trim():'';
-  u.esoNumber=eso; u.gensetSerial=gen;
-  u.history.push({action:'ESO/Genset recorded — ESO: '+(eso||'—')+' | Genset: '+(gen||'—'),ts:now(),notes:''});
+  const solEl=document.getElementById('bd-sol-eso-'+sid);
+  const eso=esoEl?esoEl.value.trim():''; const gen=genEl?genEl.value.trim():''; const sol=solEl?solEl.value.trim():'';
+  u.esoNumber=eso; u.gensetSerial=gen; u.solutionsEso=sol;
+  u.history.push({action:'ESO/Genset recorded — ESO: '+(eso||'—')+' | Genset: '+(gen||'—')+' | Solutions ESO: '+(sol||'—'),ts:now(),notes:''});
   togglePanel('bd-eso-'+sid); pushBoard(); renderAll();
 }
 

@@ -2087,6 +2087,15 @@ function s2LiveSeconds(emp, category) {
   return sec;
 }
 
+/* Formats a date input value ("YYYY-MM-DD") as MM/DD/YY for display everywhere due dates show up. */
+function formatDueDate(dateStr) {
+  if (!dateStr) return '';
+  const parts = dateStr.split('-');
+  if (parts.length !== 3) return dateStr;
+  const [y, m, d] = parts;
+  return m + '/' + d + '/' + y.slice(-2);
+}
+
 function s2FormatHM(totalSeconds) {
   const h = Math.floor(totalSeconds / 3600);
   const m = Math.floor((totalSeconds % 3600) / 60);
@@ -2727,12 +2736,19 @@ function renderTVMode() {
           const uHasFail = (cS&&cS.includes('fail'))||(qS&&qS.includes('fail'));
           const uReady = isAllChecklistsComplete(u);
           const color = uHasFail?'#ff6b6b':uReady?'#4ade80':'#8a96a8';
-          return `<span style="color:${color};font-weight:700;">${u.id}</span>`;
-        }).join(', ');
+          let dueTag = '';
+          if (u.dueDate) {
+            const d = new Date(u.dueDate+'T00:00:00'); const today = new Date(); today.setHours(0,0,0,0);
+            const weekOut = new Date(today); weekOut.setDate(weekOut.getDate()+7);
+            const dueColor = (!isNaN(d) && d < today) ? '#ff6b6b' : (!isNaN(d) && d <= weekOut) ? '#fbbf24' : '#8a96a8';
+            dueTag = `<div style="color:${dueColor};font-size:10px;">${formatDueDate(u.dueDate)}</div>`;
+          }
+          return `<div style="color:${color};font-weight:700;">${u.id}</div>${dueTag}`;
+        }).join('');
         return `<div style="border-top:3px solid ${topColor};background:${bg};border-radius:6px;padding:8px 10px;min-width:88px;">
           <div style="font-size:11px;font-weight:700;color:#8a96a8;text-transform:uppercase;">${shortLabel}</div>
           <div style="font-size:20px;font-weight:800;color:${count>0?'#fff':'#3a4558'};margin:2px 0;">${count||'—'}</div>
-          <div style="font-size:11px;">${unitNames}${cu.length>2?' +'+(cu.length-2):''}</div>
+          <div style="font-size:11px;">${unitNames}${cu.length>2?`<div style="opacity:.7;">+${cu.length-2} more</div>`:''}</div>
         </div>`;
       }).join('');
       return `<div style="background:#141c29;border-radius:12px;padding:18px 20px;">
@@ -3423,7 +3439,7 @@ function renderLineSummary() {
           const d = new Date(u.dueDate+'T00:00:00'); const today = new Date(); today.setHours(0,0,0,0);
           const weekOut = new Date(today); weekOut.setDate(weekOut.getDate()+7);
           const dueColor = (!isNaN(d) && d < today) ? '#A03033' : (!isNaN(d) && d <= weekOut) ? '#b45309' : '#8a96a8';
-          dueTag = ` <span style="color:${dueColor};font-weight:600;font-size:10px;">(${u.dueDate})</span>`;
+          dueTag = ` <span style="color:${dueColor};font-weight:600;font-size:10px;">(${formatDueDate(u.dueDate)})</span>`;
         }
         return `<div style="color:${color};font-weight:${weight};">${u.id}${dueTag}</div>`;
       }).join('');
@@ -3615,7 +3631,7 @@ function renderBoardUnitCard(u) {
     const isSoon = !isNaN(d) && d >= today && d <= weekOut;
     const bg = isOverdue ? '#fdecea' : isSoon ? '#fef3e2' : '#f3f2f1';
     const fg = isOverdue ? '#A03033' : isSoon ? '#b45309' : '#605e5c';
-    return `<span style="font-size:11px;background:${bg};color:${fg};border:1px solid ${fg};border-radius:20px;padding:2px 9px;font-weight:600;margin-left:4px;">${isOverdue?'&#9888; Overdue: ':'Due: '}${u.dueDate}</span>`;
+    return `<span style="font-size:11px;background:${bg};color:${fg};border:1px solid ${fg};border-radius:20px;padding:2px 9px;font-weight:600;margin-left:4px;">${isOverdue?'&#9888; Overdue: ':'Due: '}${formatDueDate(u.dueDate)}</span>`;
   })();
   const esoGensetInfo=(esoDisplay||gensetDisplay||solutionsEsoDisplay||dueDateDisplay)?`<div style="margin-bottom:6px;">${esoDisplay}${gensetDisplay}${solutionsEsoDisplay}${dueDateDisplay}</div>`:'';
   const isInspectionCol = CONFIG.boardInspectionCols.includes(u.col);
@@ -4701,10 +4717,10 @@ function renderPMDueDateChart() {
   }).join('');
 
   const overdueList = buckets.overdue.length
-    ? `<div style="margin-top:12px;font-size:12px;"><strong style="color:#A03033;">Overdue:</strong> ${buckets.overdue.map(u=>u.id+' ('+u.dueDate+')').join(', ')}</div>`
+    ? `<div style="margin-top:12px;font-size:12px;"><strong style="color:#A03033;">Overdue:</strong> ${buckets.overdue.map(u=>u.id+' ('+formatDueDate(u.dueDate)+')').join(', ')}</div>`
     : '';
   const dueSoonList = buckets.dueSoon.length
-    ? `<div style="margin-top:6px;font-size:12px;"><strong style="color:#b45309;">Due within 7 days:</strong> ${buckets.dueSoon.map(u=>u.id+' ('+u.dueDate+')').join(', ')}</div>`
+    ? `<div style="margin-top:6px;font-size:12px;"><strong style="color:#b45309;">Due within 7 days:</strong> ${buckets.dueSoon.map(u=>u.id+' ('+formatDueDate(u.dueDate)+')').join(', ')}</div>`
     : '';
 
   el.innerHTML = `<div class="chart-title">Due Date Progress <span class="chart-subtitle">${total} unit${total!==1?'s':''} with a due date${noDueDate?' · '+noDueDate+' with none set':''}</span></div>
@@ -6647,6 +6663,10 @@ function renderFloorCard(u, line) {
       <div class="floor-meta-item">
         <div class="floor-meta-label">${CONFIG.fieldLabels.field2}</div>
         <div class="floor-meta-val ${u.gensetSerial?'':'missing'}">${u.gensetSerial||'Not set'}</div>
+      </div>
+      <div class="floor-meta-item">
+        <div class="floor-meta-label">Due Date</div>
+        <div class="floor-meta-val ${u.dueDate?'':'missing'}" style="${u.dueDate?(()=>{const d=new Date(u.dueDate+'T00:00:00');const today=new Date();today.setHours(0,0,0,0);const weekOut=new Date(today);weekOut.setDate(weekOut.getDate()+7);return !isNaN(d)&&d<today?'color:#ff6b6b;':(!isNaN(d)&&d<=weekOut?'color:#fbbf24;':'color:#8fb8e0;');})():''}">${u.dueDate?formatDueDate(u.dueDate):'Not set'}</div>
       </div>
       ${fti && fti.loadDate ? `<div class="floor-meta-item" style="grid-column:1/-1;">
         <div class="floor-meta-label">&#128197; Load Date</div>

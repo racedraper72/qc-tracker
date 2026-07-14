@@ -1172,6 +1172,9 @@ label { font-size: 11px; font-weight: 600; color: var(--text-2); display: block;
 
 
 
+  <!-- My Dashboard — pick-your-own widgets -->
+  <div class="chart-card" id="pm-custom-dashboard" style="margin-bottom:20px;"></div>
+
   <!-- PM KPI Hero Row -->
   <div class="pm-hero" id="pm-kpi-row"></div>
 
@@ -1521,6 +1524,7 @@ label { font-size: 11px; font-weight: 600; color: var(--text-2); display: block;
 <!-- ============================================================ CAT DASHBOARD PAGE -->
 <div id="page-cat" class="app-body" style="display:none;">
   <div style="margin-bottom:16px;">
+    <img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAPgAAACMCAIAAADeAPOLAAAEGUlEQVR42u3bTWhcVRyG8eece9NorSbaiBZbWzeCgkW6cCGSRahUrNJFCVaK2+rGRQs1UHcGFRdaCi4FF1JxJ1gCLgpqm6q0ViVGRKQF6wci2NJgP9Lce4+LjNKkJjaZGSeZeX7MJpA7mbnz5p73f2YGJEmSJEmSJEmSJEmSJEmSJEmSJEmSJEmSJEmSJEmSJEmSJEmSJEmSJEmSJEmSJEmSJEmSJEmSJGmmEAihrsMXfIgncJmI/nvUI3kKDLpk0CWDLhl0yaBL1xH0dt1auk6ppXsowTA2U25Sl8qDN4xWF2lhy2Mw6OrIFmrQ6y3WDRxs5rqrNn5n3o6+fIp148p1sqcbdBdiOYxKTbiiz9UXvfCorYJuoGV1kQx6u3MT0KB3RBosdQb9778XCIHMhURtvPJenW+zvjQD0K7rbdaooP/nsXlOWbK2j3df4+KffPcjedaCj+xNv5bX3tRBM0aTgh4CeQbQ/yA/jZDGKY/z/CBAjEQv7f+cKK/oyzfoMRIDwK5tXPmcdIKpj6mOkcY4sMcaY3Vpi6BnWe1CtX83aYzqU8qjpGNUo0wdIY3zwev03ATULvky6P/HahnC4jfIrj02zyhKbu/hnWG2DFCcJYszzmNRkN/KN+Nsf4Effq79vlp+pWvLTdKmDKPTpbwo2XQvH77JQ5sozpLns+8/RoqLrFnLU4/y5bec+rU146k6YRjNGv48YyAGyoqnN/P+G9zZRzFBns/Z4MvL3LyKnVv55TdOfk8WCX6B0qAv8aBnkSqREsO7OLCPFRXVJNm8nxyLkaogwrbH6A4cPkGCLPouo0FfqkHPM8qKW1ZycJjnnqGcIKTr2j0MARLVJP393H8XI6NcKciypmR9xvY5s28Gff557l9vy28YrecEZZGi5L71vPcqGx+olfKFKgry2zj+BYNDnPm9KePp7NcyzfOTw+jMoCzn7yFkDTk7MVKWPPEwhw6wYR3F+cWkvDaeXmDdBgYH+OzrWtYrO4zVpeVBj5GUSIm9O3n7JW7sory0yJRfPZ729rJzK6fPMHaqthkvg96yoE+X8u4u3nqRvc9SXYCSWHcuY6SaYkXG9scpJvnkq9qi4Xhq0FsQ9OkCvf4ODu3nyS0U54iBEBt2xlNFNcXmATasZmSUsmrWeKpOCHpdz+yRjRx8hbvXcPl8XXVlLilRltywmsNH2bGPPyaIwcremmG044I+vTHX3cXuHbw8BBlcashMO7cCejl3msEhPjoJgaoykwZ9gQVkEcdUFX09ENkzTFU0vVGEQFGwchX3rOFIRlE28q3TWYt1h1cjm6HUkR29Jd/7TInS0iJJkiRJkiRJkiRJkiRJkiRJkiRJkiRJkiRJkiRJkiRJkiRJkiRJkiRJkiRJkiRJkiRJkiSp7fwFqfMMOmshVxoAAAAASUVORK5CYII=" alt="Caterpillar" style="height:56px;width:auto;display:block;margin-bottom:12px;" />
     <h2 style="font-size:16px;font-weight:800;letter-spacing:-.3px;">&#128663; Cat Dashboard</h2>
     <p style="font-size:12px;color:var(--text-2);margin-top:3px;">Read-only view — Unit # and Solutions ESO # only, by line and station.</p>
   </div>
@@ -4550,6 +4554,7 @@ function getPMAllUnits() {
 }
 
 function renderPMPage() {
+  renderPMCustomDashboard();
   renderPMKpis();
   renderPMStatusChart();
   renderPMLineProgress();
@@ -4561,6 +4566,242 @@ function renderPMPage() {
   renderPMLineCards();
   renderPMUnitTable();
   populatePMFilters();
+}
+
+/* ============================================================
+   PM CUSTOM DASHBOARD — pick-your-own-widgets metrics board.
+   Personal to this browser only (localStorage), not synced —
+   each PM builds their own view without affecting anyone else's.
+   ============================================================ */
+const PM_WIDGET_METRICS = [
+  { id:'overallProgress', label:'Overall Progress', icon:'&#128200;', color:'#0e7c3a',
+    compute: () => { const all=getAllBoardUnits(); const done=all.filter(u=>u.completed).length; return all.length?(Math.round(done/all.length*1000)/10)+'%':'0%'; },
+    breakdown: () => CONFIG.lines.map(l => { const lu=getLineUnits(l.id); const done=lu.filter(u=>u.completed).length; return { label:l.name, value: lu.length?Math.round(done/lu.length*100):0, suffix:'%', color:l.headerColor }; }) },
+  { id:'totalUnits', label:'Total Units', icon:'&#9632;', color:'#006A8E', filterFn: u=>true },
+  { id:'completed', label:'Completed', icon:'&#10003;', color:'#0e7c3a', filterFn: u=>u.completed },
+  { id:'wip', label:'WIP', icon:'&#9889;', color:'#b45309', filterFn: u=>!u.completed&&!u.held },
+  { id:'onHold', label:'On Hold', icon:'&#9208;', color:'#b45309', filterFn: u=>u.held&&!u.completed },
+  { id:'remediation', label:'In Remediation', icon:'&#9888;', color:'#A03033', filterFn: u=>u.col==='Remediation' },
+  { id:'rts', label:'Ready to Ship', icon:'&#9650;', color:'#0e7c3a', filterFn: u=>u.col==='Ready to Ship'||u.col==='RTS' },
+  { id:'checklistPassRate', label:'Checklist Pass Rate', icon:'&#9989;', color:'#0e7c3a',
+    compute: () => getChecklistStats().passRate+'%',
+    breakdown: () => { const s=getChecklistStats(); return CONFIG.lines.map(l => { const b=s.byLine[l.id]; const rate=b&&b.total?Math.round(b.pass/b.total*100):0; return { label:l.name, value:rate, suffix:'%', color:l.headerColor }; }); } },
+  { id:'checklistFails', label:'Checklist Fails', icon:'&#9888;', color:'#A03033',
+    compute: () => getChecklistStats().fail,
+    breakdown: () => { const s=getChecklistStats(); return CONFIG.lines.map(l => ({ label:l.name, value:(s.byLine[l.id]&&s.byLine[l.id].fail)||0, color:'#A03033' })); } },
+  { id:'qcTotal', label:'QC Total', icon:'&#9671;', color:'#006A8E', compute: () => qcUnits.length, noBreakdown:true },
+  { id:'qcDone', label:'QC Complete', icon:'&#10003;', color:'#0e7c3a', compute: () => qcUnits.filter(u=>u.completed).length, noBreakdown:true },
+  { id:'deviations', label:'Deviations', icon:'&#9888;', color:'#A03033', filterFn: u=>u.deviationNeeded },
+  { id:'failReleases', label:'Fail Releases', icon:'&#9888;', color:'#A03033', filterFn: u=>(u.failOverrides||[]).some(f=>!f.resolved) },
+  { id:'overdue', label:'Overdue', icon:'&#9888;', color:'#A03033', filterFn: u=>{ if(u.completed||!u.dueDate) return false; const d=new Date(u.dueDate+'T00:00:00'); const today=new Date(); today.setHours(0,0,0,0); return !isNaN(d)&&d<today; } },
+  { id:'dueSoon', label:'Due This Week', icon:'&#9201;', color:'#b45309', filterFn: u=>{ if(u.completed||!u.dueDate) return false; const d=new Date(u.dueDate+'T00:00:00'); const today=new Date(); today.setHours(0,0,0,0); const weekOut=new Date(today); weekOut.setDate(weekOut.getDate()+7); return !isNaN(d)&&d>=today&&d<=weekOut; } },
+  { id:'avgTimeInProcess', label:'Avg Time in Process', icon:'&#9201;', color:'#4b3a9e',
+    compute: () => { const list=getAllBoardUnits().filter(u=>!u.completed).map(u=>getStationDurations(u).reduce((s,d)=>s+(d.hours||0),0)).filter(h=>h>0); return list.length?formatDuration(list.reduce((s,h)=>s+h,0)/list.length):'—'; },
+    breakdown: () => CONFIG.lines.map(l => { const list=getLineUnits(l.id).filter(u=>!u.completed).map(u=>getStationDurations(u).reduce((s,d)=>s+(d.hours||0),0)).filter(h=>h>0); const avg=list.length?list.reduce((s,h)=>s+h,0)/list.length:0; return { label:l.name, value:Math.round(avg*10)/10, suffix:'h', color:l.headerColor }; }) },
+  { id:'longestInProcess', label:'Longest in Process', icon:'&#9201;', color:'#A03033',
+    compute: () => { const list=getAllBoardUnits().filter(u=>!u.completed).map(u=>getStationDurations(u).reduce((s,d)=>s+(d.hours||0),0)).filter(h=>h>0); return list.length?formatDuration(Math.max(...list)):'—'; },
+    breakdown: () => CONFIG.lines.map(l => { const list=getLineUnits(l.id).filter(u=>!u.completed).map(u=>getStationDurations(u).reduce((s,d)=>s+(d.hours||0),0)).filter(h=>h>0); return { label:l.name, value:list.length?Math.round(Math.max(...list)*10)/10:0, suffix:'h', color:l.headerColor }; }) },
+  { id:'activeLines', label:'Active Lines', icon:'&#9632;', color:'#006A8E', compute: () => CONFIG.lines.length, noBreakdown:true },
+  { id:'shipThisWeek', label:'Shipping This Week', icon:'&#128666;', color:'#0e7c3a',
+    compute: () => { const today=new Date(); today.setHours(0,0,0,0); const weekOut=new Date(today); weekOut.setDate(weekOut.getDate()+7);
+      return getAllProjectsFlat().filter(r=>{ if(!r.shipLooseDate) return false; const d=new Date(r.shipLooseDate); return !isNaN(d)&&d>=today&&d<=weekOut; }).length; },
+    breakdown: () => { const today=new Date(); today.setHours(0,0,0,0); const weekOut=new Date(today); weekOut.setDate(weekOut.getDate()+7);
+      const rows = getAllProjectsFlat().filter(r=>{ if(!r.shipLooseDate) return false; const d=new Date(r.shipLooseDate); return !isNaN(d)&&d>=today&&d<=weekOut; });
+      const byProject = {}; rows.forEach(r=>{ byProject[r.project]=(byProject[r.project]||0)+1; });
+      return Object.keys(byProject).map(p=>({ label:p, value:byProject[p], color:'#0e7c3a' })); } },
+  { id:'shipOverdue', label:'Ship Date Overdue', icon:'&#9888;', color:'#A03033',
+    compute: () => { const today=new Date(); today.setHours(0,0,0,0);
+      return getAllProjectsFlat().filter(r=>{ if(!r.shipLooseDate) return false; const d=new Date(r.shipLooseDate); return !isNaN(d)&&d<today; }).length; },
+    breakdown: () => { const today=new Date(); today.setHours(0,0,0,0);
+      const rows = getAllProjectsFlat().filter(r=>{ if(!r.shipLooseDate) return false; const d=new Date(r.shipLooseDate); return !isNaN(d)&&d<today; });
+      const byProject = {}; rows.forEach(r=>{ byProject[r.project]=(byProject[r.project]||0)+1; });
+      return Object.keys(byProject).map(p=>({ label:p, value:byProject[p], color:'#A03033' })); } },
+  { id:'shipForecast4wk', label:'Shipments — Next 4 Weeks', icon:'&#128197;', color:'#4b3a9e',
+    compute: () => { const today=new Date(); today.setHours(0,0,0,0); const out4=new Date(today); out4.setDate(out4.getDate()+28);
+      return getAllProjectsFlat().filter(r=>{ if(!r.shipLooseDate) return false; const d=new Date(r.shipLooseDate); return !isNaN(d)&&d>=today&&d<=out4; }).length; },
+    breakdown: () => { const today=new Date(); today.setHours(0,0,0,0);
+      const weeks = [0,1,2,3].map(i => { const start=new Date(today); start.setDate(start.getDate()+i*7); const end=new Date(start); end.setDate(end.getDate()+7); return {label:'Wk '+(i+1), start, end, value:0}; });
+      getAllProjectsFlat().forEach(r=>{ if(!r.shipLooseDate) return; const d=new Date(r.shipLooseDate); if(isNaN(d)) return;
+        const wk = weeks.find(w=>d>=w.start&&d<w.end); if(wk) wk.value++; });
+      return weeks.map(w=>({ label:w.label, value:w.value, color:'#4b3a9e' })); } },
+  { id:'loadThisWeek', label:'Load Date This Week', icon:'&#128230;', color:'#006A8E',
+    compute: () => { const today=new Date(); today.setHours(0,0,0,0); const weekOut=new Date(today); weekOut.setDate(weekOut.getDate()+7);
+      return getAllProjectsFlat().filter(r=>{ if(!r.loadDate) return false; const d=new Date(r.loadDate); return !isNaN(d)&&d>=today&&d<=weekOut; }).length; },
+    breakdown: () => { const today=new Date(); today.setHours(0,0,0,0); const weekOut=new Date(today); weekOut.setDate(weekOut.getDate()+7);
+      const rows = getAllProjectsFlat().filter(r=>{ if(!r.loadDate) return false; const d=new Date(r.loadDate); return !isNaN(d)&&d>=today&&d<=weekOut; });
+      const byProject = {}; rows.forEach(r=>{ byProject[r.project]=(byProject[r.project]||0)+1; });
+      return Object.keys(byProject).map(p=>({ label:p, value:byProject[p], color:'#006A8E' })); } },
+];
+// Fill in compute/breakdown for every metric that just declared a filterFn,
+// so counts and their per-line split always stay in sync with each other.
+PM_WIDGET_METRICS.forEach(m => {
+  if (m.filterFn && !m.compute) m.compute = () => getAllBoardUnits().filter(m.filterFn).length;
+  if (m.filterFn && !m.breakdown) m.breakdown = () => CONFIG.lines.map(l => ({ label:l.name, value:getLineUnits(l.id).filter(m.filterFn).length, color:m.color }));
+});
+
+function getPMWidgetLayout() {
+  try { return JSON.parse(localStorage.getItem('pm_dashboard_widgets') || '[]'); } catch(e) { return []; }
+}
+function savePMWidgetLayout(ids) {
+  localStorage.setItem('pm_dashboard_widgets', JSON.stringify(ids));
+}
+function pmWidgetToggle(id) {
+  let layout = getPMWidgetLayout();
+  if (layout.includes(id)) layout = layout.filter(x=>x!==id);
+  else layout.push(id);
+  savePMWidgetLayout(layout);
+  renderPMCustomDashboard();
+}
+function pmWidgetClear() {
+  if (!confirm('Remove all pinned widgets?')) return;
+  savePMWidgetLayout([]);
+  renderPMCustomDashboard();
+}
+function pmDownloadDashboardReport() {
+  const layout = getPMWidgetLayout();
+  if (!layout.length) { alert('No widgets pinned yet — pin at least one metric first.'); return; }
+  const header = ['Widget', 'Total', 'Breakdown Label', 'Breakdown Value'];
+  const rows = [];
+  layout.forEach(id => {
+    const m = PM_WIDGET_METRICS.find(x=>x.id===id);
+    if (!m) return;
+    const total = m.compute();
+    if (!m.noBreakdown && m.breakdown) {
+      const breakdownRows = m.breakdown().filter(r => r.value !== 0 && r.value !== '0');
+      if (breakdownRows.length) {
+        breakdownRows.forEach(r => rows.push([m.label, total, r.label, r.value+(r.suffix||'')]));
+        return;
+      }
+    }
+    rows.push([m.label, total, '', '']);
+  });
+  const csv = [header, ...rows].map(r=>r.map(c=>'"'+String(c).replace(/"/g,'""')+'"').join(',')).join('\n');
+  const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));
+  a.download='pm_dashboard_report_'+new Date().toISOString().slice(0,10)+'.csv'; a.click();
+}
+let pmDragWidgetId = null;
+function pmWidgetDragStart(id) { pmDragWidgetId = id; }
+function pmWidgetDrop(targetId) {
+  if (!pmDragWidgetId || pmDragWidgetId === targetId) return;
+  let layout = getPMWidgetLayout();
+  const from = layout.indexOf(pmDragWidgetId);
+  const to = layout.indexOf(targetId);
+  if (from === -1 || to === -1) return;
+  layout.splice(from, 1);
+  layout.splice(to, 0, pmDragWidgetId);
+  savePMWidgetLayout(layout);
+  pmDragWidgetId = null;
+  renderPMCustomDashboard();
+}
+
+/* Builds a real SVG donut chart from {label,value,color} rows using the
+   stroke-dasharray trick — no charting library needed. */
+function svgDonutChart(rows, size) {
+  size = size || 120;
+  const r = size*0.34, cx = size/2, cy = size/2, circumference = 2*Math.PI*r;
+  const total = rows.reduce((s,row)=>s+Math.abs(Number(row.value)||0),0) || 1;
+  let offset = 0;
+  const segments = rows.map(row => {
+    const val = Math.abs(Number(row.value)||0);
+    const frac = val/total;
+    const dash = frac*circumference;
+    const seg = `<circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="${row.color||'#8a96a8'}" stroke-width="${size*0.16}"
+      stroke-dasharray="${dash} ${circumference-dash}" stroke-dashoffset="${-offset}" transform="rotate(-90 ${cx} ${cy})" />`;
+    offset += dash;
+    return seg;
+  }).join('');
+  return `<svg viewBox="0 0 ${size} ${size}" width="${size}" height="${size}">${segments}
+    <text x="${cx}" y="${cy+size*0.05}" text-anchor="middle" font-size="${size*0.16}" font-weight="800" fill="var(--text-1,#323130)">${total}</text>
+  </svg>`;
+}
+
+function getPMWidgetChartTypes() {
+  try { return JSON.parse(localStorage.getItem('pm_dashboard_widget_types') || '{}'); } catch(e) { return {}; }
+}
+function pmWidgetSetChartType(id, type) {
+  const types = getPMWidgetChartTypes();
+  types[id] = type;
+  localStorage.setItem('pm_dashboard_widget_types', JSON.stringify(types));
+  renderPMCustomDashboard();
+}
+
+function renderPMCustomDashboard() {
+  const el = document.getElementById('pm-custom-dashboard'); if (!el) return;
+  const layout = getPMWidgetLayout();
+
+  const paletteCards = PM_WIDGET_METRICS.map(m => {
+    const pinned = layout.includes(m.id);
+    return `<div onclick="pmWidgetToggle('${m.id}')" style="cursor:pointer;background:#fff;border:2px solid ${pinned?m.color:'#e2e6ea'};border-top:3px solid ${m.color};border-radius:8px;padding:10px 12px;position:relative;min-width:150px;">
+      ${pinned?`<span style="position:absolute;top:6px;right:6px;width:16px;height:16px;border-radius:50%;background:${m.color};color:#fff;font-size:10px;display:flex;align-items:center;justify-content:center;">&#10003;</span>`:''}
+      <div style="font-size:10px;font-weight:700;color:var(--text-3,#8a96a8);text-transform:uppercase;letter-spacing:.3px;margin-bottom:4px;">${m.icon} ${m.label}</div>
+      <div style="font-size:18px;font-weight:800;color:var(--text-1,#323130);">${m.compute()}</div>
+    </div>`;
+  }).join('');
+
+  const chartTypes = getPMWidgetChartTypes();
+  const widgetCards = layout.map(id => {
+    const m = PM_WIDGET_METRICS.find(x=>x.id===id);
+    if (!m) return '';
+    const chartType = chartTypes[id] || 'bar';
+    let breakdownHtml = '';
+    let toggleHtml = '';
+    if (!m.noBreakdown && m.breakdown) {
+      const rows = m.breakdown().filter(r => r.value !== 0 && r.value !== '0');
+      if (rows.length) {
+        toggleHtml = `<div style="display:flex;gap:4px;margin-top:8px;">
+          <button onclick="pmWidgetSetChartType('${id}','bar')" style="font-size:10px;padding:2px 8px;border-radius:10px;border:1px solid ${chartType==='bar'?m.color:'#e2e6ea'};background:${chartType==='bar'?m.color:'#fff'};color:${chartType==='bar'?'#fff':'#8a96a8'};cursor:pointer;">&#9636; Bar</button>
+          <button onclick="pmWidgetSetChartType('${id}','donut')" style="font-size:10px;padding:2px 8px;border-radius:10px;border:1px solid ${chartType==='donut'?m.color:'#e2e6ea'};background:${chartType==='donut'?m.color:'#fff'};color:${chartType==='donut'?'#fff':'#8a96a8'};cursor:pointer;">&#9673; Donut</button>
+        </div>`;
+        if (chartType === 'donut') {
+          const donutRows = rows.map(r => ({...r, color: r.color||m.color}));
+          const legend = donutRows.map(r => `<div style="display:flex;align-items:center;gap:5px;font-size:10px;color:var(--text-2,#605e5c);margin-bottom:2px;">
+            <span style="width:8px;height:8px;border-radius:2px;background:${r.color};display:inline-block;flex-shrink:0;"></span>
+            <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${r.label}: ${r.value}${r.suffix||''}</span>
+          </div>`).join('');
+          breakdownHtml = `<div style="display:flex;gap:12px;align-items:center;margin-top:10px;padding-top:10px;border-top:1px solid #f0f2f5;">
+            <div style="flex-shrink:0;">${svgDonutChart(donutRows, 90)}</div>
+            <div style="flex:1;min-width:0;">${legend}</div>
+          </div>`;
+        } else {
+          const max = Math.max(...rows.map(r=>Math.abs(Number(r.value))||0), 1);
+          breakdownHtml = `<div style="margin-top:10px;padding-top:10px;border-top:1px solid #f0f2f5;">` + rows.map(r => {
+            const w = Math.round((Math.abs(Number(r.value))/max)*100);
+            return `<div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;">
+              <span style="font-size:10px;color:var(--text-3,#8a96a8);width:66px;flex-shrink:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${r.label}</span>
+              <div style="flex:1;height:6px;background:#f0f2f5;border-radius:3px;overflow:hidden;"><div style="width:${w}%;height:100%;background:${r.color||m.color};"></div></div>
+              <span style="font-size:10px;font-weight:700;color:var(--text-1,#323130);width:34px;text-align:right;">${r.value}${r.suffix||''}</span>
+            </div>`;
+          }).join('') + `</div>`;
+        }
+      }
+    }
+    return `<div draggable="true" ondragstart="pmWidgetDragStart('${id}')" ondragover="event.preventDefault()" ondrop="pmWidgetDrop('${id}')"
+      style="cursor:grab;background:#fff;border:1px solid #e2e6ea;border-top:4px solid ${m.color};border-radius:10px;padding:14px 16px;position:relative;min-width:220px;">
+      <button onclick="pmWidgetToggle('${id}')" title="Unpin" style="position:absolute;top:8px;right:8px;width:20px;height:20px;border-radius:50%;background:#f0f2f5;border:none;cursor:pointer;font-size:11px;color:#605e5c;">&#10005;</button>
+      <div style="font-size:11px;font-weight:700;color:var(--text-3,#8a96a8);text-transform:uppercase;letter-spacing:.3px;margin-bottom:6px;">${m.icon} ${m.label}</div>
+      <div style="font-size:26px;font-weight:800;color:var(--text-1,#323130);">${m.compute()}</div>
+      ${toggleHtml}
+      ${breakdownHtml}
+    </div>`;
+  }).join('');
+
+  el.innerHTML = `
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;flex-wrap:wrap;gap:8px;">
+      <div>
+        <div class="chart-title" style="margin:0;">My Dashboard</div>
+        <p style="font-size:11px;color:var(--text-3,#8a96a8);margin-top:3px;">Click a metric below to pin/unpin it here. Drag pinned widgets to reorder. Personal to this browser.</p>
+      </div>
+      <div style="display:flex;gap:8px;">
+        ${layout.length?`<button class="subtle sm" onclick="pmDownloadDashboardReport()">&#8595; Download Report</button>`:''}
+        ${layout.length?`<button class="subtle sm" onclick="pmWidgetClear()">&#10005; Clear all</button>`:''}
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px;margin-bottom:${layout.length?'20px':'16px'};">
+      ${widgetCards || '<p style="font-size:13px;color:var(--text-3,#8a96a8);font-style:italic;grid-column:1/-1;">No widgets pinned yet — click any metric below to add it here.</p>'}
+    </div>
+    <div style="font-size:11px;font-weight:700;color:var(--text-3,#8a96a8);text-transform:uppercase;letter-spacing:.3px;margin-bottom:8px;">Available Metrics</div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px;">${paletteCards}</div>
+  `;
 }
 
 function renderPMKpis() {
@@ -6107,7 +6348,7 @@ function fetchAllProjects() {
   let pending = scheduleTabs.length;
   let loaded  = 0;
 
-  if (pending === 0) { renderCalendar(); return; }
+  if (pending === 0) { renderCalendar(); renderPMCustomDashboard(); return; }
 
   scheduleTabs.forEach((tab, idx) => {
     const cbName = '__agviz_' + tab.gid + '_' + Date.now();
@@ -6123,7 +6364,7 @@ function fetchAllProjects() {
       if (done) return; done = true; cleanup();
       pending--;
       if (statusEl) statusEl.textContent = `⚠ ${tab.name} timed out — loaded ${loaded}/${scheduleTabs.length}`;
-      if (pending === 0) renderCalendar();
+      if (pending === 0) { renderCalendar(); renderPMCustomDashboard(); }
     }, 10000);
 
     window[cbName] = function(raw) {
@@ -6152,7 +6393,7 @@ function fetchAllProjects() {
       if (statusEl) statusEl.textContent = `Loading ${loaded}/${scheduleTabs.length} projects...`;
       if (pending === 0) {
         if (statusEl) statusEl.textContent = `✓ All ${loaded} projects loaded`;
-        renderCalendar();
+        renderCalendar(); renderPMCustomDashboard();
       }
     };
 
@@ -6160,7 +6401,7 @@ function fetchAllProjects() {
       if (done) return; done = true;
       clearTimeout(timer); cleanup();
       pending--;
-      if (pending === 0) renderCalendar();
+      if (pending === 0) { renderCalendar(); renderPMCustomDashboard(); }
     };
 
     script.src = `https://docs.google.com/spreadsheets/d/${FTI_SHEET_ID}/gviz/tq?tqx=out:json&tq=select%20*&gid=${tab.gid}&callback=${cbName}&_=${Date.now()}`;
@@ -6175,7 +6416,7 @@ function fetchAllProjects() {
       gensetSerial: r.gensetSerial, excRts: r.excRts,
       loadDate: r.loadDate, shipLooseDate: r.shipLooseDate
     }));
-    renderCalendar();
+    renderCalendar(); renderPMCustomDashboard();
   }
 }
 

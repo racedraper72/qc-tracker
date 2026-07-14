@@ -4608,14 +4608,14 @@ const PM_WIDGET_METRICS = [
     breakdown: () => { const today=new Date(); today.setHours(0,0,0,0); const weekOut=new Date(today); weekOut.setDate(weekOut.getDate()+7);
       const rows = getAllProjectsFlat().filter(r=>{ if(!r.shipLooseDate) return false; const d=new Date(r.shipLooseDate); return !isNaN(d)&&d>=today&&d<=weekOut; });
       const byProject = {}; rows.forEach(r=>{ byProject[r.project]=(byProject[r.project]||0)+1; });
-      return Object.keys(byProject).map(p=>({ label:p, value:byProject[p], color:'#0e7c3a' })); } },
+      return Object.keys(byProject).map(p=>({ label:p, value:byProject[p], color:getBoardCatStyle(p==='SAT'?'SAT82-0':p+'-0').border })); } },
   { id:'shipOverdue', label:'Ship Date Overdue', icon:'&#9888;', color:'#A03033',
     compute: () => { const today=new Date(); today.setHours(0,0,0,0);
       return getAllProjectsFlat().filter(r=>{ if(!r.shipLooseDate) return false; const d=new Date(r.shipLooseDate); return !isNaN(d)&&d<today; }).length; },
     breakdown: () => { const today=new Date(); today.setHours(0,0,0,0);
       const rows = getAllProjectsFlat().filter(r=>{ if(!r.shipLooseDate) return false; const d=new Date(r.shipLooseDate); return !isNaN(d)&&d<today; });
       const byProject = {}; rows.forEach(r=>{ byProject[r.project]=(byProject[r.project]||0)+1; });
-      return Object.keys(byProject).map(p=>({ label:p, value:byProject[p], color:'#A03033' })); } },
+      return Object.keys(byProject).map(p=>({ label:p, value:byProject[p], color:getBoardCatStyle(p==='SAT'?'SAT82-0':p+'-0').border })); } },
   { id:'shipForecast4wk', label:'Shipments — Next 4 Weeks', icon:'&#128197;', color:'#4b3a9e',
     compute: () => { const today=new Date(); today.setHours(0,0,0,0); const out4=new Date(today); out4.setDate(out4.getDate()+28);
       return getAllProjectsFlat().filter(r=>{ if(!r.shipLooseDate) return false; const d=new Date(r.shipLooseDate); return !isNaN(d)&&d>=today&&d<=out4; }).length; },
@@ -4630,13 +4630,13 @@ const PM_WIDGET_METRICS = [
     breakdown: () => { const today=new Date(); today.setHours(0,0,0,0); const weekOut=new Date(today); weekOut.setDate(weekOut.getDate()+7);
       const rows = getAllProjectsFlat().filter(r=>{ if(!r.loadDate) return false; const d=new Date(r.loadDate); return !isNaN(d)&&d>=today&&d<=weekOut; });
       const byProject = {}; rows.forEach(r=>{ byProject[r.project]=(byProject[r.project]||0)+1; });
-      return Object.keys(byProject).map(p=>({ label:p, value:byProject[p], color:'#006A8E' })); } },
+      return Object.keys(byProject).map(p=>({ label:p, value:byProject[p], color:getBoardCatStyle(p==='SAT'?'SAT82-0':p+'-0').border })); } },
 ];
 // Fill in compute/breakdown for every metric that just declared a filterFn,
 // so counts and their per-line split always stay in sync with each other.
 PM_WIDGET_METRICS.forEach(m => {
   if (m.filterFn && !m.compute) m.compute = () => getAllBoardUnits().filter(m.filterFn).length;
-  if (m.filterFn && !m.breakdown) m.breakdown = () => CONFIG.lines.map(l => ({ label:l.name, value:getLineUnits(l.id).filter(m.filterFn).length, color:m.color }));
+  if (m.filterFn && !m.breakdown) m.breakdown = () => CONFIG.lines.map(l => ({ label:l.name, value:getLineUnits(l.id).filter(m.filterFn).length, color:l.headerColor }));
 });
 
 function getPMWidgetLayout() {
@@ -4715,6 +4715,84 @@ function svgDonutChart(rows, size) {
   </svg>`;
 }
 
+/* Vertical bars — the "column" reading of a bar chart. */
+function svgColumnChart(rows, width, height) {
+  width = width || 260; height = height || 120;
+  const max = Math.max(...rows.map(r=>Math.abs(Number(r.value))||0), 1);
+  const gap = 8, n = rows.length, barW = Math.max((width - gap*(n+1)) / n, 6);
+  const labelH = 16, topPad = 18;
+  const bars = rows.map((r, i) => {
+    const val = Math.abs(Number(r.value)) || 0;
+    const barH = ((height - labelH - topPad) * val) / max;
+    const x = gap + i*(barW+gap);
+    const y = height - labelH - barH;
+    return `<rect x="${x}" y="${y}" width="${barW}" height="${barH}" rx="2" fill="${r.color||'#8a96a8'}" />
+      <text x="${x+barW/2}" y="${y-4}" text-anchor="middle" font-size="10" font-weight="700" fill="var(--text-1,#323130)">${r.value}${r.suffix||''}</text>
+      <text x="${x+barW/2}" y="${height-3}" text-anchor="middle" font-size="8" fill="var(--text-3,#8a96a8)">${String(r.label).slice(0,6)}</text>`;
+  }).join('');
+  return `<svg viewBox="0 0 ${width} ${height}" width="100%" height="${height}">${bars}</svg>`;
+}
+
+/* Connected line across the breakdown points, in the order given — most
+   meaningful for sequential data (e.g. Week 1 -> Week 4), but works for
+   any breakdown as a shape-of-the-data view. */
+function svgLineChart(rows, width, height) {
+  width = width || 260; height = height || 120;
+  const max = Math.max(...rows.map(r=>Math.abs(Number(r.value))||0), 1);
+  const labelH = 16, topPad = 14, n = rows.length;
+  const stepX = n > 1 ? (width-20) / (n-1) : 0;
+  const points = rows.map((r, i) => {
+    const val = Math.abs(Number(r.value)) || 0;
+    const x = 10 + i*stepX;
+    const y = topPad + (height - labelH - topPad) * (1 - val/max);
+    return { x, y, r };
+  });
+  const pathD = points.map((p,i) => (i===0?'M':'L')+p.x+' '+p.y).join(' ');
+  const dots = points.map(p => `<circle cx="${p.x}" cy="${p.y}" r="3.5" fill="${p.r.color||'#4b3a9e'}" />
+    <text x="${p.x}" y="${p.y-8}" text-anchor="middle" font-size="10" font-weight="700" fill="var(--text-1,#323130)">${p.r.value}${p.r.suffix||''}</text>
+    <text x="${p.x}" y="${height-3}" text-anchor="middle" font-size="8" fill="var(--text-3,#8a96a8)">${String(p.r.label).slice(0,6)}</text>`).join('');
+  return `<svg viewBox="0 0 ${width} ${height}" width="100%" height="${height}">
+    <path d="${pathD}" fill="none" stroke="#4b3a9e" stroke-width="2" />${dots}
+  </svg>`;
+}
+
+/* Histogram — vertical bars with no gaps, the classic frequency-distribution look. */
+function svgHistogramChart(rows, width, height) {
+  width = width || 260; height = height || 120;
+  const max = Math.max(...rows.map(r=>Math.abs(Number(r.value))||0), 1);
+  const labelH = 16, topPad = 18, n = rows.length, barW = width / n;
+  const bars = rows.map((r, i) => {
+    const val = Math.abs(Number(r.value)) || 0;
+    const barH = ((height - labelH - topPad) * val) / max;
+    const x = i*barW;
+    const y = height - labelH - barH;
+    return `<rect x="${x}" y="${y}" width="${barW-1}" height="${barH}" fill="${r.color||'#8a96a8'}" stroke="#fff" stroke-width="1" />
+      <text x="${x+barW/2}" y="${y-4}" text-anchor="middle" font-size="10" font-weight="700" fill="var(--text-1,#323130)">${r.value}${r.suffix||''}</text>
+      <text x="${x+barW/2}" y="${height-3}" text-anchor="middle" font-size="8" fill="var(--text-3,#8a96a8)">${String(r.label).slice(0,6)}</text>`;
+  }).join('');
+  return `<svg viewBox="0 0 ${width} ${height}" width="100%" height="${height}">${bars}</svg>`;
+}
+
+/* Gantt-styled — horizontal timeline-look segments. Widget breakdown data
+   here is magnitude only (no real start/end dates for most metrics), so
+   this reads as a styled horizontal bar rather than a true date-range
+   Gantt — it's offered for the visual, not implying schedule precision
+   this data doesn't actually have. */
+function svgGanttChart(rows) {
+  const max = Math.max(...rows.map(r=>Math.abs(Number(r.value))||0), 1);
+  return `<div style="font-family:inherit;">` + rows.map(r => {
+    const w = Math.max(Math.round((Math.abs(Number(r.value))/max)*100), 4);
+    return `<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
+      <span style="font-size:10px;color:var(--text-3,#8a96a8);width:60px;flex-shrink:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${r.label}</span>
+      <div style="flex:1;height:14px;background:#f0f2f5;border-radius:3px;position:relative;overflow:hidden;">
+        <div style="position:absolute;left:0;top:0;bottom:0;width:${w}%;background:${r.color||'#8a96a8'};border-radius:3px;display:flex;align-items:center;justify-content:flex-end;padding-right:4px;">
+          <span style="font-size:9px;font-weight:700;color:#fff;">${r.value}${r.suffix||''}</span>
+        </div>
+      </div>
+    </div>`;
+  }).join('') + `</div>`;
+}
+
 function getPMWidgetChartTypes() {
   try { return JSON.parse(localStorage.getItem('pm_dashboard_widget_types') || '{}'); } catch(e) { return {}; }
 }
@@ -4739,6 +4817,14 @@ function renderPMCustomDashboard() {
   }).join('');
 
   const chartTypes = getPMWidgetChartTypes();
+  const CHART_TYPE_OPTS = [
+    { key:'bar', label:'Bar', icon:'&#9636;' },
+    { key:'column', label:'Column', icon:'&#9612;' },
+    { key:'line', label:'Line', icon:'&#128200;' },
+    { key:'histogram', label:'Histogram', icon:'&#9616;' },
+    { key:'donut', label:'Donut', icon:'&#9673;' },
+    { key:'gantt', label:'Gantt', icon:'&#9707;' },
+  ];
   const widgetCards = layout.map(id => {
     const m = PM_WIDGET_METRICS.find(x=>x.id===id);
     if (!m) return '';
@@ -4746,29 +4832,36 @@ function renderPMCustomDashboard() {
     let breakdownHtml = '';
     let toggleHtml = '';
     if (!m.noBreakdown && m.breakdown) {
-      const rows = m.breakdown().filter(r => r.value !== 0 && r.value !== '0');
+      const rows = m.breakdown().filter(r => r.value !== 0 && r.value !== '0').map(r => ({...r, color: r.color||m.color}));
       if (rows.length) {
-        toggleHtml = `<div style="display:flex;gap:4px;margin-top:8px;">
-          <button onclick="pmWidgetSetChartType('${id}','bar')" style="font-size:10px;padding:2px 8px;border-radius:10px;border:1px solid ${chartType==='bar'?m.color:'#e2e6ea'};background:${chartType==='bar'?m.color:'#fff'};color:${chartType==='bar'?'#fff':'#8a96a8'};cursor:pointer;">&#9636; Bar</button>
-          <button onclick="pmWidgetSetChartType('${id}','donut')" style="font-size:10px;padding:2px 8px;border-radius:10px;border:1px solid ${chartType==='donut'?m.color:'#e2e6ea'};background:${chartType==='donut'?m.color:'#fff'};color:${chartType==='donut'?'#fff':'#8a96a8'};cursor:pointer;">&#9673; Donut</button>
-        </div>`;
+        toggleHtml = `<div style="display:flex;gap:3px;margin-top:8px;flex-wrap:wrap;">` + CHART_TYPE_OPTS.map(opt =>
+          `<button onclick="pmWidgetSetChartType('${id}','${opt.key}')" title="${opt.label}" style="font-size:9px;padding:2px 6px;border-radius:10px;border:1px solid ${chartType===opt.key?m.color:'#e2e6ea'};background:${chartType===opt.key?m.color:'#fff'};color:${chartType===opt.key?'#fff':'#8a96a8'};cursor:pointer;">${opt.icon}</button>`
+        ).join('') + `</div>`;
+
         if (chartType === 'donut') {
-          const donutRows = rows.map(r => ({...r, color: r.color||m.color}));
-          const legend = donutRows.map(r => `<div style="display:flex;align-items:center;gap:5px;font-size:10px;color:var(--text-2,#605e5c);margin-bottom:2px;">
+          const legend = rows.map(r => `<div style="display:flex;align-items:center;gap:5px;font-size:10px;color:var(--text-2,#605e5c);margin-bottom:2px;">
             <span style="width:8px;height:8px;border-radius:2px;background:${r.color};display:inline-block;flex-shrink:0;"></span>
             <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${r.label}: ${r.value}${r.suffix||''}</span>
           </div>`).join('');
           breakdownHtml = `<div style="display:flex;gap:12px;align-items:center;margin-top:10px;padding-top:10px;border-top:1px solid #f0f2f5;">
-            <div style="flex-shrink:0;">${svgDonutChart(donutRows, 90)}</div>
+            <div style="flex-shrink:0;">${svgDonutChart(rows, 90)}</div>
             <div style="flex:1;min-width:0;">${legend}</div>
           </div>`;
+        } else if (chartType === 'column') {
+          breakdownHtml = `<div style="margin-top:10px;padding-top:10px;border-top:1px solid #f0f2f5;">${svgColumnChart(rows, 240, 110)}</div>`;
+        } else if (chartType === 'line') {
+          breakdownHtml = `<div style="margin-top:10px;padding-top:10px;border-top:1px solid #f0f2f5;">${svgLineChart(rows, 240, 110)}</div>`;
+        } else if (chartType === 'histogram') {
+          breakdownHtml = `<div style="margin-top:10px;padding-top:10px;border-top:1px solid #f0f2f5;">${svgHistogramChart(rows, 240, 110)}</div>`;
+        } else if (chartType === 'gantt') {
+          breakdownHtml = `<div style="margin-top:10px;padding-top:10px;border-top:1px solid #f0f2f5;">${svgGanttChart(rows)}</div>`;
         } else {
           const max = Math.max(...rows.map(r=>Math.abs(Number(r.value))||0), 1);
           breakdownHtml = `<div style="margin-top:10px;padding-top:10px;border-top:1px solid #f0f2f5;">` + rows.map(r => {
             const w = Math.round((Math.abs(Number(r.value))/max)*100);
             return `<div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;">
               <span style="font-size:10px;color:var(--text-3,#8a96a8);width:66px;flex-shrink:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${r.label}</span>
-              <div style="flex:1;height:6px;background:#f0f2f5;border-radius:3px;overflow:hidden;"><div style="width:${w}%;height:100%;background:${r.color||m.color};"></div></div>
+              <div style="flex:1;height:6px;background:#f0f2f5;border-radius:3px;overflow:hidden;"><div style="width:${w}%;height:100%;background:${r.color};"></div></div>
               <span style="font-size:10px;font-weight:700;color:var(--text-1,#323130);width:34px;text-align:right;">${r.value}${r.suffix||''}</span>
             </div>`;
           }).join('') + `</div>`;
@@ -4776,7 +4869,7 @@ function renderPMCustomDashboard() {
       }
     }
     return `<div draggable="true" ondragstart="pmWidgetDragStart('${id}')" ondragover="event.preventDefault()" ondrop="pmWidgetDrop('${id}')"
-      style="cursor:grab;background:#fff;border:1px solid #e2e6ea;border-top:4px solid ${m.color};border-radius:10px;padding:14px 16px;position:relative;min-width:220px;">
+      style="cursor:grab;background:#fff;border:1px solid #e2e6ea;border-top:4px solid ${m.color};border-radius:10px;padding:14px 16px;position:relative;min-width:270px;">
       <button onclick="pmWidgetToggle('${id}')" title="Unpin" style="position:absolute;top:8px;right:8px;width:20px;height:20px;border-radius:50%;background:#f0f2f5;border:none;cursor:pointer;font-size:11px;color:#605e5c;">&#10005;</button>
       <div style="font-size:11px;font-weight:700;color:var(--text-3,#8a96a8);text-transform:uppercase;letter-spacing:.3px;margin-bottom:6px;">${m.icon} ${m.label}</div>
       <div style="font-size:26px;font-weight:800;color:var(--text-1,#323130);">${m.compute()}</div>
@@ -4796,7 +4889,7 @@ function renderPMCustomDashboard() {
         ${layout.length?`<button class="subtle sm" onclick="pmWidgetClear()">&#10005; Clear all</button>`:''}
       </div>
     </div>
-    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px;margin-bottom:${layout.length?'20px':'16px'};">
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:10px;margin-bottom:${layout.length?'20px':'16px'};">
       ${widgetCards || '<p style="font-size:13px;color:var(--text-3,#8a96a8);font-style:italic;grid-column:1/-1;">No widgets pinned yet — click any metric below to add it here.</p>'}
     </div>
     <div style="font-size:11px;font-weight:700;color:var(--text-3,#8a96a8);text-transform:uppercase;letter-spacing:.3px;margin-bottom:8px;">Available Metrics</div>

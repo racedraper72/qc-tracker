@@ -1524,7 +1524,6 @@ label { font-size: 11px; font-weight: 600; color: var(--text-2); display: block;
 <!-- ============================================================ CAT DASHBOARD PAGE -->
 <div id="page-cat" class="app-body" style="display:none;">
   <div style="margin-bottom:16px;">
-    <img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAPgAAACMCAIAAADeAPOLAAAEGUlEQVR42u3bTWhcVRyG8eece9NorSbaiBZbWzeCgkW6cCGSRahUrNJFCVaK2+rGRQs1UHcGFRdaCi4FF1JxJ1gCLgpqm6q0ViVGRKQF6wci2NJgP9Lce4+LjNKkJjaZGSeZeX7MJpA7mbnz5p73f2YGJEmSJEmSJEmSJEmSJEmSJEmSJEmSJEmSJEmSJEmSJEmSJEmSJEmSJEmSJEmSJEmSJEmSJEmSJGmmEAihrsMXfIgncJmI/nvUI3kKDLpk0CWDLhl0yaBL1xH0dt1auk6ppXsowTA2U25Sl8qDN4xWF2lhy2Mw6OrIFmrQ6y3WDRxs5rqrNn5n3o6+fIp148p1sqcbdBdiOYxKTbiiz9UXvfCorYJuoGV1kQx6u3MT0KB3RBosdQb9778XCIHMhURtvPJenW+zvjQD0K7rbdaooP/nsXlOWbK2j3df4+KffPcjedaCj+xNv5bX3tRBM0aTgh4CeQbQ/yA/jZDGKY/z/CBAjEQv7f+cKK/oyzfoMRIDwK5tXPmcdIKpj6mOkcY4sMcaY3Vpi6BnWe1CtX83aYzqU8qjpGNUo0wdIY3zwev03ATULvky6P/HahnC4jfIrj02zyhKbu/hnWG2DFCcJYszzmNRkN/KN+Nsf4Effq79vlp+pWvLTdKmDKPTpbwo2XQvH77JQ5sozpLns+8/RoqLrFnLU4/y5bec+rU146k6YRjNGv48YyAGyoqnN/P+G9zZRzFBns/Z4MvL3LyKnVv55TdOfk8WCX6B0qAv8aBnkSqREsO7OLCPFRXVJNm8nxyLkaogwrbH6A4cPkGCLPouo0FfqkHPM8qKW1ZycJjnnqGcIKTr2j0MARLVJP393H8XI6NcKciypmR9xvY5s28Gff557l9vy28YrecEZZGi5L71vPcqGx+olfKFKgry2zj+BYNDnPm9KePp7NcyzfOTw+jMoCzn7yFkDTk7MVKWPPEwhw6wYR3F+cWkvDaeXmDdBgYH+OzrWtYrO4zVpeVBj5GUSIm9O3n7JW7sory0yJRfPZ729rJzK6fPMHaqthkvg96yoE+X8u4u3nqRvc9SXYCSWHcuY6SaYkXG9scpJvnkq9qi4Xhq0FsQ9OkCvf4ODu3nyS0U54iBEBt2xlNFNcXmATasZmSUsmrWeKpOCHpdz+yRjRx8hbvXcPl8XXVlLilRltywmsNH2bGPPyaIwcremmG044I+vTHX3cXuHbw8BBlcashMO7cCejl3msEhPjoJgaoykwZ9gQVkEcdUFX09ENkzTFU0vVGEQFGwchX3rOFIRlE28q3TWYt1h1cjm6HUkR29Jd/7TInS0iJJkiRJkiRJkiRJkiRJkiRJkiRJkiRJkiRJkiRJkiRJkiRJkiRJkiRJkiRJkiRJkiRJkiSp7fwFqfMMOmshVxoAAAAASUVORK5CYII=" alt="Caterpillar" style="height:56px;width:auto;display:block;margin-bottom:12px;" />
     <h2 style="font-size:16px;font-weight:800;letter-spacing:-.3px;">&#128663; Cat Dashboard</h2>
     <p style="font-size:12px;color:var(--text-2);margin-top:3px;">Read-only view — Unit # and Solutions ESO # only, by line and station.</p>
   </div>
@@ -3649,6 +3648,16 @@ function renderBoardUnitCard(u) {
   const checklistOK = isAllChecklistsComplete(u);
   let actions=''; let panels='';
   if (!u.completed) {
+    // ESO/Genset — Station 7 only, restored to the Tracker card in addition to the Edit/Add Unit page
+    if (u.col === 'Station 7') {
+      actions+=`<button class="primary" onclick="togglePanel('bd-eso-${sid}')">&#9998; ESO / Genset #s</button>`;
+      panels+=`<div class="action-group" id="bd-eso-${sid}"><div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:8px;"><div><label>${CONFIG.fieldLabels.field1}</label><input id="bd-eso-num-${sid}" type="text" placeholder="e.g. ESO-12345" value="${u.esoNumber||''}" /></div><div><label>${CONFIG.fieldLabels.field2}</label><input id="bd-genset-${sid}" type="text" placeholder="e.g. GEN-98765" value="${u.gensetSerial||''}" /></div></div><button class="primary sm" onclick="saveStation7Data('${u.id}')">&#10003; Save</button></div>`;
+    }
+    // Solutions ESO # / Due Date — separate from ESO/Genset, available at every station
+    {
+      actions+=`<button class="primary" onclick="togglePanel('bd-soldue-${sid}')">&#9998; Solutions ESO / Due Date</button>`;
+      panels+=`<div class="action-group" id="bd-soldue-${sid}"><div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:8px;"><div><label>Solutions ESO #</label><input id="bd-sol-eso-${sid}" type="text" placeholder="e.g. SOL-4521" value="${u.solutionsEso||''}" /></div><div><label>Due Date</label><input id="bd-due-date-${sid}" type="date" value="${u.dueDate||''}" /></div></div><button class="primary sm" onclick="saveStation7Data('${u.id}')">&#10003; Save</button></div>`;
+    }
     // REMEDIATION column — Started + Return to options
     if (isRemedCol) {
       if (!u.inspectionStarted) {
@@ -3813,17 +3822,23 @@ function saveStation7Data(unitId) {
   const genEl=document.getElementById('bd-genset-'+sid);
   const solEl=document.getElementById('bd-sol-eso-'+sid);
   const dueEl=document.getElementById('bd-due-date-'+sid);
-  const sol=solEl?solEl.value.trim():'';
-  const due=dueEl?dueEl.value:'';
-  u.solutionsEso=sol;
-  u.dueDate=due;
-  let historyMsg='Solutions ESO recorded — '+(sol||'—')+' | Due date: '+(due||'—');
-  if (esoEl && genEl) { // only present (and only ever saved) when the unit is at Station 7
+  const parts = [];
+  if (esoEl && genEl) {
     const eso=esoEl.value.trim(); const gen=genEl.value.trim();
     u.esoNumber=eso; u.gensetSerial=gen;
-    historyMsg='ESO/Genset recorded — ESO: '+(eso||'—')+' | Genset: '+(gen||'—')+' | Solutions ESO: '+(sol||'—')+' | Due date: '+(due||'—');
+    parts.push('ESO: '+(eso||'—'), 'Genset: '+(gen||'—'));
   }
-  u.history.push({action:historyMsg,ts:now(),notes:''});
+  if (solEl) {
+    const sol=solEl.value.trim();
+    u.solutionsEso=sol;
+    parts.push('Solutions ESO: '+(sol||'—'));
+  }
+  if (dueEl) {
+    const due=dueEl.value;
+    u.dueDate=due;
+    parts.push('Due date: '+(due||'—'));
+  }
+  u.history.push({action:(parts.length?'ESO/Genset info recorded — '+parts.join(' | '):'ESO/Genset panel saved'),ts:now(),notes:''});
   togglePanel('bd-eso-'+sid); pushBoard(); renderAll();
 }
 

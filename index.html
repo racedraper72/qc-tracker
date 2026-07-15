@@ -1194,9 +1194,6 @@ label { font-size: 11px; font-weight: 600; color: var(--text-2); display: block;
   <!-- Ready to Ship Panel -->
   <div class="rts-panel" id="pm-rts-panel"></div>
 
-  <!-- Per-line PM summary cards -->
-  <div id="pm-line-cards"></div>
-
   <!-- Full PM Unit Table -->
   <div class="chart-card">
     <div class="chart-title">
@@ -3327,7 +3324,7 @@ function addBoardUnitRow() {
   const lineOpts=CONFIG.lines.map(l=>`<option value="${l.id}" ${l.id===activeLine?'selected':''}>${l.name}</option>`).join('');
   const defaultLine=CONFIG.lines.find(l=>l.id===activeLine)||CONFIG.lines[0];
   const colOpts=defaultLine?defaultLine.columns.map(c=>`<option value="${c.label}" ${c.label==='In the Hole'?'selected':''}>${c.label}</option>`).join(''):'';
-  const productTypes=['CYS43','COMP','EQ10','TITUS','DROP','EDGE','SAT93','SAT82','EQ100','WDC','LKY','CYS'];
+  const productTypes=['CYS43','COMP','EQ10','TITUS','DROP','EDGE','SAT93','SAT82','EQ-10','EQ-11','WDC','LKY','CYS'];
   const typeOpts=productTypes.map(t=>`<option value="${t}">${t}</option>`).join('');
   const div=document.createElement('div'); div.id='burow-'+id;
   div.style.cssText='display:grid;grid-template-columns:140px 130px 100px 130px 130px 130px 1fr 32px;gap:8px;align-items:end;margin-bottom:8px;';
@@ -3666,7 +3663,7 @@ function renderBoardUnitCard(u) {
       const lastCheckin = (u.leadCheckins||[]).length ? u.leadCheckins[u.leadCheckins.length-1] : null;
       actions+=`<button class="primary" onclick="togglePanel('bd-leadcheckin-${sid}')">&#128100; Lead Check-In</button>`;
       panels+=`<div class="action-group" id="bd-leadcheckin-${sid}">
-        ${lastCheckin?`<div style="font-size:12px;color:var(--text-2,#605e5c);margin-bottom:8px;">Last check-in: <strong>${lastCheckin.name}</strong> at ${lastCheckin.station} — ${lastCheckin.ts}${lastCheckin.email?` — <a href="mailto:${lastCheckin.email}" style="color:#006A8E;">&#9993; ${lastCheckin.email}</a>`:''}</div>`:''}
+        ${lastCheckin?`<div style="font-size:12px;color:var(--text-2,#605e5c);margin-bottom:8px;">Last check-in: <strong>${lastCheckin.name}</strong> at ${lastCheckin.station} — ${lastCheckin.ts}${lastCheckin.email?` — <a href="https://teams.microsoft.com/l/chat/0/0?users=${encodeURIComponent(lastCheckin.email)}" target="_blank" rel="noopener" style="color:#006A8E;">&#128172; Chat in Teams</a>`:''}</div>`:''}
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:8px;">
           <div><label>Name</label><input id="bd-lead-name-${sid}" type="text" placeholder="Your name" /></div>
           <div><label>Email</label><input id="bd-lead-email-${sid}" type="email" placeholder="you@company.com" /></div>
@@ -4298,7 +4295,7 @@ function eauAddRow() {
   const lineOpts = CONFIG.lines.map(l=>`<option value="${l.id}" ${l.id===activeLine?'selected':''}>${l.name}</option>`).join('');
   const defaultLine = CONFIG.lines.find(l=>l.id===activeLine)||CONFIG.lines[0];
   const colOpts = defaultLine ? defaultLine.columns.map(c=>`<option value="${c.label}" ${c.label==='In the Hole'?'selected':''}>${c.label}</option>`).join('') : '';
-  const productTypes=['CYS43','COMP','EQ10','TITUS','DROP','EDGE','SAT93','SAT82','EQ100','WDC','LKY','CYS'];
+  const productTypes=['CYS43','COMP','EQ10','TITUS','DROP','EDGE','SAT93','SAT82','EQ-10','EQ-11','WDC','LKY','CYS'];
   const typeOpts = productTypes.map(t=>`<option value="${t}">${t}</option>`).join('');
   const div = document.createElement('div'); div.id='eaurow-'+id; div.className='eau-row';
   div.style.cssText='display:grid;grid-template-columns:140px 130px 100px 130px 130px 130px 1fr 32px;gap:8px;align-items:end;margin-bottom:8px;';
@@ -4609,7 +4606,6 @@ function renderPMPage() {
   renderRTSPanel();
   renderSheetTabs();
   switchFTITab(ftiActiveTab === 'gantt' || ftiActiveTab === 'allgantt' ? 'calendar' : (ftiActiveTab || 'calendar'));
-  renderPMLineCards();
   renderPMUnitTable();
   populatePMFilters();
 }
@@ -5073,10 +5069,9 @@ function renderPMLeadCheckins() {
   }
 
   const rows = recent.map(c => `<tr>
-    <td style="padding:6px 10px;font-size:12px;font-weight:700;">${c.unitId}</td>
     <td style="padding:6px 10px;font-size:12px;">${c.station}</td>
     <td style="padding:6px 10px;font-size:12px;">${c.name}</td>
-    <td style="padding:6px 10px;font-size:12px;">${c.email?`<a href="mailto:${c.email}" style="color:#006A8E;">&#9993; ${c.email}</a>`:'—'}</td>
+    <td style="padding:6px 10px;font-size:12px;">${c.email?`<a href="https://teams.microsoft.com/l/chat/0/0?users=${encodeURIComponent(c.email)}" target="_blank" rel="noopener" style="color:#006A8E;">&#128172; Chat in Teams</a>`:'—'}</td>
     <td style="padding:6px 10px;font-size:11px;color:var(--text-3,#8a96a8);">${c.ts}</td>
   </tr>`).join('');
 
@@ -5084,7 +5079,6 @@ function renderPMLeadCheckins() {
     <div style="overflow-x:auto;">
       <table style="width:100%;border-collapse:collapse;">
         <thead><tr style="border-bottom:2px solid #edebe9;text-align:left;">
-          <th style="padding:6px 10px;font-size:11px;color:var(--text-3,#8a96a8);text-transform:uppercase;">Unit</th>
           <th style="padding:6px 10px;font-size:11px;color:var(--text-3,#8a96a8);text-transform:uppercase;">Station</th>
           <th style="padding:6px 10px;font-size:11px;color:var(--text-3,#8a96a8);text-transform:uppercase;">Name</th>
           <th style="padding:6px 10px;font-size:11px;color:var(--text-3,#8a96a8);text-transform:uppercase;">Email</th>

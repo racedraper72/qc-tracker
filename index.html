@@ -1189,6 +1189,7 @@ label { font-size: 11px; font-weight: 600; color: var(--text-2); display: block;
   <!-- Time in Process by Unit -->
   <div class="chart-card" id="pm-time-chart" style="margin-bottom:14px;"></div>
   <div class="chart-card" id="pm-duedate-chart" style="margin-bottom:14px;"></div>
+  <div class="chart-card" id="pm-lead-checkins" style="margin-bottom:14px;"></div>
 
   <!-- Ready to Ship Panel -->
   <div class="rts-panel" id="pm-rts-panel"></div>
@@ -3018,7 +3019,7 @@ function jsonpSave(tab, rows) {
   const header = tab==='QC'
     ? ['Serial','Type','Station','InspectionStarted','Held','Remediation','RemediationOrigin','Completed','Status','HistoryJSON']
     : tab==='Board'
-    ? ['UnitID','Line','Column','Held','Completed','Notes','ESONumber','GensetSerial','ReadyForInspection','InspectionStarted','HistoryJSON','SupervisorReleased','SupervisorReleaseTs','DeviationNeeded','DeviationNote','DeviationTs','ChecklistJSON','QCChecklistJSON','FailOverridesJSON','Station2TasksJSON','SolutionsESO','DueDate']
+    ? ['UnitID','Line','Column','Held','Completed','Notes','ESONumber','GensetSerial','ReadyForInspection','InspectionStarted','HistoryJSON','SupervisorReleased','SupervisorReleaseTs','DeviationNeeded','DeviationNote','DeviationTs','ChecklistJSON','QCChecklistJSON','FailOverridesJSON','Station2TasksJSON','SolutionsESO','DueDate','LeadCheckinsJSON']
     : ['UnitID','Link','UpdatedAt'];
   const payload = JSON.stringify({action:'save', rows:[header,...rows]});
 
@@ -3068,9 +3069,10 @@ function syncFromSheetsViaGAS(onDone) {
           let qcChecklist={}; try{qcChecklist=JSON.parse(r[17]||'{}');}catch(e){}
           let failOverrides=[]; try{failOverrides=JSON.parse(r[18]||'[]');}catch(e){}
           let station2Tasks={}; try{station2Tasks=JSON.parse(r[19]||'{}');}catch(e){}
+          let leadCheckins=[]; try{leadCheckins=JSON.parse(r[22]||'[]');}catch(e){}
           return {id:r[0],line:r[1],col:r[2],held:r[3]==='TRUE'||r[3]===true,completed:r[4]==='TRUE'||r[4]===true,notes:r[5]||'',esoNumber:r[6]||'',gensetSerial:r[7]||'',readyForInspection:r[8]==='TRUE'||r[8]===true,inspectionStarted:r[9]==='TRUE'||r[9]===true,history,
             supervisorReleased:r[11]==='TRUE'||r[11]===true,supervisorReleaseTs:r[12]||'',
-            deviationNeeded:r[13]==='TRUE'||r[13]===true,deviationNote:r[14]||'',deviationTs:r[15]||'',checklist,qcChecklist,failOverrides,station2Tasks,solutionsEso:r[20]||'',dueDate:r[21]||''};
+            deviationNeeded:r[13]==='TRUE'||r[13]===true,deviationNote:r[14]||'',deviationTs:r[15]||'',checklist,qcChecklist,failOverrides,station2Tasks,solutionsEso:r[20]||'',dueDate:r[21]||'',leadCheckins};
         });
       }
       jsonpCall(sheetsUrl+'?tab=Issues', function(err3, rows3) {
@@ -3097,7 +3099,7 @@ function proxySave(tab, rows) {
   const header = tab==='QC'
     ? ['Serial','Type','Station','InspectionStarted','Held','Remediation','RemediationOrigin','Completed','Status','HistoryJSON']
     : tab==='Board'
-    ? ['UnitID','Line','Column','Held','Completed','Notes','ESONumber','GensetSerial','ReadyForInspection','InspectionStarted','HistoryJSON','SupervisorReleased','SupervisorReleaseTs','DeviationNeeded','DeviationNote','DeviationTs','ChecklistJSON','QCChecklistJSON','FailOverridesJSON','Station2TasksJSON','SolutionsESO','DueDate']
+    ? ['UnitID','Line','Column','Held','Completed','Notes','ESONumber','GensetSerial','ReadyForInspection','InspectionStarted','HistoryJSON','SupervisorReleased','SupervisorReleaseTs','DeviationNeeded','DeviationNote','DeviationTs','ChecklistJSON','QCChecklistJSON','FailOverridesJSON','Station2TasksJSON','SolutionsESO','DueDate','LeadCheckinsJSON']
     : ['UnitID','Link','UpdatedAt'];
   return proxyFetch('?action=save&tab='+tab, {
     method: 'POST',
@@ -3126,9 +3128,10 @@ function syncFromSheetsViaSmartsheet(onDone) {
         let qcChecklist={}; try{qcChecklist=JSON.parse(r[17]||'{}');}catch(e){}
         let failOverrides=[]; try{failOverrides=JSON.parse(r[18]||'[]');}catch(e){}
         let station2Tasks={}; try{station2Tasks=JSON.parse(r[19]||'{}');}catch(e){}
+        let leadCheckins=[]; try{leadCheckins=JSON.parse(r[22]||'[]');}catch(e){}
         return {id:r[0],line:r[1],col:r[2],held:r[3]==='TRUE'||r[3]===true,completed:r[4]==='TRUE'||r[4]===true,notes:r[5]||'',esoNumber:r[6]||'',gensetSerial:r[7]||'',readyForInspection:r[8]==='TRUE'||r[8]===true,inspectionStarted:r[9]==='TRUE'||r[9]===true,history,
           supervisorReleased:r[11]==='TRUE'||r[11]===true,supervisorReleaseTs:r[12]||'',
-          deviationNeeded:r[13]==='TRUE'||r[13]===true,deviationNote:r[14]||'',deviationTs:r[15]||'',checklist,qcChecklist,failOverrides,station2Tasks,solutionsEso:r[20]||'',dueDate:r[21]||''};
+          deviationNeeded:r[13]==='TRUE'||r[13]===true,deviationNote:r[14]||'',deviationTs:r[15]||'',checklist,qcChecklist,failOverrides,station2Tasks,solutionsEso:r[20]||'',dueDate:r[21]||'',leadCheckins};
       });
     }
     if (rows3 && rows3.length>1) {
@@ -3178,7 +3181,7 @@ function pushQC() {
 }
 function pushBoard() {
   saveLocalCache();
-  const rows = boardUnits.map(u=>[u.id,u.line,u.col,u.held,u.completed,u.notes,u.esoNumber||'',u.gensetSerial||'',u.readyForInspection||false,u.inspectionStarted||false,JSON.stringify(u.history),u.supervisorReleased||false,u.supervisorReleaseTs||'',u.deviationNeeded||false,u.deviationNote||'',u.deviationTs||'',JSON.stringify(u.checklist||{}),JSON.stringify(u.qcChecklist||{}),JSON.stringify(u.failOverrides||[]),JSON.stringify(u.station2Tasks||{}),u.solutionsEso||'',u.dueDate||'']);
+  const rows = boardUnits.map(u=>[u.id,u.line,u.col,u.held,u.completed,u.notes,u.esoNumber||'',u.gensetSerial||'',u.readyForInspection||false,u.inspectionStarted||false,JSON.stringify(u.history),u.supervisorReleased||false,u.supervisorReleaseTs||'',u.deviationNeeded||false,u.deviationNote||'',u.deviationTs||'',JSON.stringify(u.checklist||{}),JSON.stringify(u.qcChecklist||{}),JSON.stringify(u.failOverrides||[]),JSON.stringify(u.station2Tasks||{}),u.solutionsEso||'',u.dueDate||'',JSON.stringify(u.leadCheckins||[])]);
   if (syncTarget === 'smartsheet') proxySave('Board', rows); else jsonpSave('Board', rows);
 }
 function pushIssues() {
@@ -3367,7 +3370,7 @@ function _addAllBoardUnits() {
   });
   if (hasError) return;
   toAdd.forEach(u => {
-    boardUnits.push({id:u.id,line:u.line,col:u.col,held:false,completed:false,notes:u.notes,esoNumber:'',gensetSerial:'',solutionsEso:u.solEso||'',dueDate:u.dueDate||'',readyForInspection:false,inspectionStarted:false,supervisorReleased:false,supervisorReleaseTs:'',deviationNeeded:false,deviationNote:'',deviationTs:'',checklist:{},qcChecklist:{},failOverrides:[],station2Tasks:{},history:[{action:'Added to '+u.col,ts:now(),notes:u.notes}]});
+    boardUnits.push({id:u.id,line:u.line,col:u.col,held:false,completed:false,notes:u.notes,esoNumber:'',gensetSerial:'',solutionsEso:u.solEso||'',dueDate:u.dueDate||'',leadCheckins:[],readyForInspection:false,inspectionStarted:false,supervisorReleased:false,supervisorReleaseTs:'',deviationNeeded:false,deviationNote:'',deviationTs:'',checklist:{},qcChecklist:{},failOverrides:[],station2Tasks:{},history:[{action:'Added to '+u.col,ts:now(),notes:u.notes}]});
   });
   err.textContent=''; document.getElementById('board-add-form').style.display='none';
   pushBoard(); renderAll();
@@ -3385,7 +3388,7 @@ function getAllBoardUnits() {
         if (deleted.includes(uid)) return; // tombstoned — don't resurrect from the static seed
         if (!merged.find(u=>u.id===uid)) {
           const tracked=boardUnits.find(u=>u.id===uid);
-          merged.push(tracked||{id:uid,line:line.id,col:col.label,held:false,completed:false,notes:'',esoNumber:'',gensetSerial:'',solutionsEso:'',dueDate:'',readyForInspection:false,inspectionStarted:false,supervisorReleased:false,supervisorReleaseTs:'',deviationNeeded:false,deviationNote:'',deviationTs:'',checklist:{},qcChecklist:{},failOverrides:[],station2Tasks:{},history:[]});
+          merged.push(tracked||{id:uid,line:line.id,col:col.label,held:false,completed:false,notes:'',esoNumber:'',gensetSerial:'',solutionsEso:'',dueDate:'',leadCheckins:[],readyForInspection:false,inspectionStarted:false,supervisorReleased:false,supervisorReleaseTs:'',deviationNeeded:false,deviationNote:'',deviationTs:'',checklist:{},qcChecklist:{},failOverrides:[],station2Tasks:{},history:[]});
         }
       });
     });
@@ -3658,6 +3661,19 @@ function renderBoardUnitCard(u) {
       actions+=`<button class="primary" onclick="togglePanel('bd-soldue-${sid}')">&#9998; Solutions ESO / Due Date</button>`;
       panels+=`<div class="action-group" id="bd-soldue-${sid}"><div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:8px;"><div><label>Solutions ESO #</label><input id="bd-sol-eso-${sid}" type="text" placeholder="e.g. SOL-4521" value="${u.solutionsEso||''}" /></div><div><label>Due Date</label><input id="bd-due-date-${sid}" type="date" value="${u.dueDate||''}" /></div></div><button class="primary sm" onclick="saveStation7Data('${u.id}')">&#10003; Save</button></div>`;
     }
+    // LEAD CHECK-IN — whoever's checking in enters their own name/email, logged per station
+    {
+      const lastCheckin = (u.leadCheckins||[]).length ? u.leadCheckins[u.leadCheckins.length-1] : null;
+      actions+=`<button class="primary" onclick="togglePanel('bd-leadcheckin-${sid}')">&#128100; Lead Check-In</button>`;
+      panels+=`<div class="action-group" id="bd-leadcheckin-${sid}">
+        ${lastCheckin?`<div style="font-size:12px;color:var(--text-2,#605e5c);margin-bottom:8px;">Last check-in: <strong>${lastCheckin.name}</strong> at ${lastCheckin.station} — ${lastCheckin.ts}${lastCheckin.email?` — <a href="mailto:${lastCheckin.email}" style="color:#006A8E;">&#9993; ${lastCheckin.email}</a>`:''}</div>`:''}
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:8px;">
+          <div><label>Name</label><input id="bd-lead-name-${sid}" type="text" placeholder="Your name" /></div>
+          <div><label>Email</label><input id="bd-lead-email-${sid}" type="email" placeholder="you@company.com" /></div>
+        </div>
+        <button class="primary sm" onclick="leadCheckIn('${u.id}')">&#10003; Check In at ${u.col}</button>
+      </div>`;
+    }
     // REMEDIATION column — Started + Return to options
     if (isRemedCol) {
       if (!u.inspectionStarted) {
@@ -3810,7 +3826,7 @@ function ensureBoardTracked(unitId) {
   if (!u) {
     const line=CONFIG.lines.find(l=>l.columns.some(c=>c.units.includes(unitId)));
     const col=line?line.columns.find(c=>c.units.includes(unitId)):null;
-    u={id:unitId,line:line?line.id:activeLine,col:col?col.label:activeCol,held:false,completed:false,notes:'',esoNumber:'',gensetSerial:'',solutionsEso:'',dueDate:'',readyForInspection:false,inspectionStarted:false,supervisorReleased:false,supervisorReleaseTs:'',deviationNeeded:false,deviationNote:'',deviationTs:'',checklist:{},qcChecklist:{},failOverrides:[],station2Tasks:{},history:[]};
+    u={id:unitId,line:line?line.id:activeLine,col:col?col.label:activeCol,held:false,completed:false,notes:'',esoNumber:'',gensetSerial:'',solutionsEso:'',dueDate:'',leadCheckins:[],readyForInspection:false,inspectionStarted:false,supervisorReleased:false,supervisorReleaseTs:'',deviationNeeded:false,deviationNote:'',deviationTs:'',checklist:{},qcChecklist:{},failOverrides:[],station2Tasks:{},history:[]};
     boardUnits.push(u);
   }
   return u;
@@ -3840,6 +3856,20 @@ function saveStation7Data(unitId) {
   }
   u.history.push({action:(parts.length?'ESO/Genset info recorded — '+parts.join(' | '):'ESO/Genset panel saved'),ts:now(),notes:''});
   togglePanel('bd-eso-'+sid); pushBoard(); renderAll();
+}
+
+function leadCheckIn(unitId) {
+  const u = ensureBoardTracked(unitId); const sid = safeId(unitId);
+  const nameEl = document.getElementById('bd-lead-name-'+sid);
+  const emailEl = document.getElementById('bd-lead-email-'+sid);
+  const name = nameEl ? nameEl.value.trim() : '';
+  const email = emailEl ? emailEl.value.trim() : '';
+  if (!name) { alert('Enter a name to check in.'); return; }
+  if (!u.leadCheckins) u.leadCheckins = [];
+  u.leadCheckins.push({ station: u.col, name, email, ts: now() });
+  u.history.push({ action: 'Lead check-in at '+u.col+' — '+name+(email?' ('+email+')':''), ts: now(), notes: '' });
+  togglePanel('bd-leadcheckin-'+sid);
+  pushBoard(); renderAll();
 }
 
 function doBoardAction(unitId, action) {
@@ -4305,7 +4335,7 @@ function eauAddAllUnits() {
   });
   if (hasError) return;
   toAdd.forEach(u => {
-    boardUnits.push({id:u.id,line:u.line,col:u.col,held:false,completed:false,notes:u.notes,esoNumber:'',gensetSerial:'',solutionsEso:u.solEso,dueDate:u.dueDate,readyForInspection:false,inspectionStarted:false,supervisorReleased:false,supervisorReleaseTs:'',deviationNeeded:false,deviationNote:'',deviationTs:'',checklist:{},qcChecklist:{},failOverrides:[],station2Tasks:{},history:[{action:'Added to '+u.col,ts:now(),notes:u.notes}]});
+    boardUnits.push({id:u.id,line:u.line,col:u.col,held:false,completed:false,notes:u.notes,esoNumber:'',gensetSerial:'',solutionsEso:u.solEso,dueDate:u.dueDate,leadCheckins:[],readyForInspection:false,inspectionStarted:false,supervisorReleased:false,supervisorReleaseTs:'',deviationNeeded:false,deviationNote:'',deviationTs:'',checklist:{},qcChecklist:{},failOverrides:[],station2Tasks:{},history:[{action:'Added to '+u.col,ts:now(),notes:u.notes}]});
   });
   err.textContent = '';
   document.getElementById('eau-rows').innerHTML = ''; eauRowCtr = 0; eauAddRow();
@@ -4575,6 +4605,7 @@ function renderPMPage() {
   renderPMLineProgress();
   renderPMTimeChart();
   renderPMDueDateChart();
+  renderPMLeadCheckins();
   renderRTSPanel();
   renderSheetTabs();
   switchFTITab(ftiActiveTab === 'gantt' || ftiActiveTab === 'allgantt' ? 'calendar' : (ftiActiveTab || 'calendar'));
@@ -5025,6 +5056,43 @@ function pmTimeUnitChanged(val) {
 function pmTimeStationChanged(val) {
   pmTimeSelectedStation = val;
   renderPMTimeChart();
+}
+
+function renderPMLeadCheckins() {
+  const el = document.getElementById('pm-lead-checkins'); if (!el) return;
+  const allCheckins = [];
+  getAllBoardUnits().forEach(u => {
+    (u.leadCheckins||[]).forEach(c => allCheckins.push({ unitId: u.id, ...c }));
+  });
+  allCheckins.sort((a,b) => new Date(b.ts) - new Date(a.ts));
+  const recent = allCheckins.slice(0, 25);
+
+  if (!recent.length) {
+    el.innerHTML = `<div class="chart-title">Lead Check-Ins</div><p style="font-size:13px;color:#605e5c;">No check-ins recorded yet — use the "Lead Check-In" button on any unit in the Tracker to log one.</p>`;
+    return;
+  }
+
+  const rows = recent.map(c => `<tr>
+    <td style="padding:6px 10px;font-size:12px;font-weight:700;">${c.unitId}</td>
+    <td style="padding:6px 10px;font-size:12px;">${c.station}</td>
+    <td style="padding:6px 10px;font-size:12px;">${c.name}</td>
+    <td style="padding:6px 10px;font-size:12px;">${c.email?`<a href="mailto:${c.email}" style="color:#006A8E;">&#9993; ${c.email}</a>`:'—'}</td>
+    <td style="padding:6px 10px;font-size:11px;color:var(--text-3,#8a96a8);">${c.ts}</td>
+  </tr>`).join('');
+
+  el.innerHTML = `<div class="chart-title">Lead Check-Ins <span class="chart-subtitle">${allCheckins.length} total${allCheckins.length>25?' · showing 25 most recent':''}</span></div>
+    <div style="overflow-x:auto;">
+      <table style="width:100%;border-collapse:collapse;">
+        <thead><tr style="border-bottom:2px solid #edebe9;text-align:left;">
+          <th style="padding:6px 10px;font-size:11px;color:var(--text-3,#8a96a8);text-transform:uppercase;">Unit</th>
+          <th style="padding:6px 10px;font-size:11px;color:var(--text-3,#8a96a8);text-transform:uppercase;">Station</th>
+          <th style="padding:6px 10px;font-size:11px;color:var(--text-3,#8a96a8);text-transform:uppercase;">Name</th>
+          <th style="padding:6px 10px;font-size:11px;color:var(--text-3,#8a96a8);text-transform:uppercase;">Email</th>
+          <th style="padding:6px 10px;font-size:11px;color:var(--text-3,#8a96a8);text-transform:uppercase;">Time</th>
+        </tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>`;
 }
 
 function renderPMDueDateChart() {

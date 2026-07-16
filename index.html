@@ -3144,6 +3144,7 @@ function fetchMasterSchedule() {
 }
 
 let mseGroupBy = null;   // column name to group/count by for the chart
+let mseGroupByProjectType = false; // when true, group by extracted project code (WDC, SAT82, EQ10...) instead of the raw column value
 let mseFilterCol = null; // column name to filter the table/chart by
 let mseFilterVal = null; // value to filter to
 let mseChartType = 'column';
@@ -3157,6 +3158,7 @@ function mseFilteredRows() {
   return masterScheduleRows.filter(r => String(r[idx]) === mseFilterVal);
 }
 function mseSetGroupBy(col) { mseGroupBy = col || null; renderMasterSchedulePage(); }
+function mseToggleProjectTypeMode(checked) { mseGroupByProjectType = checked; renderMasterSchedulePage(); }
 function mseSetFilterCol(col) { mseFilterCol = col || null; mseFilterVal = null; msePage = 0; renderMasterSchedulePage(); }
 function mseSetFilterVal(val) { mseFilterVal = val || null; msePage = 0; renderMasterSchedulePage(); }
 function mseSetChartType(t) { mseChartType = t; renderMasterSchedulePage(); }
@@ -3191,7 +3193,8 @@ function renderMasterSchedulePage() {
   // ---- Build the group-by breakdown for the chart ----
   const counts = {};
   filtered.forEach(r => {
-    const v = (r[groupIdx] === '' || r[groupIdx] == null) ? '(blank)' : String(r[groupIdx]);
+    let v = (r[groupIdx] === '' || r[groupIdx] == null) ? '(blank)' : String(r[groupIdx]);
+    if (mseGroupByProjectType && v !== '(blank)') v = getProjectType(v);
     counts[v] = (counts[v] || 0) + 1;
   });
   const chartRows = Object.keys(counts)
@@ -3264,6 +3267,12 @@ function renderMasterSchedulePage() {
           <div>
             <label style="font-size:11px;font-weight:700;color:var(--text-2,#605e5c);text-transform:uppercase;display:block;margin-bottom:4px;">Group by</label>
             <select onchange="mseSetGroupBy(this.value)" style="width:auto;font-size:13px;padding:6px 10px;">${groupByOpts}</select>
+          </div>
+          <div>
+            <label style="font-size:11px;font-weight:700;color:var(--text-2,#605e5c);text-transform:uppercase;display:flex;align-items:center;gap:6px;margin-bottom:4px;text-transform:none;">
+              <input type="checkbox" ${mseGroupByProjectType?'checked':''} onchange="mseToggleProjectTypeMode(this.checked)" style="width:auto;margin:0;" />
+              As project type (WDC, SAT82, EQ10...)
+            </label>
           </div>
           <div>
             <label style="font-size:11px;font-weight:700;color:var(--text-2,#605e5c);text-transform:uppercase;display:block;margin-bottom:4px;">Filter column</label>

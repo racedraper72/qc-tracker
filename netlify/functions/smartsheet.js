@@ -14,7 +14,7 @@ function sheetIdFor(tab) {
   if (tab === 'QC') return process.env.QC_SHEET_ID;
   if (tab === 'Board') return process.env.BOARD_SHEET_ID;
   if (tab === 'Issues') return process.env.ISSUES_SHEET_ID;
-  if (tab === 'MasterSchedule') return process.env.MASTER_SCHEDULE_SHEET_ID;
+  if (tab === 'MasterSchedule') return '1650993308585860'; // CAT Production Master Schedule
   return null;
 }
  
@@ -140,4 +140,3 @@ exports.handler = async function (event) {
     return { statusCode: 500, headers: corsHeaders(), body: JSON.stringify({ error: String(err.message || err) }) };
   }
 };
- 

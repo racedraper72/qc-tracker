@@ -934,6 +934,7 @@ label { font-size: 11px; font-weight: 600; color: var(--text-2); display: block;
   .floor-line-btn    { min-height: 44px; }
 }
 </style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 </head>
 <body>
 
@@ -1575,9 +1576,13 @@ label { font-size: 11px; font-weight: 600; color: var(--text-2); display: block;
   <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:8px;">
     <div>
       <h2 style="font-size:16px;font-weight:800;letter-spacing:-.3px;">&#128197; Master Schedule</h2>
-      <p style="font-size:12px;color:var(--text-2);margin-top:3px;">Production Start / Due dates from the CAT Production Master Schedule (Smartsheet) — read-only.</p>
+      <p style="font-size:12px;color:var(--text-2);margin-top:3px;">CAT Production Master Schedule — upload an Excel/CSV export, or pull live from Smartsheet.</p>
     </div>
-    <button class="subtle sm" onclick="fetchMasterSchedule()">&#8635; Refresh</button>
+    <div style="display:flex;gap:8px;">
+      <input type="file" id="mse-file-input" accept=".xlsx,.xls,.csv" style="display:none;" onchange="mseHandleFileUpload(event)" />
+      <button class="primary sm" onclick="document.getElementById('mse-file-input').click()">&#8593; Upload File</button>
+      <button class="subtle sm" onclick="fetchMasterSchedule()">&#8635; Refresh (live)</button>
+    </div>
   </div>
   <div id="master-schedule-body"></div>
 </div>
@@ -3143,6 +3148,52 @@ function fetchMasterSchedule() {
   });
 }
 
+/* Upload path — parses an Excel/CSV export entirely in the browser, no
+   Netlify/Smartsheet API involved at all. Feeds the exact same header/rows
+   shape as the live fetch, so every existing feature (Group By, Filter,
+   chart types, pagination, CSV export) works unchanged either way. */
+function mseHandleFileUpload(event) {
+  const file = event.target.files && event.target.files[0];
+  if (!file) return;
+  if (typeof XLSX === 'undefined') {
+    masterScheduleStatus = 'error';
+    masterScheduleErrorMsg = 'The spreadsheet reader library didn\'t load — check your internet connection and try again.';
+    renderMasterSchedulePage();
+    return;
+  }
+  masterScheduleStatus = 'loading'; renderMasterSchedulePage();
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    try {
+      const wb = XLSX.read(e.target.result, { type: 'array', cellDates: true });
+      const firstSheetName = wb.SheetNames[0];
+      const sheet = wb.Sheets[firstSheetName];
+      const data = XLSX.utils.sheet_to_json(sheet, { header: 1, raw: false, defval: '' });
+      if (!data.length) { throw new Error('The uploaded file has no rows.'); }
+      masterScheduleHeader = (data[0] || []).map(h => String(h || '').trim()).filter(h => h !== '');
+      const headerLen = data[0].length;
+      masterScheduleRows = data.slice(1)
+        .map(r => r.slice(0, headerLen).map(c => c === undefined || c === null ? '' : String(c)))
+        .filter(r => r.some(c => c !== ''));
+      masterScheduleStatus = 'loaded';
+      mseGroupBy = null; mseFilterCol = null; mseFilterVal = null; mseChartType = 'column'; msePage = 0;
+      renderMasterSchedulePage();
+    } catch (err) {
+      console.error('Master Schedule file parse failed:', err);
+      masterScheduleStatus = 'error';
+      masterScheduleErrorMsg = 'Could not read that file: ' + String(err && err.message ? err.message : err);
+      renderMasterSchedulePage();
+    }
+  };
+  reader.onerror = () => {
+    masterScheduleStatus = 'error';
+    masterScheduleErrorMsg = 'Could not read the file.';
+    renderMasterSchedulePage();
+  };
+  reader.readAsArrayBuffer(file);
+  event.target.value = ''; // allow re-uploading the same filename later
+}
+
 let mseGroupBy = null;   // column name to group/count by for the chart
 let mseGroupByProjectType = false; // when true, group by extracted project code (WDC, SAT82, EQ10...) instead of the raw column value
 let mseFilterCol = null; // column name to filter the table/chart by
@@ -3173,7 +3224,15 @@ function mseExportCsv() {
 function renderMasterSchedulePage() {
   const el = document.getElementById('master-schedule-body'); if (!el) return;
 
-  if (masterScheduleStatus === 'idle') { fetchMasterSchedule(); return; }
+  if (masterScheduleStatus === 'idle') {
+    el.innerHTML = `<div class="card" style="text-align:center;padding:40px 20px;">
+      <p style="font-size:14px;color:var(--text-1,#323130);margin-bottom:6px;">No data loaded yet.</p>
+      <p style="font-size:12px;color:var(--text-3,#8a96a8);margin-bottom:16px;">Upload an Excel or CSV export of the schedule, or try pulling live from Smartsheet.</p>
+      <button class="primary sm" onclick="document.getElementById('mse-file-input').click()">&#8593; Upload File</button>
+      <button class="subtle sm" onclick="fetchMasterSchedule()" style="margin-left:8px;">&#8635; Try Live Fetch</button>
+    </div>`;
+    return;
+  }
   if (masterScheduleStatus === 'loading') { el.innerHTML = '<p style="font-size:13px;color:#605e5c;">&#8635; Loading Master Schedule...</p>'; return; }
   if (masterScheduleStatus === 'error') {
     el.innerHTML = `<div class="card"><p style="font-size:13px;color:#A03033;font-weight:600;margin-bottom:6px;">Couldn't load the Master Schedule.</p><p style="font-size:12px;color:#605e5c;font-family:monospace;background:#faf9f8;padding:8px 10px;border-radius:6px;">${masterScheduleErrorMsg||'Unknown error — check the browser console for details.'}</p></div>`;

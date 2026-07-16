@@ -3182,7 +3182,9 @@ function renderMasterSchedulePage() {
     return;
   }
 
-  if (!mseGroupBy || !masterScheduleHeader.includes(mseGroupBy)) mseGroupBy = masterScheduleHeader[0];
+  if (!mseGroupBy || !masterScheduleHeader.includes(mseGroupBy)) {
+    mseGroupBy = masterScheduleHeader.find(h => /milestone/i.test(h)) || masterScheduleHeader[0];
+  }
   const filtered = mseFilteredRows();
   const groupIdx = masterScheduleHeader.indexOf(mseGroupBy);
 
@@ -3194,8 +3196,7 @@ function renderMasterSchedulePage() {
   });
   const chartRows = Object.keys(counts)
     .map(label => ({ label, value: counts[label] }))
-    .sort((a,b) => b.value - a.value)
-    .slice(0, 20); // cap at top 20 groups so the chart stays readable
+    .sort((a,b) => b.value - a.value);
   const palette = ['#006A8E','#892729','#0e7c3a','#b45309','#4b3a9e','#7C878E','#425563','#373A36'];
   chartRows.forEach((r,i) => r.color = palette[i % palette.length]);
 
@@ -3276,7 +3277,7 @@ function renderMasterSchedulePage() {
         <button class="subtle sm" onclick="mseExportCsv()">&#8595; Export CSV</button>
       </div>
       <div style="margin-bottom:10px;">${chartTypeToggle}</div>
-      <div class="chart-title" style="margin-bottom:8px;">${mseGroupBy} <span class="chart-subtitle">${filtered.length} row${filtered.length!==1?'s':''}${chartRows.length>=20?' · top 20 groups shown':''}</span></div>
+      <div class="chart-title" style="margin-bottom:8px;">${mseGroupBy} <span class="chart-subtitle">${filtered.length} row${filtered.length!==1?'s':''} · ${chartRows.length} group${chartRows.length!==1?'s':''}</span></div>
       ${chartHtml}
     </div>
     <div class="chart-card">

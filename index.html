@@ -949,6 +949,7 @@ label { font-size: 11px; font-weight: 600; color: var(--text-2); display: block;
     <button class="nav-btn active" id="nav-dashboard" onclick="showPage('dashboard')">&#9632; Dashboard</button>
     <button class="nav-btn" id="nav-cat" onclick="showPage('cat')">&#128663; Cat Dashboard</button>
     <button class="nav-btn" id="nav-editunit" onclick="showPage('editunit')">&#9998; Edit/Add Unit</button>
+    <button class="nav-btn" id="nav-masterschedule" onclick="showPage('masterschedule')">&#128197; Master Schedule</button>
     <button class="nav-btn" id="nav-pm" onclick="showPage('pm')">&#128200; PM View</button>
     <button class="nav-btn" id="nav-tracker" onclick="showPage('tracker')">&#9776; Tracker</button>
     <button class="nav-btn" id="nav-floor" onclick="showPage('floor')" style="background:rgba(14,124,58,.25);color:#4ade80;font-weight:700;">&#9654; Floor Mode</button>
@@ -1568,6 +1569,19 @@ label { font-size: 11px; font-weight: 600; color: var(--text-2); display: block;
   </div>
 </div>
 <!-- ============================================================ END EDIT/ADD UNIT PAGE -->
+
+<!-- ============================================================ MASTER SCHEDULE PAGE -->
+<div id="page-masterschedule" class="app-body" style="display:none;">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:8px;">
+    <div>
+      <h2 style="font-size:16px;font-weight:800;letter-spacing:-.3px;">&#128197; Master Schedule</h2>
+      <p style="font-size:12px;color:var(--text-2);margin-top:3px;">Production Start / Due dates from the CAT Production Master Schedule (Smartsheet) — read-only.</p>
+    </div>
+    <button class="subtle sm" onclick="fetchMasterSchedule()">&#8635; Refresh</button>
+  </div>
+  <div id="master-schedule-body"></div>
+</div>
+<!-- ============================================================ END MASTER SCHEDULE PAGE -->
 
 <!-- ============================================================ SCRIPT -->
 <script>
@@ -3104,6 +3118,104 @@ function proxySave(tab, rows) {
     body: JSON.stringify({ rows: [header, ...rows] })
   }).catch(err => { console.error('Smartsheet save failed ('+tab+'):', err); setApiStatus('error'); });
 }
+
+/* ---- MASTER SCHEDULE (read-only, own dedicated page) ---- */
+let masterScheduleData = [];
+let masterScheduleStatus = 'idle'; // idle | loading | loaded | error
+function fetchMasterSchedule() {
+  if (!smartsheetUrl) { masterScheduleStatus = 'error'; renderMasterSchedulePage(); return; }
+  masterScheduleStatus = 'loading'; renderMasterSchedulePage();
+  proxyFetch('?action=sync&tab=MasterSchedule').then(rows => {
+    if (!rows || rows.length < 2) { masterScheduleData = []; masterScheduleStatus = 'loaded'; renderMasterSchedulePage(); return; }
+    masterScheduleData = rows.slice(1).filter(r => r[0]).map(r => ({
+      project: r[0] || '', startDate: r[1] || '', dueDate: r[2] || '',
+    }));
+    masterScheduleStatus = 'loaded';
+    renderMasterSchedulePage();
+  }).catch(err => {
+    console.error('Master Schedule fetch failed:', err);
+    masterScheduleStatus = 'error';
+    renderMasterSchedulePage();
+  });
+}
+
+function renderMasterSchedulePage() {
+  const el = document.getElementById('master-schedule-body'); if (!el) return;
+
+  if (masterScheduleStatus === 'idle') { fetchMasterSchedule(); return; }
+  if (masterScheduleStatus === 'loading') { el.innerHTML = '<p style="font-size:13px;color:#605e5c;">&#8635; Loading Master Schedule...</p>'; return; }
+  if (masterScheduleStatus === 'error') {
+    el.innerHTML = `<div class="card"><p style="font-size:13px;color:#A03033;">Couldn't load the Master Schedule. ${!smartsheetUrl?'Set the Smartsheet proxy URL in Admin \u2192 Sync configuration first.':'Check that MASTER_SCHEDULE_SHEET_ID is set in Netlify and the Smartsheet API token has access to this sheet, then try Refresh.'}</p></div>`;
+    return;
+  }
+  if (!masterScheduleData.length) {
+    el.innerHTML = `<div class="card"><p style="font-size:13px;color:#605e5c;">No rows found in the Master Schedule.</p></div>`;
+    return;
+  }
+
+  const today = new Date(); today.setHours(0,0,0,0);
+  const weekOut = new Date(today); weekOut.setDate(weekOut.getDate()+7);
+  const buckets = { overdue: [], dueSoon: [], onTrack: [], noDate: [] };
+  masterScheduleData.forEach(r => {
+    if (!r.dueDate) { buckets.noDate.push(r); return; }
+    const d = new Date(r.dueDate);
+    if (isNaN(d)) { buckets.noDate.push(r); return; }
+    if (d < today) buckets.overdue.push(r);
+    else if (d <= weekOut) buckets.dueSoon.push(r);
+    else buckets.onTrack.push(r);
+  });
+  const total = masterScheduleData.length;
+
+  const bars = [
+    { label:'Overdue', list:buckets.overdue, color:'#A03033' },
+    { label:'Due within 7 days', list:buckets.dueSoon, color:'#b45309' },
+    { label:'On track', list:buckets.onTrack, color:'#0e7c3a' },
+  ].map(b => {
+    const w = total ? Math.round((b.list.length/total)*100) : 0;
+    return `<div class="chart-row">
+      <div class="chart-bar-label">${b.label}</div>
+      <div class="chart-bar-track"><div class="chart-bar-fill" style="width:${w}%;background:${b.color};"><span class="chart-bar-num">${b.list.length}</span></div></div>
+    </div>`;
+  }).join('');
+
+  const sorted = masterScheduleData.slice().sort((a,b) => {
+    const da = a.dueDate ? new Date(a.dueDate) : null, db = b.dueDate ? new Date(b.dueDate) : null;
+    if (!da && !db) return 0; if (!da) return 1; if (!db) return -1;
+    return da - db;
+  });
+  const rows = sorted.map(r => {
+    let dueColor = 'var(--text-1,#323130)';
+    if (r.dueDate) {
+      const d = new Date(r.dueDate);
+      if (!isNaN(d)) dueColor = d < today ? '#A03033' : d <= weekOut ? '#b45309' : 'var(--text-1,#323130)';
+    }
+    return `<tr>
+      <td style="padding:6px 10px;font-size:12px;font-weight:700;">${r.project}</td>
+      <td style="padding:6px 10px;font-size:12px;">${r.startDate?formatDueDate(r.startDate.slice(0,10)):'—'}</td>
+      <td style="padding:6px 10px;font-size:12px;font-weight:700;color:${dueColor};">${r.dueDate?formatDueDate(r.dueDate.slice(0,10)):'—'}</td>
+    </tr>`;
+  }).join('');
+
+  el.innerHTML = `
+    <div class="chart-card" style="margin-bottom:14px;">
+      <div class="chart-title">Schedule Progress <span class="chart-subtitle">${total} project${total!==1?'s':''}${buckets.noDate.length?' · '+buckets.noDate.length+' with no due date':''}</span></div>
+      ${bars}
+    </div>
+    <div class="chart-card">
+      <div class="chart-title" style="margin-bottom:10px;">All Projects</div>
+      <div style="overflow-x:auto;">
+        <table style="width:100%;border-collapse:collapse;">
+          <thead><tr style="border-bottom:2px solid #edebe9;text-align:left;">
+            <th style="padding:6px 10px;font-size:11px;color:var(--text-3,#8a96a8);text-transform:uppercase;">Project</th>
+            <th style="padding:6px 10px;font-size:11px;color:var(--text-3,#8a96a8);text-transform:uppercase;">Production Start</th>
+            <th style="padding:6px 10px;font-size:11px;color:var(--text-3,#8a96a8);text-transform:uppercase;">Production Due</th>
+          </tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>
+    </div>`;
+}
+
 function syncFromSheetsViaSmartsheet(onDone) {
   Promise.all([
     proxyFetch('?action=sync&tab=QC').catch(()=>null),
@@ -3202,7 +3314,7 @@ function showPage(page) {
 }
 function _showPage(page) {
   currentPage=page;
-  ['dashboard','floor','pm','tracker','history','admin','tv','station2','cat','editunit'].forEach(p => {
+  ['dashboard','floor','pm','tracker','history','admin','tv','station2','cat','editunit','masterschedule'].forEach(p => {
     const el=document.getElementById('page-'+p); if(el) el.style.display=p===page?'block':'none';
     const btn=document.getElementById('nav-'+p); if(btn) btn.classList.toggle('active',p===page);
   });
@@ -3216,6 +3328,7 @@ function _showPage(page) {
   else                    { stopS2Ticker(); }
   if (page==='cat')      { renderCatDashboard(); }
   if (page==='editunit') { renderEditUnitPage(); }
+  if (page==='masterschedule') { renderMasterSchedulePage(); }
   if (page==='admin') {
     renderAdminQC(); renderAdminBoard(); renderOperatorList(); renderChecklistEditor();
     document.getElementById('cfg-target').value = syncTarget;

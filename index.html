@@ -3119,20 +3119,21 @@ function proxySave(tab, rows) {
   }).catch(err => { console.error('Smartsheet save failed ('+tab+'):', err); setApiStatus('error'); });
 }
 
-/* ---- MASTER SCHEDULE (read-only, own dedicated page) ---- */
-let masterScheduleData = [];
+/* ---- MASTER SCHEDULE (read-only, interactive explorer) ---- */
+let masterScheduleHeader = [];   // real column names, whatever they actually are
+let masterScheduleRows = [];     // array of row-arrays, same order as header
 let masterScheduleStatus = 'idle'; // idle | loading | loaded | error
 let masterScheduleErrorMsg = '';
 function fetchMasterSchedule() {
   if (!smartsheetUrl) { masterScheduleStatus = 'error'; masterScheduleErrorMsg = 'The Smartsheet proxy URL isn\'t set in Admin \u2192 Sync configuration yet.'; renderMasterSchedulePage(); return; }
   masterScheduleStatus = 'loading'; renderMasterSchedulePage();
-  proxyFetch('?action=sync&tab=MasterSchedule').then(rows => {
-    if (rows && rows.error) { throw new Error(typeof rows.error === 'string' ? rows.error : JSON.stringify(rows.error)); }
-    if (!Array.isArray(rows) || rows.length < 2) { masterScheduleData = []; masterScheduleStatus = 'loaded'; renderMasterSchedulePage(); return; }
-    masterScheduleData = rows.slice(1).filter(r => r[0]).map(r => ({
-      project: r[0] || '', startDate: r[1] || '', dueDate: r[2] || '',
-    }));
+  proxyFetch('?action=sync&tab=MasterSchedule').then(data => {
+    if (data && data.error) { throw new Error(typeof data.error === 'string' ? data.error : JSON.stringify(data.error)); }
+    if (!Array.isArray(data) || data.length < 1) { masterScheduleHeader = []; masterScheduleRows = []; masterScheduleStatus = 'loaded'; renderMasterSchedulePage(); return; }
+    masterScheduleHeader = data[0] || [];
+    masterScheduleRows = data.slice(1).filter(r => r.some(c => c !== '' && c !== null && c !== undefined));
     masterScheduleStatus = 'loaded';
+    mseGroupBy = null; mseFilterCol = null; mseFilterVal = null; mseChartType = 'column'; msePage = 0;
     renderMasterSchedulePage();
   }).catch(err => {
     console.error('Master Schedule fetch failed:', err);
@@ -3140,6 +3141,31 @@ function fetchMasterSchedule() {
     masterScheduleErrorMsg = String(err && err.message ? err.message : err);
     renderMasterSchedulePage();
   });
+}
+
+let mseGroupBy = null;   // column name to group/count by for the chart
+let mseFilterCol = null; // column name to filter the table/chart by
+let mseFilterVal = null; // value to filter to
+let mseChartType = 'column';
+let msePage = 0;
+const MSE_PAGE_SIZE = 50;
+
+function mseFilteredRows() {
+  if (!mseFilterCol || mseFilterVal === null || mseFilterVal === undefined || mseFilterVal === '') return masterScheduleRows;
+  const idx = masterScheduleHeader.indexOf(mseFilterCol);
+  if (idx === -1) return masterScheduleRows;
+  return masterScheduleRows.filter(r => String(r[idx]) === mseFilterVal);
+}
+function mseSetGroupBy(col) { mseGroupBy = col || null; renderMasterSchedulePage(); }
+function mseSetFilterCol(col) { mseFilterCol = col || null; mseFilterVal = null; msePage = 0; renderMasterSchedulePage(); }
+function mseSetFilterVal(val) { mseFilterVal = val || null; msePage = 0; renderMasterSchedulePage(); }
+function mseSetChartType(t) { mseChartType = t; renderMasterSchedulePage(); }
+function msePageChange(delta) { msePage = Math.max(0, msePage + delta); renderMasterSchedulePage(); }
+function mseExportCsv() {
+  const rows = mseFilteredRows();
+  const csv = [masterScheduleHeader, ...rows].map(r=>r.map(c=>'"'+String(c==null?'':c).replace(/"/g,'""')+'"').join(',')).join('\n');
+  const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));
+  a.download='master_schedule_'+new Date().toISOString().slice(0,10)+'.csv'; a.click();
 }
 
 function renderMasterSchedulePage() {
@@ -3151,69 +3177,121 @@ function renderMasterSchedulePage() {
     el.innerHTML = `<div class="card"><p style="font-size:13px;color:#A03033;font-weight:600;margin-bottom:6px;">Couldn't load the Master Schedule.</p><p style="font-size:12px;color:#605e5c;font-family:monospace;background:#faf9f8;padding:8px 10px;border-radius:6px;">${masterScheduleErrorMsg||'Unknown error — check the browser console for details.'}</p></div>`;
     return;
   }
-  if (!masterScheduleData.length) {
+  if (!masterScheduleHeader.length || !masterScheduleRows.length) {
     el.innerHTML = `<div class="card"><p style="font-size:13px;color:#605e5c;">No rows found in the Master Schedule.</p></div>`;
     return;
   }
 
-  const today = new Date(); today.setHours(0,0,0,0);
-  const weekOut = new Date(today); weekOut.setDate(weekOut.getDate()+7);
-  const buckets = { overdue: [], dueSoon: [], onTrack: [], noDate: [] };
-  masterScheduleData.forEach(r => {
-    if (!r.dueDate) { buckets.noDate.push(r); return; }
-    const d = new Date(r.dueDate);
-    if (isNaN(d)) { buckets.noDate.push(r); return; }
-    if (d < today) buckets.overdue.push(r);
-    else if (d <= weekOut) buckets.dueSoon.push(r);
-    else buckets.onTrack.push(r);
-  });
-  const total = masterScheduleData.length;
+  if (!mseGroupBy || !masterScheduleHeader.includes(mseGroupBy)) mseGroupBy = masterScheduleHeader[0];
+  const filtered = mseFilteredRows();
+  const groupIdx = masterScheduleHeader.indexOf(mseGroupBy);
 
-  const bars = [
-    { label:'Overdue', list:buckets.overdue, color:'#A03033' },
-    { label:'Due within 7 days', list:buckets.dueSoon, color:'#b45309' },
-    { label:'On track', list:buckets.onTrack, color:'#0e7c3a' },
-  ].map(b => {
-    const w = total ? Math.round((b.list.length/total)*100) : 0;
-    return `<div class="chart-row">
-      <div class="chart-bar-label">${b.label}</div>
-      <div class="chart-bar-track"><div class="chart-bar-fill" style="width:${w}%;background:${b.color};"><span class="chart-bar-num">${b.list.length}</span></div></div>
-    </div>`;
-  }).join('');
-
-  const sorted = masterScheduleData.slice().sort((a,b) => {
-    const da = a.dueDate ? new Date(a.dueDate) : null, db = b.dueDate ? new Date(b.dueDate) : null;
-    if (!da && !db) return 0; if (!da) return 1; if (!db) return -1;
-    return da - db;
+  // ---- Build the group-by breakdown for the chart ----
+  const counts = {};
+  filtered.forEach(r => {
+    const v = (r[groupIdx] === '' || r[groupIdx] == null) ? '(blank)' : String(r[groupIdx]);
+    counts[v] = (counts[v] || 0) + 1;
   });
-  const rows = sorted.map(r => {
-    let dueColor = 'var(--text-1,#323130)';
-    if (r.dueDate) {
-      const d = new Date(r.dueDate);
-      if (!isNaN(d)) dueColor = d < today ? '#A03033' : d <= weekOut ? '#b45309' : 'var(--text-1,#323130)';
-    }
-    return `<tr>
-      <td style="padding:6px 10px;font-size:12px;font-weight:700;">${r.project}</td>
-      <td style="padding:6px 10px;font-size:12px;">${r.startDate?formatDueDate(r.startDate.slice(0,10)):'—'}</td>
-      <td style="padding:6px 10px;font-size:12px;font-weight:700;color:${dueColor};">${r.dueDate?formatDueDate(r.dueDate.slice(0,10)):'—'}</td>
-    </tr>`;
-  }).join('');
+  const chartRows = Object.keys(counts)
+    .map(label => ({ label, value: counts[label] }))
+    .sort((a,b) => b.value - a.value)
+    .slice(0, 20); // cap at top 20 groups so the chart stays readable
+  const palette = ['#006A8E','#892729','#0e7c3a','#b45309','#4b3a9e','#7C878E','#425563','#373A36'];
+  chartRows.forEach((r,i) => r.color = palette[i % palette.length]);
+
+  // ---- Controls: Group By, Filter, Chart type ----
+  const groupByOpts = masterScheduleHeader.map(h => `<option value="${h}" ${h===mseGroupBy?'selected':''}>${h}</option>`).join('');
+  const filterColOpts = `<option value="">None</option>` + masterScheduleHeader.map(h => `<option value="${h}" ${h===mseFilterCol?'selected':''}>${h}</option>`).join('');
+  let filterValOpts = '';
+  if (mseFilterCol) {
+    const fIdx = masterScheduleHeader.indexOf(mseFilterCol);
+    const distinct = [...new Set(masterScheduleRows.map(r => String(r[fIdx]==null?'':r[fIdx])))].filter(v=>v!=='').sort();
+    filterValOpts = `<option value="">Select value...</option>` + distinct.slice(0,500).map(v => `<option value="${v}" ${v===mseFilterVal?'selected':''}>${v}</option>`).join('');
+  }
+  const CHART_TYPE_OPTS = [
+    { key:'column', label:'Column', icon:'&#9612;' },
+    { key:'bar', label:'Bar', icon:'&#9636;' },
+    { key:'line', label:'Line', icon:'&#128200;' },
+    { key:'histogram', label:'Histogram', icon:'&#9616;' },
+    { key:'donut', label:'Donut', icon:'&#9673;' },
+    { key:'gantt', label:'Gantt', icon:'&#9707;' },
+  ];
+  const chartTypeToggle = CHART_TYPE_OPTS.map(opt =>
+    `<button onclick="mseSetChartType('${opt.key}')" title="${opt.label}" style="font-size:11px;padding:4px 10px;border-radius:10px;border:1px solid ${mseChartType===opt.key?'#006A8E':'#e2e6ea'};background:${mseChartType===opt.key?'#006A8E':'#fff'};color:${mseChartType===opt.key?'#fff':'#8a96a8'};cursor:pointer;">${opt.icon} ${opt.label}</button>`
+  ).join(' ');
+
+  // ---- Render the chosen chart type ----
+  let chartHtml = '';
+  if (!chartRows.length) {
+    chartHtml = '<p style="font-size:13px;color:#8a96a8;font-style:italic;">No data to chart.</p>';
+  } else if (mseChartType === 'donut') {
+    const legend = chartRows.map(r => `<div style="display:flex;align-items:center;gap:6px;font-size:11px;color:var(--text-2,#605e5c);margin-bottom:3px;">
+      <span style="width:9px;height:9px;border-radius:2px;background:${r.color};display:inline-block;flex-shrink:0;"></span>
+      <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${r.label}: ${r.value}</span>
+    </div>`).join('');
+    chartHtml = `<div style="display:flex;gap:16px;align-items:center;flex-wrap:wrap;"><div>${svgDonutChart(chartRows, 140)}</div><div style="flex:1;min-width:200px;">${legend}</div></div>`;
+  } else if (mseChartType === 'column') {
+    chartHtml = svgColumnChart(chartRows, 700, 220);
+  } else if (mseChartType === 'line') {
+    chartHtml = svgLineChart(chartRows, 700, 220);
+  } else if (mseChartType === 'histogram') {
+    chartHtml = svgHistogramChart(chartRows, 700, 220);
+  } else if (mseChartType === 'gantt') {
+    chartHtml = svgGanttChart(chartRows);
+  } else { // bar
+    const max = Math.max(...chartRows.map(r=>r.value), 1);
+    chartHtml = chartRows.map(r => {
+      const w = Math.round((r.value/max)*100);
+      return `<div class="chart-row">
+        <div class="chart-bar-label" title="${r.label}">${String(r.label).slice(0,14)}</div>
+        <div class="chart-bar-track"><div class="chart-bar-fill" style="width:${w}%;background:${r.color};"><span class="chart-bar-num">${r.value}</span></div></div>
+      </div>`;
+    }).join('');
+  }
+
+  // ---- Paginated raw data table ----
+  const pageStart = msePage * MSE_PAGE_SIZE;
+  const pageRows = filtered.slice(pageStart, pageStart + MSE_PAGE_SIZE);
+  const totalPages = Math.max(1, Math.ceil(filtered.length / MSE_PAGE_SIZE));
+  const tableHead = masterScheduleHeader.map(h => `<th style="padding:6px 10px;font-size:11px;color:var(--text-3,#8a96a8);text-transform:uppercase;white-space:nowrap;">${h}</th>`).join('');
+  const tableRows = pageRows.map(r => `<tr>${masterScheduleHeader.map((h,i) => `<td style="padding:6px 10px;font-size:12px;white-space:nowrap;">${r[i]==null||r[i]===''?'—':r[i]}</td>`).join('')}</tr>`).join('');
 
   el.innerHTML = `
     <div class="chart-card" style="margin-bottom:14px;">
-      <div class="chart-title">Schedule Progress <span class="chart-subtitle">${total} project${total!==1?'s':''}${buckets.noDate.length?' · '+buckets.noDate.length+' with no due date':''}</span></div>
-      ${bars}
+      <div style="display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:12px;margin-bottom:12px;">
+        <div style="display:flex;gap:16px;flex-wrap:wrap;align-items:flex-end;">
+          <div>
+            <label style="font-size:11px;font-weight:700;color:var(--text-2,#605e5c);text-transform:uppercase;display:block;margin-bottom:4px;">Group by</label>
+            <select onchange="mseSetGroupBy(this.value)" style="width:auto;font-size:13px;padding:6px 10px;">${groupByOpts}</select>
+          </div>
+          <div>
+            <label style="font-size:11px;font-weight:700;color:var(--text-2,#605e5c);text-transform:uppercase;display:block;margin-bottom:4px;">Filter column</label>
+            <select onchange="mseSetFilterCol(this.value)" style="width:auto;font-size:13px;padding:6px 10px;">${filterColOpts}</select>
+          </div>
+          ${mseFilterCol?`<div>
+            <label style="font-size:11px;font-weight:700;color:var(--text-2,#605e5c);text-transform:uppercase;display:block;margin-bottom:4px;">Filter value</label>
+            <select onchange="mseSetFilterVal(this.value)" style="width:auto;font-size:13px;padding:6px 10px;">${filterValOpts}</select>
+          </div>`:''}
+        </div>
+        <button class="subtle sm" onclick="mseExportCsv()">&#8595; Export CSV</button>
+      </div>
+      <div style="margin-bottom:10px;">${chartTypeToggle}</div>
+      <div class="chart-title" style="margin-bottom:8px;">${mseGroupBy} <span class="chart-subtitle">${filtered.length} row${filtered.length!==1?'s':''}${chartRows.length>=20?' · top 20 groups shown':''}</span></div>
+      ${chartHtml}
     </div>
     <div class="chart-card">
-      <div class="chart-title" style="margin-bottom:10px;">All Projects</div>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;flex-wrap:wrap;gap:8px;">
+        <div class="chart-title" style="margin:0;">Raw Data</div>
+        <div style="display:flex;gap:8px;align-items:center;">
+          <button class="subtle sm" onclick="msePageChange(-1)" ${msePage===0?'disabled':''}>&#8592;</button>
+          <span style="font-size:12px;color:var(--text-2,#605e5c);">Page ${msePage+1} of ${totalPages}</span>
+          <button class="subtle sm" onclick="msePageChange(1)" ${msePage>=totalPages-1?'disabled':''}>&#8594;</button>
+        </div>
+      </div>
       <div style="overflow-x:auto;">
         <table style="width:100%;border-collapse:collapse;">
-          <thead><tr style="border-bottom:2px solid #edebe9;text-align:left;">
-            <th style="padding:6px 10px;font-size:11px;color:var(--text-3,#8a96a8);text-transform:uppercase;">Project</th>
-            <th style="padding:6px 10px;font-size:11px;color:var(--text-3,#8a96a8);text-transform:uppercase;">Production Start</th>
-            <th style="padding:6px 10px;font-size:11px;color:var(--text-3,#8a96a8);text-transform:uppercase;">Production Due</th>
-          </tr></thead>
-          <tbody>${rows}</tbody>
+          <thead><tr style="border-bottom:2px solid #edebe9;text-align:left;">${tableHead}</tr></thead>
+          <tbody>${tableRows}</tbody>
         </table>
       </div>
     </div>`;

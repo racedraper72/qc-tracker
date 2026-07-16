@@ -1017,6 +1017,10 @@ label { font-size: 11px; font-weight: 600; color: var(--text-2); display: block;
   <div id="bs-lines" style="display:none;"></div>
   <div id="bs-active" style="display:none;"></div>
 
+  <div style="display:flex;justify-content:flex-end;margin-bottom:10px;">
+    <button class="primary sm" onclick="showPage('pm');setTimeout(()=>switchFTITab('calendar'),50)">&#128197; Open Calendar — Due Dates &amp; Shipments</button>
+  </div>
+
   <!-- All lines + QC pipeline together -->
   <div class="card">
     <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:10px;">
@@ -6494,13 +6498,15 @@ function renderCalMonth() {
   const lbl = document.getElementById('cal-month-label');
   if (lbl) lbl.textContent = new Date(calYear, calMonth, 1).toLocaleDateString('en-US',{month:'long',year:'numeric'});
 
-  if (!Object.keys(allProjectsData).length) { el.innerHTML='<p style="padding:20px;color:#605e5c;">⟳ Loading all projects…</p>'; return; }
+  if (!Object.keys(allProjectsData).length && !getAllDueDateEvents().length) { el.innerHTML='<p style="padding:20px;color:#605e5c;">⟳ Loading all projects…</p>'; return; }
 
   const today = new Date(); today.setHours(0,0,0,0);
   const firstDay = new Date(calYear, calMonth, 1).getDay();
   const daysInMonth = new Date(calYear, calMonth+1, 0).getDate();
 
   const events = buildEventMap(calYear, calMonth, null, null);
+  const evIcon = { load:'&#128230;', ship:'&#128666;', unitDue:'&#9888;', masterSchedule:'&#128197;' };
+  const evTypeLabel = { load:'Load', ship:'Ship', unitDue:'Unit Due Date', masterSchedule:'Master Schedule Due' };
 
   const dayNames = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
   const header = dayNames.map(d=>`<div style="text-align:center;font-size:11px;font-weight:700;color:#605e5c;padding:6px 0;background:#f9f8ff;">${d}</div>`).join('');
@@ -6511,7 +6517,7 @@ function renderCalMonth() {
     const isToday = today.getDate()===day && today.getMonth()===calMonth && today.getFullYear()===calYear;
     const evs = events[day]||[];
     const evHtml = evs.slice(0,3).map(e=>
-      `<div style="font-size:9px;font-weight:600;background:${e.color};color:#fff;border-radius:2px;padding:1px 4px;margin-bottom:1px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${e.label} — ${e.type==='load'?'Load':'Ship'}">${e.type==='load'?'📦':'🚚'} ${e.label}</div>`
+      `<div style="font-size:9px;font-weight:600;background:${e.color};color:#fff;border-radius:2px;padding:1px 4px;margin-bottom:1px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${e.label} — ${evTypeLabel[e.type]||e.type}">${evIcon[e.type]||'&#128197;'} ${e.label}</div>`
     ).join('') + (evs.length>3?`<div style="font-size:9px;color:#605e5c;padding-left:2px;">+${evs.length-3} more</div>`:'');
 
     const numStyle = isToday
@@ -6525,15 +6531,22 @@ function renderCalMonth() {
 
   const loadCnt = Object.values(events).flat().filter(e=>e.type==='load').length;
   const shipCnt = Object.values(events).flat().filter(e=>e.type==='ship').length;
+  const dueCnt = Object.values(events).flat().filter(e=>e.type==='unitDue').length;
+  const msCnt = Object.values(events).flat().filter(e=>e.type==='masterSchedule').length;
   el.innerHTML = `<div style="display:grid;grid-template-columns:repeat(7,1fr);border:1px solid #edebe9;border-radius:4px;overflow:hidden;">${header}${cells}</div>
-    <div style="margin-top:8px;font-size:11px;color:#605e5c;"><span style="margin-right:12px;">📦 ${loadCnt} load${loadCnt!==1?'s':''}</span><span>🚚 ${shipCnt} ship${shipCnt!==1?'s':''}</span></div>`;
+    <div style="margin-top:8px;font-size:11px;color:#605e5c;display:flex;gap:12px;flex-wrap:wrap;">
+      <span>&#128230; ${loadCnt} load${loadCnt!==1?'s':''}</span>
+      <span>&#128666; ${shipCnt} ship${shipCnt!==1?'s':''}</span>
+      <span>&#9888; ${dueCnt} unit due date${dueCnt!==1?'s':''}</span>
+      <span>&#128197; ${msCnt} master schedule due${msCnt!==1?'s':''}</span>
+    </div>`;
 }
 
 /* ---- WEEK VIEW ---- */
 function renderCalWeek() {
   const el = document.getElementById('cal-grid'); if (!el) return;
   const lbl = document.getElementById('cal-month-label');
-  if (!Object.keys(allProjectsData).length) { el.innerHTML='<p style="padding:20px;color:#605e5c;">⟳ Loading all projects…</p>'; return; }
+  if (!Object.keys(allProjectsData).length && !getAllDueDateEvents().length) { el.innerHTML='<p style="padding:20px;color:#605e5c;">⟳ Loading all projects…</p>'; return; }
 
   const today = new Date(); today.setHours(0,0,0,0);
   const dow = today.getDay();
@@ -6552,6 +6565,7 @@ function renderCalWeek() {
     </div>`;
   }).join('');
 
+  const dueEvents = getAllDueDateEvents();
   const cells = days.map(d => {
     const evs = [];
     getAllProjectsFlat().forEach(r => {
@@ -6560,9 +6574,14 @@ function renderCalWeek() {
       if (r.loadDate && new Date(r.loadDate).toDateString()===d.toDateString()) evs.push({label:short,color:'#4b3a9e',type:'load',full:r.ftiNum,eso:r.gensetSerial||'',project:r.project});
       if (r.shipLooseDate && new Date(r.shipLooseDate).toDateString()===d.toDateString()) evs.push({label:short,color:'#107c10',type:'ship',full:r.ftiNum,eso:r.gensetSerial||'',project:r.project});
     });
+    dueEvents.forEach(e => {
+      const ed = new Date(e.dateStr); if (isNaN(ed)) return;
+      if (ed.toDateString()===d.toDateString()) evs.push({label:e.label,color:e.color,type:e.type,full:e.title,eso:'',project:e.type==='unitDue'?'Unit Due Date':'Master Schedule'});
+    });
+    const evTypeLabel = { load:'📦 Load', ship:'🚚 Ship', unitDue:'⚠ Unit Due', masterSchedule:'📅 Schedule Due' };
     const evHtml = evs.map(e =>
-      `<div style="background:${e.color};color:#fff;border-radius:3px;padding:4px 6px;margin-bottom:4px;font-size:11px;" title="${e.full} — ${e.type==='load'?'Load Date':'Ship Date'} · ${e.eso}">
-        <div style="font-weight:700;">${e.type==='load'?'📦 Load':'🚚 Ship'}</div>
+      `<div style="background:${e.color};color:#fff;border-radius:3px;padding:4px 6px;margin-bottom:4px;font-size:11px;" title="${e.full}">
+        <div style="font-weight:700;">${evTypeLabel[e.type]||e.type}</div>
         <div style="font-size:10px;opacity:0.9;">${e.label}</div>
         <div style="font-size:10px;opacity:0.75;">${e.project}${e.eso?' · '+e.eso:''}</div>
       </div>`
@@ -6641,6 +6660,30 @@ function getAllProjectsFlat() {
   return Object.values(allProjectsData).flat();
 }
 
+/* Combines Board unit Due Dates (auto-updates whenever a job is added via
+   Add Board Units / Edit-Add Unit) and Master Schedule due dates (if that
+   data's been loaded) into one list the Calendar can plot. */
+function getAllDueDateEvents() {
+  const events = [];
+  getAllBoardUnits().forEach(u => {
+    if (u.completed || !u.dueDate) return;
+    events.push({ dateStr: u.dueDate, label: u.id, color: '#892729', type: 'unitDue', title: u.id + ' — Unit Due Date' });
+  });
+  if (masterScheduleHeader && masterScheduleHeader.length && masterScheduleRows && masterScheduleRows.length) {
+    const dueColIdx = masterScheduleHeader.findIndex(h => /due/i.test(h));
+    const labelColIdx = masterScheduleHeader.findIndex(h => /project|milestone|task|name/i.test(h));
+    if (dueColIdx !== -1) {
+      masterScheduleRows.forEach(r => {
+        const dateStr = r[dueColIdx];
+        if (!dateStr) return;
+        const label = labelColIdx !== -1 ? String(r[labelColIdx] || 'Item') : 'Master Schedule';
+        events.push({ dateStr, label, color: '#b45309', type: 'masterSchedule', title: label + ' — Master Schedule Due' });
+      });
+    }
+  }
+  return events;
+}
+
 function buildEventMap(yr, mo) {
   const map = {};
   getAllProjectsFlat().forEach(r => {
@@ -6655,6 +6698,12 @@ function buildEventMap(yr, mo) {
     };
     add(r.loadDate, '#4b3a9e', 'load');
     add(r.shipLooseDate, '#107c10', 'ship');
+  });
+  getAllDueDateEvents().forEach(e => {
+    const d = new Date(e.dateStr); if (isNaN(d)) return;
+    if (d.getFullYear()!==yr || d.getMonth()!==mo) return;
+    const k = d.getDate(); if (!map[k]) map[k]=[];
+    map[k].push({label:e.label, color:e.color, type:e.type});
   });
   return map;
 }

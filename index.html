@@ -1234,7 +1234,7 @@ label { font-size: 11px; font-weight: 600; color: var(--text-2); display: block;
       <span id="tracker-context-label" style="font-size:12px;color:#605e5c;"></span>
     </div>
     <div style="display:flex;gap:8px;">
-      <button class="primary" id="add-board-btn" onclick="toggleBoardAddForm()" style="display:none;">+ Add board units</button>
+      <button class="subtle" onclick="showPage('editunit')">+ Add Unit(s)</button>
       <button onclick="exportCSV()" class="sm">&#8595; Export CSV</button>
     </div>
   </div>
@@ -1256,26 +1256,6 @@ label { font-size: 11px; font-weight: 600; color: var(--text-2); display: block;
   </div>
 
   <!-- Add board unit form -->
-  <div id="board-add-form" style="display:none;" class="card">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px;">
-      <h3 style="font-size:14px;font-weight:600;margin:0;">Add board units</h3>
-      <button class="primary sm" onclick="addBoardUnitRow()">+ Add row</button>
-    </div>
-    <div style="display:grid;grid-template-columns:140px 130px 100px 130px 130px 130px 1fr 32px;gap:8px;margin-bottom:4px;">
-      <span style="font-size:11px;color:#605e5c;font-weight:600;">Line</span>
-      <span style="font-size:11px;color:#605e5c;font-weight:600;">Product type</span>
-      <span style="font-size:11px;color:#605e5c;font-weight:600;">Unit #</span>
-      <span style="font-size:11px;color:#605e5c;font-weight:600;">Column</span>
-      <span style="font-size:11px;color:#605e5c;font-weight:600;">Solutions ESO #</span>
-      <span style="font-size:11px;color:#605e5c;font-weight:600;">Due Date</span>
-      <span style="font-size:11px;color:#605e5c;font-weight:600;">Notes</span>
-      <span></span>
-    </div>
-    <div id="board-unit-rows"></div>
-    <div id="board-add-err" style="color:#A03033;font-size:12px;min-height:16px;margin:6px 0;"></div>
-    <div style="display:flex;gap:8px;"><button class="primary" onclick="addAllBoardUnits()">Add units</button><button onclick="toggleBoardAddForm()">Cancel</button></div>
-  </div>
-
   <!-- Single top tab bar: Board lines + QC stations + Remediation -->
   <div class="tab-bar" id="unified-tab-bar"></div>
   <!-- For board: secondary station tab bar -->

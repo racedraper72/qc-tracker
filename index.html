@@ -1047,6 +1047,9 @@ label { font-size: 11px; font-weight: 600; color: var(--text-2); display: block;
 
   </div>
 
+  <!-- Admin-configured Dashboard cards — hidden until Admin adds at least one -->
+  <div id="dashboard-custom-cards" style="display:none;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:10px;margin-bottom:18px;"></div>
+
   <!-- Checklist Pass/Fail KPI -->
   <div class="card">
     <div class="section-title">&#9989; Checklist Pass Rate</div>
@@ -1342,6 +1345,18 @@ label { font-size: 11px; font-weight: 600; color: var(--text-2); display: block;
     <div class="section-title">&#128736; Station Tracker editor</div>
     <p style="font-size:12px;color:#605e5c;margin-bottom:12px;">Add, edit, or remove tasks tracked at Stations 1, 2, 3, 4, 5, 6, 7, 8, and 9 — no code changes needed. Syncs to every device.</p>
     <div id="station-tracker-editor-body"></div>
+  </div>
+  <!-- DASHBOARD CARDS -->
+  <div class="card">
+    <div class="section-title">&#128200; Dashboard cards</div>
+    <p style="font-size:12px;color:#605e5c;margin-bottom:12px;">Add, remove, and reorder metric cards on the main Dashboard. This is shared — every device sees the same cards, unlike PM View's personal My Dashboard.</p>
+    <div id="admin-dashboard-cards-body"></div>
+  </div>
+  <!-- LINE EDITOR -->
+  <div class="card">
+    <div class="section-title">&#128268; Line editor</div>
+    <p style="font-size:12px;color:#605e5c;margin-bottom:12px;">Add, edit, remove, and reorder production lines and their stations — no code changes needed. Syncs to every device.</p>
+    <div id="line-editor-body"></div>
   </div>
   <!-- OPERATOR MANAGEMENT -->
   <div class="card">
@@ -2606,6 +2621,164 @@ function ceGetList(type, station) {
    always safe; renaming migrates the old data to the new name so
    nothing already recorded gets orphaned.
    ============================================================ */
+/* ============================================================
+   LINE EDITOR — add, edit, remove, and reorder production lines
+   from Admin, no code changes needed. Stores a full replacement
+   array for CONFIG.lines once anything's been edited; before that,
+   the app's original hardcoded lines are used as-is.
+   Lines are mutated via splice (not reassignment) so every existing
+   `CONFIG.lines.forEach/.find/.map` call throughout the app keeps
+   working without needing to know this override system exists.
+   ============================================================ */
+function getLineOverrides() {
+  const synced = unitIssues['__config__line_overrides'] && unitIssues['__config__line_overrides'].url;
+  if (synced) { try { return JSON.parse(synced); } catch(e) {} }
+  try { return JSON.parse(localStorage.getItem('line_overrides_local') || 'null'); } catch(e) { return null; }
+}
+function saveLineOverrides(lines) {
+  const json = JSON.stringify(lines);
+  unitIssues['__config__line_overrides'] = { url: json, updatedAt: now() };
+  localStorage.setItem('line_overrides_local', json);
+  saveIssues();
+}
+function applyLineOverrides() {
+  const overrides = getLineOverrides();
+  if (!overrides) return;
+  CONFIG.lines.length = 0;
+  overrides.forEach(l => CONFIG.lines.push(l));
+}
+function lineEditorSnapshot() {
+  // Whatever CONFIG.lines currently is (either the original hardcoded
+  // set, or a previously-saved override) — this is what gets edited and
+  // then saved back as the new override.
+  return JSON.parse(JSON.stringify(CONFIG.lines));
+}
+function leAddLine() {
+  const lines = lineEditorSnapshot();
+  let n = 1; while (lines.some(l => l.id === 'line_custom_'+n)) n++;
+  lines.push({ id:'line_custom_'+n, name:'New Line', subtitle:'', headerColor:'#892729', bgColor:'#D0D3D4', columns:[{label:'Station 1', units:[]}] });
+  saveLineOverrides(lines);
+  applyLineOverrides();
+  renderLineEditor();
+}
+function leRemoveLine(lineId) {
+  const inUse = getAllBoardUnits().filter(u => u.line === lineId && !u.completed).length;
+  const msg = inUse
+    ? `${inUse} active unit${inUse!==1?'s are':' is'} currently assigned to this line. Removing it won't delete those units, but they'll stop showing up on the Dashboard or Tracker until moved to another line. Remove anyway?`
+    : 'Remove this line?';
+  if (!confirm(msg)) return;
+  const lines = lineEditorSnapshot().filter(l => l.id !== lineId);
+  saveLineOverrides(lines);
+  applyLineOverrides();
+  renderLineEditor();
+}
+function leEditLineField(lineId, field, value) {
+  const lines = lineEditorSnapshot();
+  const line = lines.find(l => l.id === lineId); if (!line) return;
+  line[field] = value;
+  saveLineOverrides(lines);
+  applyLineOverrides();
+  if (field !== 'name' && field !== 'subtitle') renderLineEditor(); // avoid re-render stealing focus mid-typing on text fields
+}
+function leAddStation(lineId) {
+  const lines = lineEditorSnapshot();
+  const line = lines.find(l => l.id === lineId); if (!line) return;
+  line.columns.push({ label:'New Station', units:[] });
+  saveLineOverrides(lines);
+  applyLineOverrides();
+  renderLineEditor();
+}
+function leRemoveStation(lineId, idx) {
+  const lines = lineEditorSnapshot();
+  const line = lines.find(l => l.id === lineId); if (!line) return;
+  const label = line.columns[idx].label;
+  const inUse = getAllBoardUnits().filter(u => u.line === lineId && u.col === label && !u.completed).length;
+  const msg = inUse
+    ? `${inUse} active unit${inUse!==1?'s are':' is'} currently at "${label}". Removing this station won't delete those units, but they'll show up as being at a station that no longer exists in the tab list until moved. Remove anyway?`
+    : `Remove station "${label}"?`;
+  if (!confirm(msg)) return;
+  line.columns.splice(idx, 1);
+  saveLineOverrides(lines);
+  applyLineOverrides();
+  renderLineEditor();
+}
+function leEditStationLabel(lineId, idx, newLabel) {
+  const lines = lineEditorSnapshot();
+  const line = lines.find(l => l.id === lineId); if (!line) return;
+  const oldLabel = line.columns[idx].label;
+  if (oldLabel === newLabel) return;
+  // Move any units currently AT this station over to the new label, so
+  // renaming doesn't strand them on a station name that no longer exists.
+  getAllBoardUnits().forEach(u => { if (u.line === lineId && u.col === oldLabel) u.col = newLabel; });
+  pushBoard();
+  line.columns[idx].label = newLabel;
+  saveLineOverrides(lines);
+  applyLineOverrides();
+  renderLineEditor();
+}
+let leDragLineId = null;
+function leLineDragStart(id) { leDragLineId = id; }
+function leLineDrop(targetId) {
+  if (!leDragLineId || leDragLineId === targetId) return;
+  const lines = lineEditorSnapshot();
+  const from = lines.findIndex(l => l.id === leDragLineId), to = lines.findIndex(l => l.id === targetId);
+  if (from === -1 || to === -1) return;
+  const [moved] = lines.splice(from, 1);
+  lines.splice(to, 0, moved);
+  saveLineOverrides(lines);
+  applyLineOverrides();
+  leDragLineId = null;
+  renderLineEditor();
+}
+let leDragStationKey = null;
+function leStationDragStart(lineId, idx) { leDragStationKey = lineId+'::'+idx; }
+function leStationDrop(lineId, targetIdx) {
+  if (!leDragStationKey) return;
+  const [dragLineId, dragIdxStr] = leDragStationKey.split('::');
+  if (dragLineId !== lineId) { leDragStationKey = null; return; }
+  const dragIdx = parseInt(dragIdxStr);
+  if (dragIdx === targetIdx) { leDragStationKey = null; return; }
+  const lines = lineEditorSnapshot();
+  const line = lines.find(l => l.id === lineId); if (!line) return;
+  const [moved] = line.columns.splice(dragIdx, 1);
+  line.columns.splice(targetIdx, 0, moved);
+  saveLineOverrides(lines);
+  applyLineOverrides();
+  leDragStationKey = null;
+  renderLineEditor();
+}
+function renderLineEditor() {
+  const el = document.getElementById('line-editor-body'); if (!el) return;
+  const cards = CONFIG.lines.map(line => {
+    const stationRows = line.columns.map((col, idx) => `<div draggable="true" ondragstart="leStationDragStart('${line.id}',${idx})" ondragover="event.preventDefault()" ondrop="leStationDrop('${line.id}',${idx})"
+      style="display:flex;gap:6px;align-items:center;margin-bottom:6px;cursor:grab;">
+      <span style="font-size:10px;color:var(--text-3,#8a96a8);width:16px;text-align:right;">${idx+1}.</span>
+      <input value="${col.label.replace(/"/g,'&quot;')}" onchange="leEditStationLabel('${line.id}',${idx},this.value)" style="flex:1;font-size:12px;padding:6px 8px;" />
+      <button onclick="leRemoveStation('${line.id}',${idx})" title="Remove station" style="width:26px;height:26px;border-radius:6px;border:1px solid #e2e6ea;background:#fff;color:#A03033;cursor:pointer;flex-shrink:0;font-size:12px;">&#10005;</button>
+    </div>`).join('');
+
+    return `<div draggable="true" ondragstart="leLineDragStart('${line.id}')" ondragover="event.preventDefault()" ondrop="leLineDrop('${line.id}')"
+      style="border:1px solid #e2e6ea;border-top:4px solid ${line.headerColor};border-radius:10px;padding:16px;margin-bottom:14px;cursor:grab;background:#fff;">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;margin-bottom:12px;">
+        <div style="display:grid;grid-template-columns:1fr 1fr 110px;gap:8px;flex:1;">
+          <div><label style="font-size:10px;font-weight:700;color:var(--text-3,#8a96a8);text-transform:uppercase;">Name</label><input value="${line.name.replace(/"/g,'&quot;')}" onchange="leEditLineField('${line.id}','name',this.value)" style="font-size:13px;padding:7px 9px;" /></div>
+          <div><label style="font-size:10px;font-weight:700;color:var(--text-3,#8a96a8);text-transform:uppercase;">Subtitle</label><input value="${(line.subtitle||'').replace(/"/g,'&quot;')}" onchange="leEditLineField('${line.id}','subtitle',this.value)" style="font-size:13px;padding:7px 9px;" /></div>
+          <div><label style="font-size:10px;font-weight:700;color:var(--text-3,#8a96a8);text-transform:uppercase;">Header color</label><input type="color" value="${line.headerColor}" onchange="leEditLineField('${line.id}','headerColor',this.value)" style="width:100%;padding:2px;height:34px;" /></div>
+        </div>
+        <button onclick="leRemoveLine('${line.id}')" title="Remove line" style="width:30px;height:30px;border-radius:8px;border:1px solid #e2e6ea;background:#fff;color:#A03033;cursor:pointer;flex-shrink:0;">&#10005;</button>
+      </div>
+      <div style="font-size:10px;font-weight:700;color:var(--text-3,#8a96a8);text-transform:uppercase;margin-bottom:6px;">Stations (drag to reorder)</div>
+      ${stationRows}
+      <button class="subtle sm" onclick="leAddStation('${line.id}')" style="margin-top:6px;">+ Add Station</button>
+    </div>`;
+  }).join('');
+
+  el.innerHTML = `
+    <p style="font-size:11px;color:var(--text-3,#8a96a8);margin-bottom:14px;">Drag a line card by its edge to reorder lines. Renaming a station moves any units currently there to the new name automatically. Syncs to every device.</p>
+    ${cards}
+    <button class="primary sm" onclick="leAddLine()">+ Add New Line</button>`;
+}
+
 function getStationTrackerOverrides() {
   const synced = unitIssues['__config__stationtracker_overrides'] && unitIssues['__config__stationtracker_overrides'].url;
   if (synced) { try { return JSON.parse(synced); } catch(e) {} }
@@ -3757,6 +3930,7 @@ function _showPage(page) {
     const el=document.getElementById('page-'+p); if(el) el.style.display=p===page?'block':'none';
     const btn=document.getElementById('nav-'+p); if(btn) btn.classList.toggle('active',p===page);
   });
+  if (page==='dashboard') { renderDashboardCards(); }
   if (page==='floor')   { renderFloorPage(); }
   if (page==='pm')      { renderPMPage(); }
   if (page==='tracker') { renderUnifiedTabs(); renderUnifiedContent(); updateAddBtns(); }
@@ -3773,7 +3947,7 @@ function _showPage(page) {
   if (page==='editunit') { renderEditUnitPage(); }
   if (page==='masterschedule') { renderMasterSchedulePage(); }
   if (page==='admin') {
-    renderAdminQC(); renderAdminBoard(); renderOperatorList(); renderChecklistEditor(); renderStationTrackerEditor();
+    renderAdminQC(); renderAdminBoard(); renderOperatorList(); renderChecklistEditor(); renderStationTrackerEditor(); renderAdminDashboardCardManager(); renderLineEditor();
     document.getElementById('cfg-target').value = syncTarget;
     document.getElementById('cfg-url-sheets').value = sheetsUrl;
     document.getElementById('cfg-url-smartsheet').value = smartsheetUrl;
@@ -3824,11 +3998,13 @@ function renderQCContent(el) {
 function renderAll() {
   applyChecklistOverrides();
   applyStationTrackerOverrides();
+  applyLineOverrides();
   renderCatLegend(); initMatrixFilter();
   renderColCounts();
   renderBoardStats(); renderLineSummary(); renderBoardCompleted();
   renderQCStats(); renderMatrix(); renderQCCompleted();
   renderChecklistKPI();
+  renderDashboardCards();
   if (currentPage==='tracker') { renderUnifiedTabs(); renderUnifiedContent(); }
   if (currentPage==='floor') { renderFloorPage(); }
   if (currentPage==='pm') { renderPMPage(); }
@@ -5316,6 +5492,71 @@ PM_WIDGET_METRICS.forEach(m => {
   if (m.filterFn && !m.breakdown) m.breakdown = () => CONFIG.lines.map(l => ({ label:l.name, value:getLineUnits(l.id).filter(m.filterFn).length, color:l.headerColor }));
 });
 
+/* ============================================================
+   ADMIN DASHBOARD CARDS — same metric/chart system as PM View's My
+   Dashboard, but configured once in Admin and SHARED across every
+   device, instead of personal-per-browser. Reuses PM_WIDGET_METRICS
+   and the same svgDonutChart/svgColumnChart/etc. chart renderers.
+   ============================================================ */
+function getAdminDashboardWidgets() {
+  const synced = unitIssues['__config__admin_dashboard_widgets'] && unitIssues['__config__admin_dashboard_widgets'].url;
+  if (synced) { try { return JSON.parse(synced); } catch(e) {} }
+  try { return JSON.parse(localStorage.getItem('admin_dashboard_widgets_local') || '[]'); } catch(e) { return []; }
+}
+function saveAdminDashboardWidgets(ids) {
+  const json = JSON.stringify(ids);
+  unitIssues['__config__admin_dashboard_widgets'] = { url: json, updatedAt: now() };
+  localStorage.setItem('admin_dashboard_widgets_local', json);
+  saveIssues();
+}
+function getAdminDashboardChartTypes() {
+  const synced = unitIssues['__config__admin_dashboard_charttypes'] && unitIssues['__config__admin_dashboard_charttypes'].url;
+  if (synced) { try { return JSON.parse(synced); } catch(e) {} }
+  try { return JSON.parse(localStorage.getItem('admin_dashboard_charttypes_local') || '{}'); } catch(e) { return {}; }
+}
+function saveAdminDashboardChartTypes(types) {
+  const json = JSON.stringify(types);
+  unitIssues['__config__admin_dashboard_charttypes'] = { url: json, updatedAt: now() };
+  localStorage.setItem('admin_dashboard_charttypes_local', json);
+  saveIssues();
+}
+function adminDashWidgetToggle(id) {
+  let layout = getAdminDashboardWidgets();
+  if (layout.includes(id)) layout = layout.filter(x=>x!==id);
+  else layout.push(id);
+  saveAdminDashboardWidgets(layout);
+  renderAdminDashboardCardManager();
+  renderDashboardCards();
+}
+function adminDashWidgetClear() {
+  if (!confirm('Remove all cards from the Dashboard?')) return;
+  saveAdminDashboardWidgets([]);
+  renderAdminDashboardCardManager();
+  renderDashboardCards();
+}
+let adminDashDragId = null;
+function adminDashWidgetDragStart(id) { adminDashDragId = id; }
+function adminDashWidgetDrop(targetId) {
+  if (!adminDashDragId || adminDashDragId === targetId) return;
+  let layout = getAdminDashboardWidgets();
+  const from = layout.indexOf(adminDashDragId), to = layout.indexOf(targetId);
+  if (from === -1 || to === -1) return;
+  layout.splice(from, 1);
+  layout.splice(to, 0, adminDashDragId);
+  saveAdminDashboardWidgets(layout);
+  adminDashDragId = null;
+  renderAdminDashboardCardManager();
+  renderDashboardCards();
+}
+function adminDashSetChartType(id, type) {
+  const types = getAdminDashboardChartTypes();
+  types[id] = type;
+  saveAdminDashboardChartTypes(types);
+  renderAdminDashboardCardManager();
+  renderDashboardCards();
+}
+
+
 function getPMWidgetLayout() {
   try { return JSON.parse(localStorage.getItem('pm_dashboard_widgets') || '[]'); } catch(e) { return []; }
 }
@@ -5469,6 +5710,113 @@ function svgGanttChart(rows) {
     </div>`;
   }).join('') + `</div>`;
 }
+
+const WIDGET_CHART_TYPE_OPTS = [
+  { key:'bar', label:'Bar', icon:'&#9636;' },
+  { key:'column', label:'Column', icon:'&#9612;' },
+  { key:'line', label:'Line', icon:'&#128200;' },
+  { key:'histogram', label:'Histogram', icon:'&#9616;' },
+  { key:'donut', label:'Donut', icon:'&#9673;' },
+  { key:'gantt', label:'Gantt', icon:'&#9707;' },
+];
+/* Builds just the breakdown-chart portion of a widget card (not the outer
+   card shell) — shared by PM's My Dashboard and the Admin Dashboard Card
+   manager so both stay visually/behaviorally identical without duplicating
+   this logic twice. */
+function buildWidgetBreakdownHtml(m, chartType) {
+  if (m.noBreakdown || !m.breakdown) return '';
+  const rows = m.breakdown().filter(r => r.value !== 0 && r.value !== '0').map(r => ({...r, color: r.color||m.color}));
+  if (!rows.length) return '';
+  if (chartType === 'donut') {
+    const legend = rows.map(r => `<div style="display:flex;align-items:center;gap:5px;font-size:10px;color:var(--text-2,#605e5c);margin-bottom:2px;">
+      <span style="width:8px;height:8px;border-radius:2px;background:${r.color};display:inline-block;flex-shrink:0;"></span>
+      <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${r.label}: ${r.value}${r.suffix||''}</span>
+    </div>`).join('');
+    return `<div style="display:flex;gap:12px;align-items:center;margin-top:10px;padding-top:10px;border-top:1px solid #f0f2f5;">
+      <div style="flex-shrink:0;">${svgDonutChart(rows, 90)}</div>
+      <div style="flex:1;min-width:0;">${legend}</div>
+    </div>`;
+  }
+  if (chartType === 'column')    return `<div style="margin-top:10px;padding-top:10px;border-top:1px solid #f0f2f5;">${svgColumnChart(rows, 240, 110)}</div>`;
+  if (chartType === 'line')      return `<div style="margin-top:10px;padding-top:10px;border-top:1px solid #f0f2f5;">${svgLineChart(rows, 240, 110)}</div>`;
+  if (chartType === 'histogram') return `<div style="margin-top:10px;padding-top:10px;border-top:1px solid #f0f2f5;">${svgHistogramChart(rows, 240, 110)}</div>`;
+  if (chartType === 'gantt')     return `<div style="margin-top:10px;padding-top:10px;border-top:1px solid #f0f2f5;">${svgGanttChart(rows)}</div>`;
+  const max = Math.max(...rows.map(r=>Math.abs(Number(r.value))||0), 1);
+  return `<div style="margin-top:10px;padding-top:10px;border-top:1px solid #f0f2f5;">` + rows.map(r => {
+    const w = Math.round((Math.abs(Number(r.value))/max)*100);
+    return `<div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;">
+      <span style="font-size:10px;color:var(--text-3,#8a96a8);width:66px;flex-shrink:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${r.label}</span>
+      <div style="flex:1;height:6px;background:#f0f2f5;border-radius:3px;overflow:hidden;"><div style="width:${w}%;height:100%;background:${r.color};"></div></div>
+      <span style="font-size:10px;font-weight:700;color:var(--text-1,#323130);width:34px;text-align:right;">${r.value}${r.suffix||''}</span>
+    </div>`;
+  }).join('') + `</div>`;
+}
+
+
+function renderAdminDashboardCardManager() {
+  const el = document.getElementById('admin-dashboard-cards-body'); if (!el) return;
+  const layout = getAdminDashboardWidgets();
+  const chartTypes = getAdminDashboardChartTypes();
+
+  const paletteCards = PM_WIDGET_METRICS.map(m => {
+    const pinned = layout.includes(m.id);
+    return `<div onclick="adminDashWidgetToggle('${m.id}')" style="cursor:pointer;background:#fff;border:2px solid ${pinned?m.color:'#e2e6ea'};border-top:3px solid ${m.color};border-radius:8px;padding:10px 12px;position:relative;min-width:150px;">
+      ${pinned?`<span style="position:absolute;top:6px;right:6px;width:16px;height:16px;border-radius:50%;background:${m.color};color:#fff;font-size:10px;display:flex;align-items:center;justify-content:center;">&#10003;</span>`:''}
+      <div style="font-size:10px;font-weight:700;color:var(--text-3,#8a96a8);text-transform:uppercase;letter-spacing:.3px;margin-bottom:4px;">${m.icon} ${m.label}</div>
+      <div style="font-size:18px;font-weight:800;color:var(--text-1,#323130);">${m.compute()}</div>
+    </div>`;
+  }).join('');
+
+  const cardEls = layout.map(id => {
+    const m = PM_WIDGET_METRICS.find(x=>x.id===id);
+    if (!m) return '';
+    const chartType = chartTypes[id] || 'bar';
+    const toggleHtml = (!m.noBreakdown && m.breakdown) ? `<div style="display:flex;gap:3px;margin-top:8px;flex-wrap:wrap;">` + WIDGET_CHART_TYPE_OPTS.map(opt =>
+      `<button onclick="adminDashSetChartType('${id}','${opt.key}')" title="${opt.label}" style="font-size:9px;padding:2px 6px;border-radius:10px;border:1px solid ${chartType===opt.key?m.color:'#e2e6ea'};background:${chartType===opt.key?m.color:'#fff'};color:${chartType===opt.key?'#fff':'#8a96a8'};cursor:pointer;">${opt.icon}</button>`
+    ).join('') + `</div>` : '';
+    return `<div draggable="true" ondragstart="adminDashWidgetDragStart('${id}')" ondragover="event.preventDefault()" ondrop="adminDashWidgetDrop('${id}')"
+      style="cursor:grab;background:#fff;border:1px solid #e2e6ea;border-top:4px solid ${m.color};border-radius:10px;padding:14px 16px;position:relative;min-width:270px;">
+      <button onclick="adminDashWidgetToggle('${id}')" title="Remove" style="position:absolute;top:8px;right:8px;width:20px;height:20px;border-radius:50%;background:#f0f2f5;border:none;cursor:pointer;font-size:11px;color:#605e5c;">&#10005;</button>
+      <div style="font-size:11px;font-weight:700;color:var(--text-3,#8a96a8);text-transform:uppercase;letter-spacing:.3px;margin-bottom:6px;">${m.icon} ${m.label}</div>
+      <div style="font-size:26px;font-weight:800;color:var(--text-1,#323130);">${m.compute()}</div>
+      ${toggleHtml}
+      ${buildWidgetBreakdownHtml(m, chartType)}
+    </div>`;
+  }).join('');
+
+  el.innerHTML = `
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;flex-wrap:wrap;gap:8px;">
+      <p style="font-size:11px;color:var(--text-3,#8a96a8);margin:0;">Click a metric below to add/remove it from the Dashboard. Drag cards to reorder. This is shared — every device sees the same Dashboard cards.</p>
+      ${layout.length?`<button class="subtle sm" onclick="adminDashWidgetClear()">&#10005; Clear all</button>`:''}
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:10px;margin-bottom:${layout.length?'20px':'16px'};">
+      ${cardEls || '<p style="font-size:13px;color:var(--text-3,#8a96a8);font-style:italic;grid-column:1/-1;">No cards on the Dashboard yet — click any metric below to add it.</p>'}
+    </div>
+    <div style="font-size:11px;font-weight:700;color:var(--text-3,#8a96a8);text-transform:uppercase;letter-spacing:.3px;margin-bottom:8px;">Available Metrics</div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px;">${paletteCards}</div>
+  `;
+}
+
+/* Read-only — the actual Dashboard page just shows whatever Admin configured. */
+function renderDashboardCards() {
+  const el = document.getElementById('dashboard-custom-cards'); if (!el) return;
+  const layout = getAdminDashboardWidgets();
+  const chartTypes = getAdminDashboardChartTypes();
+  if (!layout.length) { el.innerHTML = ''; el.style.display = 'none'; return; }
+  el.style.display = 'grid';
+
+  el.innerHTML = layout.map(id => {
+    const m = PM_WIDGET_METRICS.find(x=>x.id===id);
+    if (!m) return '';
+    const chartType = chartTypes[id] || 'bar';
+    return `<div style="background:#fff;border:1px solid #e2e6ea;border-top:4px solid ${m.color};border-radius:10px;padding:14px 16px;">
+      <div style="font-size:11px;font-weight:700;color:var(--text-3,#8a96a8);text-transform:uppercase;letter-spacing:.3px;margin-bottom:6px;">${m.icon} ${m.label}</div>
+      <div style="font-size:26px;font-weight:800;color:var(--text-1,#323130);">${m.compute()}</div>
+      ${buildWidgetBreakdownHtml(m, chartType)}
+    </div>`;
+  }).join('');
+}
+
 
 function getPMWidgetChartTypes() {
   try { return JSON.parse(localStorage.getItem('pm_dashboard_widget_types') || '{}'); } catch(e) { return {}; }
@@ -8044,6 +8392,7 @@ function init() {
   loadIssues();
   applyChecklistOverrides();
   applyStationTrackerOverrides();
+  applyLineOverrides();
   applyNavOrder();
   initOperatorSelect();
   // Bookmark this device's browser to .../?tv=1 to boot straight into TV Mode —

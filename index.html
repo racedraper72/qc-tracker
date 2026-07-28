@@ -1746,16 +1746,18 @@ const CONFIG = {
 
   /* BOARD CATEGORIES (auto-detects from unit ID prefix) */
   boardCategories: {
-    'SAT82':{ bg:'#ddf3ff',text:'#004578',border:'#0078d4' },
-    'SAT93':{ bg:'#ddf3ff',text:'#004578',border:'#0078d4' },
-    'CYS43':{ bg:'#fce8f3',text:'#8c1a5c',border:'#b52474' },
+    // Colors below sourced from the official "Olathe West Project Color Key" board
+    'SAT82':{ bg:'#f0e6f7',text:'#5B3A7E',border:'#5B3A7E' }, // MSFT SAT 82 — purple
+    'SAT93':{ bg:'#eef2e8',text:'#4a5240',border:'#A8B99A' }, // MSFT SAT 93 — sage green
+    'CYS43':{ bg:'#f7ecf0',text:'#6b4552',border:'#C9A8B5' }, // MSFT CYS 43 — light pink/mauve
+    'CYS20':{ bg:'#f7e8e0',text:'#7a3820',border:'#B5502F' }, // MSFT CYS 20 — rust/terracotta
     'EQ10': { bg:'#f0eeff',text:'#4b3a9e',border:'#4b3a9e' },
     'EQ11': { bg:'#f0eeff',text:'#4b3a9e',border:'#4b3a9e' },
-    'COMP': { bg:'#dff6dd',text:'#0b6a0b',border:'#107c10' },
-    'DROP': { bg:'#fde7e9',text:'#A03033',border:'#A03033' },
+    'COMP': { bg:'#f0efee',text:'#A03033',border:'#4A4645' }, // COMPASS — gray/red
+    'DROP': { bg:'#f2f0ee',text:'#1A1A1A',border:'#D9A83D' }, // DROPOVER — black/gold
     'WDC':  { bg:'#fff4ce',text:'#7a5d00',border:'#f4c430' },
-    'TITUS':{ bg:'#fff4ce',text:'#7a5d00',border:'#7a5d00' },
-    'LKY':  { bg:'#e6f4ea',text:'#1e6b3c',border:'#2e7d52' },
+    'TITUS':{ bg:'#eaf2ea',text:'#2E5234',border:'#2E5234' }, // TITUS — dark green
+    'LKY':  { bg:'#faf3e0',text:'#7a5d00',border:'#D9A83D' }, // META LKY — gold
     'CYS':  { bg:'#fce8f3',text:'#8c1a5c',border:'#b52474' },
     'EDGE': { bg:'#fff0e0',text:'#8b4500',border:'#c46200' },
   },
@@ -3279,7 +3281,7 @@ function jsonpSave(tab, rows) {
   const header = tab==='QC'
     ? ['Serial','Type','Station','InspectionStarted','Held','Remediation','RemediationOrigin','Completed','Status','HistoryJSON']
     : tab==='Board'
-    ? ['UnitID','Line','Column','Held','Completed','Notes','ESONumber','GensetSerial','ReadyForInspection','InspectionStarted','HistoryJSON','SupervisorReleased','SupervisorReleaseTs','DeviationNeeded','DeviationNote','DeviationTs','ChecklistJSON','QCChecklistJSON','FailOverridesJSON','Station2TasksJSON','SolutionsESO','DueDate','LeadCheckinsJSON','StationTrackerTasksJSON']
+    ? ['UnitID','Line','Column','Held','Completed','Notes','ESONumber','GensetSerial','ReadyForInspection','InspectionStarted','HistoryJSON','SupervisorReleased','SupervisorReleaseTs','DeviationNeeded','DeviationNote','DeviationTs','ChecklistJSON','QCChecklistJSON','FailOverridesJSON','Station2TasksJSON','SolutionsESO','DueDate','LeadCheckinsJSON','StationTrackerTasksJSON','FuelTankSerial']
     : ['UnitID','Link','UpdatedAt'];
   const payload = JSON.stringify({action:'save', rows:[header,...rows]});
 
@@ -3333,7 +3335,7 @@ function syncFromSheetsViaGAS(onDone) {
           let stationTrackerTasks={}; try{stationTrackerTasks=JSON.parse(r[23]||'{}');}catch(e){}
           return {id:r[0],line:r[1],col:r[2],held:r[3]==='TRUE'||r[3]===true,completed:r[4]==='TRUE'||r[4]===true,notes:r[5]||'',esoNumber:r[6]||'',gensetSerial:r[7]||'',readyForInspection:r[8]==='TRUE'||r[8]===true,inspectionStarted:r[9]==='TRUE'||r[9]===true,history,
             supervisorReleased:r[11]==='TRUE'||r[11]===true,supervisorReleaseTs:r[12]||'',
-            deviationNeeded:r[13]==='TRUE'||r[13]===true,deviationNote:r[14]||'',deviationTs:r[15]||'',checklist,qcChecklist,failOverrides,station2Tasks,solutionsEso:r[20]||'',dueDate:r[21]||'',leadCheckins,stationTrackerTasks};
+            deviationNeeded:r[13]==='TRUE'||r[13]===true,deviationNote:r[14]||'',deviationTs:r[15]||'',checklist,qcChecklist,failOverrides,station2Tasks,solutionsEso:r[20]||'',dueDate:r[21]||'',leadCheckins,stationTrackerTasks,fuelTankSerial:r[24]||''};
         });
       }
       jsonpCall(sheetsUrl+'?tab=Issues', function(err3, rows3) {
@@ -3360,7 +3362,7 @@ function proxySave(tab, rows) {
   const header = tab==='QC'
     ? ['Serial','Type','Station','InspectionStarted','Held','Remediation','RemediationOrigin','Completed','Status','HistoryJSON']
     : tab==='Board'
-    ? ['UnitID','Line','Column','Held','Completed','Notes','ESONumber','GensetSerial','ReadyForInspection','InspectionStarted','HistoryJSON','SupervisorReleased','SupervisorReleaseTs','DeviationNeeded','DeviationNote','DeviationTs','ChecklistJSON','QCChecklistJSON','FailOverridesJSON','Station2TasksJSON','SolutionsESO','DueDate','LeadCheckinsJSON','StationTrackerTasksJSON']
+    ? ['UnitID','Line','Column','Held','Completed','Notes','ESONumber','GensetSerial','ReadyForInspection','InspectionStarted','HistoryJSON','SupervisorReleased','SupervisorReleaseTs','DeviationNeeded','DeviationNote','DeviationTs','ChecklistJSON','QCChecklistJSON','FailOverridesJSON','Station2TasksJSON','SolutionsESO','DueDate','LeadCheckinsJSON','StationTrackerTasksJSON','FuelTankSerial']
     : ['UnitID','Link','UpdatedAt'];
   return proxyFetch('?action=save&tab='+tab, {
     method: 'POST',
@@ -3636,7 +3638,7 @@ function syncFromSheetsViaSmartsheet(onDone) {
         let stationTrackerTasks={}; try{stationTrackerTasks=JSON.parse(r[23]||'{}');}catch(e){}
         return {id:r[0],line:r[1],col:r[2],held:r[3]==='TRUE'||r[3]===true,completed:r[4]==='TRUE'||r[4]===true,notes:r[5]||'',esoNumber:r[6]||'',gensetSerial:r[7]||'',readyForInspection:r[8]==='TRUE'||r[8]===true,inspectionStarted:r[9]==='TRUE'||r[9]===true,history,
           supervisorReleased:r[11]==='TRUE'||r[11]===true,supervisorReleaseTs:r[12]||'',
-          deviationNeeded:r[13]==='TRUE'||r[13]===true,deviationNote:r[14]||'',deviationTs:r[15]||'',checklist,qcChecklist,failOverrides,station2Tasks,solutionsEso:r[20]||'',dueDate:r[21]||'',leadCheckins,stationTrackerTasks};
+          deviationNeeded:r[13]==='TRUE'||r[13]===true,deviationNote:r[14]||'',deviationTs:r[15]||'',checklist,qcChecklist,failOverrides,station2Tasks,solutionsEso:r[20]||'',dueDate:r[21]||'',leadCheckins,stationTrackerTasks,fuelTankSerial:r[24]||''};
       });
     }
     if (rows3 && rows3.length>1) {
@@ -3686,7 +3688,7 @@ function pushQC() {
 }
 function pushBoard() {
   saveLocalCache();
-  const rows = boardUnits.map(u=>[u.id,u.line,u.col,u.held,u.completed,u.notes,u.esoNumber||'',u.gensetSerial||'',u.readyForInspection||false,u.inspectionStarted||false,JSON.stringify(u.history),u.supervisorReleased||false,u.supervisorReleaseTs||'',u.deviationNeeded||false,u.deviationNote||'',u.deviationTs||'',JSON.stringify(u.checklist||{}),JSON.stringify(u.qcChecklist||{}),JSON.stringify(u.failOverrides||[]),JSON.stringify(u.station2Tasks||{}),u.solutionsEso||'',u.dueDate||'',JSON.stringify(u.leadCheckins||[]),JSON.stringify(u.stationTrackerTasks||{})]);
+  const rows = boardUnits.map(u=>[u.id,u.line,u.col,u.held,u.completed,u.notes,u.esoNumber||'',u.gensetSerial||'',u.readyForInspection||false,u.inspectionStarted||false,JSON.stringify(u.history),u.supervisorReleased||false,u.supervisorReleaseTs||'',u.deviationNeeded||false,u.deviationNote||'',u.deviationTs||'',JSON.stringify(u.checklist||{}),JSON.stringify(u.qcChecklist||{}),JSON.stringify(u.failOverrides||[]),JSON.stringify(u.station2Tasks||{}),u.solutionsEso||'',u.dueDate||'',JSON.stringify(u.leadCheckins||[]),JSON.stringify(u.stationTrackerTasks||{}),u.fuelTankSerial||'']);
   if (syncTarget === 'smartsheet') proxySave('Board', rows); else jsonpSave('Board', rows);
 }
 function pushIssues() {
@@ -3839,7 +3841,7 @@ function addBoardUnitRow() {
   const lineOpts=CONFIG.lines.map(l=>`<option value="${l.id}" ${l.id===activeLine?'selected':''}>${l.name}</option>`).join('');
   const defaultLine=CONFIG.lines.find(l=>l.id===activeLine)||CONFIG.lines[0];
   const colOpts=defaultLine?defaultLine.columns.map(c=>`<option value="${c.label}" ${c.label==='In the Hole'?'selected':''}>${c.label}</option>`).join(''):'';
-  const productTypes=['CYS43','COMP','EQ10','TITUS','DROP','EDGE','SAT93','SAT82','EQ-10','EQ-11','WDC','LKY','CYS'];
+  const productTypes=['CYS43','CYS20','COMP','EQ10','TITUS','DROP','EDGE','SAT93','SAT82','EQ-10','EQ-11','WDC','LKY','CYS'];
   const typeOpts=productTypes.map(t=>`<option value="${t}">${t}</option>`).join('');
   const div=document.createElement('div'); div.id='burow-'+id;
   div.style.cssText='display:grid;grid-template-columns:140px 130px 100px 130px 130px 130px 1fr 32px;gap:8px;align-items:end;margin-bottom:8px;';
@@ -3882,7 +3884,7 @@ function _addAllBoardUnits() {
   });
   if (hasError) return;
   toAdd.forEach(u => {
-    boardUnits.push({id:u.id,line:u.line,col:u.col,held:false,completed:false,notes:u.notes,esoNumber:'',gensetSerial:'',solutionsEso:u.solEso||'',dueDate:u.dueDate||'',leadCheckins:[],readyForInspection:false,inspectionStarted:false,supervisorReleased:false,supervisorReleaseTs:'',deviationNeeded:false,deviationNote:'',deviationTs:'',checklist:{},qcChecklist:{},failOverrides:[],station2Tasks:{},stationTrackerTasks:{},history:[{action:'Added to '+u.col,ts:now(),notes:u.notes}]});
+    boardUnits.push({id:u.id,line:u.line,col:u.col,held:false,completed:false,notes:u.notes,esoNumber:'',gensetSerial:'',fuelTankSerial:'',solutionsEso:u.solEso||'',dueDate:u.dueDate||'',leadCheckins:[],readyForInspection:false,inspectionStarted:false,supervisorReleased:false,supervisorReleaseTs:'',deviationNeeded:false,deviationNote:'',deviationTs:'',checklist:{},qcChecklist:{},failOverrides:[],station2Tasks:{},stationTrackerTasks:{},history:[{action:'Added to '+u.col,ts:now(),notes:u.notes}]});
   });
   err.textContent=''; document.getElementById('board-add-form').style.display='none';
   pushBoard(); renderAll();
@@ -3900,7 +3902,7 @@ function getAllBoardUnits() {
         if (deleted.includes(uid)) return; // tombstoned — don't resurrect from the static seed
         if (!merged.find(u=>u.id===uid)) {
           const tracked=boardUnits.find(u=>u.id===uid);
-          merged.push(tracked||{id:uid,line:line.id,col:col.label,held:false,completed:false,notes:'',esoNumber:'',gensetSerial:'',solutionsEso:'',dueDate:'',leadCheckins:[],readyForInspection:false,inspectionStarted:false,supervisorReleased:false,supervisorReleaseTs:'',deviationNeeded:false,deviationNote:'',deviationTs:'',checklist:{},qcChecklist:{},failOverrides:[],station2Tasks:{},stationTrackerTasks:{},history:[]});
+          merged.push(tracked||{id:uid,line:line.id,col:col.label,held:false,completed:false,notes:'',esoNumber:'',gensetSerial:'',fuelTankSerial:'',solutionsEso:'',dueDate:'',leadCheckins:[],readyForInspection:false,inspectionStarted:false,supervisorReleased:false,supervisorReleaseTs:'',deviationNeeded:false,deviationNote:'',deviationTs:'',checklist:{},qcChecklist:{},failOverrides:[],station2Tasks:{},stationTrackerTasks:{},history:[]});
         }
       });
     });
@@ -4207,6 +4209,7 @@ function renderBoardUnitCard(u) {
   if (u.completed) statusBadge=`<span class="badge badge-green">Complete</span>`;
   const esoDisplay=u.esoNumber?`<span style="font-size:11px;background:#f0eeff;color:#4b3a9e;border:1px solid #4b3a9e;border-radius:20px;padding:2px 9px;font-weight:600;margin-right:4px;">${CONFIG.fieldLabels.field1}: ${u.esoNumber}</span>`:'';
   const gensetDisplay=u.gensetSerial?`<span style="font-size:11px;background:#dff6dd;color:#0b6a0b;border:1px solid #107c10;border-radius:20px;padding:2px 9px;font-weight:600;">${CONFIG.fieldLabels.field2}: ${u.gensetSerial}</span>`:'';
+  const fuelTankDisplay=u.fuelTankSerial?`<span style="font-size:11px;background:#fff4ce;color:#7a5d00;border:1px solid #7a5d00;border-radius:20px;padding:2px 9px;font-weight:600;margin-left:4px;">Fuel Tank: ${u.fuelTankSerial}</span>`:'';
   const solutionsEsoDisplay=u.solutionsEso?`<span style="font-size:11px;background:#E6F0F3;color:#006A8E;border:1px solid #006A8E;border-radius:20px;padding:2px 9px;font-weight:600;margin-left:4px;">Solutions ESO: ${u.solutionsEso}</span>`:'';
   const dueDateDisplay=(()=>{
     if (!u.dueDate) return '';
@@ -4218,7 +4221,7 @@ function renderBoardUnitCard(u) {
     const fg = isOverdue ? '#A03033' : isSoon ? '#b45309' : '#605e5c';
     return `<span style="font-size:11px;background:${bg};color:${fg};border:1px solid ${fg};border-radius:20px;padding:2px 9px;font-weight:600;margin-left:4px;">${isOverdue?'&#9888; Overdue: ':'Due: '}${formatDueDate(u.dueDate)}</span>`;
   })();
-  const esoGensetInfo=(esoDisplay||gensetDisplay||solutionsEsoDisplay||dueDateDisplay)?`<div style="margin-bottom:6px;">${esoDisplay}${gensetDisplay}${solutionsEsoDisplay}${dueDateDisplay}</div>`:'';
+  const esoGensetInfo=(esoDisplay||gensetDisplay||fuelTankDisplay||solutionsEsoDisplay||dueDateDisplay)?`<div style="margin-bottom:6px;">${esoDisplay}${gensetDisplay}${fuelTankDisplay}${solutionsEsoDisplay}${dueDateDisplay}</div>`:'';
   const isInspectionCol = CONFIG.boardInspectionCols.includes(u.col);
   const canSendToRemed  = CONFIG.boardInspectionCols.includes(u.col);
   const isRemedCol      = u.col === 'Remediation';
@@ -4230,10 +4233,10 @@ function renderBoardUnitCard(u) {
   const checklistOK = isAllChecklistsComplete(u);
   let actions=''; let panels='';
   if (!u.completed) {
-    // ESO/Genset — Station 7 only, restored to the Tracker card in addition to the Edit/Add Unit page
+    // ESO/Genset/Fuel Tank Serial — Station 7 only, restored to the Tracker card in addition to the Edit/Add Unit page
     if (u.col === 'Station 7') {
-      actions+=`<button class="primary" onclick="togglePanel('bd-eso-${sid}')">&#9998; ESO / Genset #s</button>`;
-      panels+=`<div class="action-group" id="bd-eso-${sid}"><div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:8px;"><div><label>${CONFIG.fieldLabels.field1}</label><input id="bd-eso-num-${sid}" type="text" placeholder="e.g. ESO-12345" value="${u.esoNumber||''}" /></div><div><label>${CONFIG.fieldLabels.field2}</label><input id="bd-genset-${sid}" type="text" placeholder="e.g. GEN-98765" value="${u.gensetSerial||''}" /></div></div><button class="primary sm" onclick="saveStation7Data('${u.id}')">&#10003; Save</button></div>`;
+      actions+=`<button class="primary" onclick="togglePanel('bd-eso-${sid}')">&#9998; ESO / Genset / Fuel Tank #s</button>`;
+      panels+=`<div class="action-group" id="bd-eso-${sid}"><div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:8px;"><div><label>${CONFIG.fieldLabels.field1}</label><input id="bd-eso-num-${sid}" type="text" placeholder="e.g. ESO-12345" value="${u.esoNumber||''}" /></div><div><label>${CONFIG.fieldLabels.field2}</label><input id="bd-genset-${sid}" type="text" placeholder="e.g. GEN-98765" value="${u.gensetSerial||''}" /></div><div><label>Fuel Tank Serial #</label><input id="bd-fueltank-${sid}" type="text" placeholder="e.g. FT-11223" value="${u.fuelTankSerial||''}" /></div></div><button class="primary sm" onclick="saveStation7Data('${u.id}')">&#10003; Save</button></div>`;
     }
     // Solutions ESO # / Due Date — separate from ESO/Genset, available at every station
     {
@@ -4405,7 +4408,7 @@ function ensureBoardTracked(unitId) {
   if (!u) {
     const line=CONFIG.lines.find(l=>l.columns.some(c=>c.units.includes(unitId)));
     const col=line?line.columns.find(c=>c.units.includes(unitId)):null;
-    u={id:unitId,line:line?line.id:activeLine,col:col?col.label:activeCol,held:false,completed:false,notes:'',esoNumber:'',gensetSerial:'',solutionsEso:'',dueDate:'',leadCheckins:[],readyForInspection:false,inspectionStarted:false,supervisorReleased:false,supervisorReleaseTs:'',deviationNeeded:false,deviationNote:'',deviationTs:'',checklist:{},qcChecklist:{},failOverrides:[],station2Tasks:{},stationTrackerTasks:{},history:[]};
+    u={id:unitId,line:line?line.id:activeLine,col:col?col.label:activeCol,held:false,completed:false,notes:'',esoNumber:'',gensetSerial:'',fuelTankSerial:'',solutionsEso:'',dueDate:'',leadCheckins:[],readyForInspection:false,inspectionStarted:false,supervisorReleased:false,supervisorReleaseTs:'',deviationNeeded:false,deviationNote:'',deviationTs:'',checklist:{},qcChecklist:{},failOverrides:[],station2Tasks:{},stationTrackerTasks:{},history:[]};
     boardUnits.push(u);
   }
   return u;
@@ -4415,6 +4418,7 @@ function saveStation7Data(unitId) {
   const u=ensureBoardTracked(unitId); const sid=safeId(unitId);
   const esoEl=document.getElementById('bd-eso-num-'+sid);
   const genEl=document.getElementById('bd-genset-'+sid);
+  const fuelEl=document.getElementById('bd-fueltank-'+sid);
   const solEl=document.getElementById('bd-sol-eso-'+sid);
   const dueEl=document.getElementById('bd-due-date-'+sid);
   const parts = [];
@@ -4422,6 +4426,11 @@ function saveStation7Data(unitId) {
     const eso=esoEl.value.trim(); const gen=genEl.value.trim();
     u.esoNumber=eso; u.gensetSerial=gen;
     parts.push('ESO: '+(eso||'—'), 'Genset: '+(gen||'—'));
+  }
+  if (fuelEl) {
+    const fuel=fuelEl.value.trim();
+    u.fuelTankSerial=fuel;
+    parts.push('Fuel Tank Serial: '+(fuel||'—'));
   }
   if (solEl) {
     const sol=solEl.value.trim();
@@ -4877,7 +4886,7 @@ function eauAddRow() {
   const lineOpts = CONFIG.lines.map(l=>`<option value="${l.id}" ${l.id===activeLine?'selected':''}>${l.name}</option>`).join('');
   const defaultLine = CONFIG.lines.find(l=>l.id===activeLine)||CONFIG.lines[0];
   const colOpts = defaultLine ? defaultLine.columns.map(c=>`<option value="${c.label}" ${c.label==='In the Hole'?'selected':''}>${c.label}</option>`).join('') : '';
-  const productTypes=['CYS43','COMP','EQ10','TITUS','DROP','EDGE','SAT93','SAT82','EQ-10','EQ-11','WDC','LKY','CYS'];
+  const productTypes=['CYS43','CYS20','COMP','EQ10','TITUS','DROP','EDGE','SAT93','SAT82','EQ-10','EQ-11','WDC','LKY','CYS'];
   const typeOpts = productTypes.map(t=>`<option value="${t}">${t}</option>`).join('');
   const div = document.createElement('div'); div.id='eaurow-'+id; div.className='eau-row';
   div.style.cssText='display:grid;grid-template-columns:140px 130px 100px 130px 130px 130px 1fr 32px;gap:8px;align-items:end;margin-bottom:8px;';
@@ -4914,7 +4923,7 @@ function eauAddAllUnits() {
   });
   if (hasError) return;
   toAdd.forEach(u => {
-    boardUnits.push({id:u.id,line:u.line,col:u.col,held:false,completed:false,notes:u.notes,esoNumber:'',gensetSerial:'',solutionsEso:u.solEso,dueDate:u.dueDate,leadCheckins:[],readyForInspection:false,inspectionStarted:false,supervisorReleased:false,supervisorReleaseTs:'',deviationNeeded:false,deviationNote:'',deviationTs:'',checklist:{},qcChecklist:{},failOverrides:[],station2Tasks:{},stationTrackerTasks:{},history:[{action:'Added to '+u.col,ts:now(),notes:u.notes}]});
+    boardUnits.push({id:u.id,line:u.line,col:u.col,held:false,completed:false,notes:u.notes,esoNumber:'',gensetSerial:'',fuelTankSerial:'',solutionsEso:u.solEso,dueDate:u.dueDate,leadCheckins:[],readyForInspection:false,inspectionStarted:false,supervisorReleased:false,supervisorReleaseTs:'',deviationNeeded:false,deviationNote:'',deviationTs:'',checklist:{},qcChecklist:{},failOverrides:[],station2Tasks:{},stationTrackerTasks:{},history:[{action:'Added to '+u.col,ts:now(),notes:u.notes}]});
   });
   err.textContent = '';
   document.getElementById('eau-rows').innerHTML = ''; eauRowCtr = 0; eauAddRow();
@@ -4933,6 +4942,7 @@ function eeuLoadUnit(uid) {
       <div><label>Line</label><select id="eeu-line">${lineOpts}</select></div>
       <div><label>${CONFIG.fieldLabels.field1}</label><input id="eeu-eso" type="text" value="${u.esoNumber||''}" placeholder="e.g. ESO-12345" /></div>
       <div><label>${CONFIG.fieldLabels.field2}</label><input id="eeu-genset" type="text" value="${u.gensetSerial||''}" placeholder="e.g. GEN-98765" /></div>
+      <div><label>Fuel Tank Serial #</label><input id="eeu-fueltank" type="text" value="${u.fuelTankSerial||''}" placeholder="e.g. FT-11223" /></div>
       <div><label>Solutions ESO #</label><input id="eeu-soleso" type="text" value="${u.solutionsEso||''}" placeholder="e.g. SOL-4521" /></div>
       <div><label>Due Date</label><input id="eeu-duedate" type="date" value="${u.dueDate||''}" /></div>
     </div>
@@ -4948,6 +4958,7 @@ function eeuSaveUnit(oldId) {
   const newLine = document.getElementById('eeu-line').value;
   const eso = document.getElementById('eeu-eso').value.trim();
   const genset = document.getElementById('eeu-genset').value.trim();
+  const fuelTank = document.getElementById('eeu-fueltank').value.trim();
   const solEso = document.getElementById('eeu-soleso').value.trim();
   const dueDate = document.getElementById('eeu-duedate').value;
   const notes = document.getElementById('eeu-notes').value.trim();
@@ -4972,6 +4983,7 @@ function eeuSaveUnit(oldId) {
   }
   u.esoNumber = eso;
   u.gensetSerial = genset;
+  u.fuelTankSerial = fuelTank;
   u.solutionsEso = solEso;
   u.dueDate = dueDate;
   u.notes = notes;

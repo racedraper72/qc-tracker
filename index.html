@@ -2444,15 +2444,11 @@ function renderStationTracker(stationKey) {
           <span style="font-size:13px;font-weight:700;color:var(--text-1,#323130);">Job total: <span id="s2-task-total-${tsid}">${s2FormatHM(taskEarned)}</span></span>
         </div>
         <div style="margin-bottom:12px;">
-          <div id="s2-link-display-${tsid}" style="display:${t.refLink?'flex':'none'};align-items:center;gap:8px;">
-            <a href="${t.refLink}" target="_blank" rel="noopener" style="font-size:14px;color:#892729;text-decoration:none;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:320px;" onmouseover="this.style.textDecoration='underline'" onmouseout="this.style.textDecoration='none'" title="${t.refLink}">&#128279; ${(t.refLink||'').replace(/^https?:\/\//,'')}</a>
-            <button onclick="s2ToggleLinkInput('${tsid}')" style="font-size:12px;padding:6px 12px;min-height:36px;border-radius:8px;border:1px solid #c8d0dc;background:#fff;cursor:pointer;color:var(--text-2,#605e5c);">Edit</button>
-          </div>
-          <div id="s2-link-edit-${tsid}" style="display:${t.refLink?'none':'flex'};gap:8px;">
-            <input id="s2-link-input-${tsid}" type="url" placeholder="Paste ABI / reference link..." value="${t.refLink||''}" onkeydown="if(event.key==='Enter')s2SetLink('${u.id}','${taskName}','${tsid}','${stationKey}')"
-              style="flex:1;max-width:320px;font-size:14px;padding:10px;min-height:44px;" />
-            <button class="primary" style="font-size:13px;padding:10px 16px;min-height:44px;border-radius:8px;" onclick="s2SetLink('${u.id}','${taskName}','${tsid}','${stationKey}')">&#128279; Save Link</button>
-          </div>
+          ${(() => {
+            const defaultLink = getDefaultTaskLink(stationKey, taskName);
+            if (!defaultLink) return `<p style="font-size:12px;color:var(--text-3,#8a96a8);font-style:italic;">No reference link set for this task — add one in Admin &rarr; Station Tracker Editor.</p>`;
+            return `<a href="${defaultLink}" target="_blank" rel="noopener" style="font-size:14px;color:#892729;text-decoration:none;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:320px;display:inline-block;" onmouseover="this.style.textDecoration='underline'" onmouseout="this.style.textDecoration='none'" title="${defaultLink}">&#128279; ${defaultLink.replace(/^https?:\/\//,'')}</a>`;
+          })()}
         </div>
         <div style="margin-bottom:12px;">
           <div style="font-size:11px;font-weight:700;color:var(--text-2,#605e5c);text-transform:uppercase;letter-spacing:.3px;margin-bottom:6px;">Job notes</div>
@@ -2621,6 +2617,32 @@ function saveStationTrackerOverrides(overrides) {
   localStorage.setItem('stationtracker_overrides_local', json);
   saveIssues();
 }
+/* Default reference (ABI) links, one per task per station — set once in the
+   Editor instead of re-pasted per unit. Kept as a separate lookup rather
+   than folded into the task list itself, so the existing per-unit link
+   (which some units may still want to override with something different)
+   keeps working exactly as before. */
+function getStationTaskLinks() {
+  const synced = unitIssues['__config__stationtracker_links'] && unitIssues['__config__stationtracker_links'].url;
+  if (synced) { try { return JSON.parse(synced); } catch(e) {} }
+  try { return JSON.parse(localStorage.getItem('stationtracker_links_local') || '{}'); } catch(e) { return {}; }
+}
+function saveStationTaskLinks(links) {
+  const json = JSON.stringify(links);
+  unitIssues['__config__stationtracker_links'] = { url: json, updatedAt: now() };
+  localStorage.setItem('stationtracker_links_local', json);
+  saveIssues();
+}
+function getDefaultTaskLink(station, taskName) {
+  const links = getStationTaskLinks();
+  return (links[station] && links[station][taskName]) || '';
+}
+function setDefaultTaskLink(station, taskName, url) {
+  const links = getStationTaskLinks();
+  if (!links[station]) links[station] = {};
+  links[station][taskName] = url;
+  saveStationTaskLinks(links);
+}
 function applyStationTrackerOverrides() {
   const overrides = getStationTrackerOverrides();
   Object.keys(overrides).forEach(station => {
@@ -2641,6 +2663,10 @@ function steAddTask(station) {
   const tasks = steGetList(station).slice();
   tasks.push('New task');
   steSaveList(station, tasks);
+}
+function steSetTaskLink(station, taskName, url) {
+  setDefaultTaskLink(station, taskName, url.trim());
+  renderStationTrackerEditor();
 }
 function steRemoveTask(station, idx) {
   const tasks = steGetList(station).slice();
@@ -2664,6 +2690,14 @@ function steEditTask(station, idx, newName) {
     }
   });
   pushBoard();
+  // Migrate the default link too, same reasoning
+  const links = getStationTaskLinks();
+  if (links[station] && links[station][oldName] !== undefined) {
+    if (!links[station]) links[station] = {};
+    links[station][newName] = links[station][oldName];
+    delete links[station][oldName];
+    saveStationTaskLinks(links);
+  }
   steSaveList(station, tasks);
 }
 
@@ -2678,17 +2712,23 @@ function renderStationTrackerEditor() {
   </div>`;
 
   const tasks = steGetList(steActiveStation);
-  const rows = tasks.map((text, idx) => `<div style="display:flex;gap:8px;align-items:center;margin-bottom:8px;">
+  const links = getStationTaskLinks();
+  const rows = tasks.map((text, idx) => {
+    const link = (links[steActiveStation] && links[steActiveStation][text]) || '';
+    return `<div style="display:flex;gap:8px;align-items:center;margin-bottom:8px;">
     <span style="font-size:11px;color:var(--text-3,#8a96a8);width:20px;text-align:right;">${idx+1}.</span>
-    <input value="${text.replace(/"/g,'&quot;')}" onchange="steEditTask('${steActiveStation}',${idx},this.value)" style="flex:1;font-size:13px;padding:8px 10px;" />
-    <button onclick="steRemoveTask('${steActiveStation}',${idx})" title="Remove" style="width:32px;height:32px;border-radius:8px;border:1px solid #e2e6ea;background:#fff;color:#A03033;cursor:pointer;">&#10005;</button>
-  </div>`).join('');
+    <input value="${text.replace(/"/g,'&quot;')}" onchange="steEditTask('${steActiveStation}',${idx},this.value)" style="flex:1;font-size:13px;padding:8px 10px;" placeholder="Task name" />
+    <input value="${link.replace(/"/g,'&quot;')}" onchange="steSetTaskLink('${steActiveStation}','${text.replace(/'/g,"\\'")}',this.value)" style="flex:1;font-size:13px;padding:8px 10px;" placeholder="ABI / reference link (optional)" type="url" />
+    <button onclick="steRemoveTask('${steActiveStation}',${idx})" title="Remove" style="width:32px;height:32px;border-radius:8px;border:1px solid #e2e6ea;background:#fff;color:#A03033;cursor:pointer;flex-shrink:0;">&#10005;</button>
+  </div>`;
+  }).join('');
 
   el.innerHTML = `${stationTabs}
     <div style="font-size:12px;color:var(--text-2,#605e5c);margin-bottom:10px;">${steActiveStation} &middot; ${tasks.length} task${tasks.length!==1?'s':''}</div>
+    ${tasks.length?`<div style="display:flex;gap:8px;margin-bottom:4px;padding-left:28px;"><span style="flex:1;font-size:10px;font-weight:700;color:var(--text-3,#8a96a8);text-transform:uppercase;">Task name</span><span style="flex:1;font-size:10px;font-weight:700;color:var(--text-3,#8a96a8);text-transform:uppercase;">ABI / reference link</span><span style="width:32px;"></span></div>`:''}
     ${rows || '<p style="font-size:13px;color:var(--text-3,#8a96a8);font-style:italic;">No tasks yet — add one below.</p>'}
     <button class="primary sm" onclick="steAddTask('${steActiveStation}')" style="margin-top:8px;">+ Add Task</button>
-    <p style="font-size:11px;color:var(--text-3,#8a96a8);margin-top:12px;">Renaming a task carries its already-logged time over to the new name automatically. Removing a task is safe for every other task's data — nothing else gets affected.</p>`;
+    <p style="font-size:11px;color:var(--text-3,#8a96a8);margin-top:12px;">Renaming a task carries its already-logged time and link over to the new name automatically. Removing a task is safe for every other task's data — nothing else gets affected. The reference link set here shows automatically on this task for every unit, on the tracker page itself — no need to paste it in per unit.</p>`;
 }
 
 function ceSaveList(type, station, items) {

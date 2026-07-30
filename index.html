@@ -963,6 +963,15 @@ label { font-size: 11px; font-weight: 600; color: var(--text-2); display: block;
     <div class="nav-divider"></div>
     <button class="nav-btn" draggable="true" ondragstart="navDragStart('nav-admin')" ondragover="event.preventDefault()" ondrop="navDrop('nav-admin')" id="nav-admin" onclick="showPage('admin')">&#9881; Admin</button>
     <button class="nav-btn" draggable="true" ondragstart="navDragStart('nav-tv')" ondragover="event.preventDefault()" ondrop="navDrop('nav-tv')" id="nav-tv" onclick="showPage('tv')">&#128250; TV Mode</button>
+  </div>
+  <div style="display:flex;align-items:center;gap:8px;">
+<span style="font-size:12px;color:rgba(255,255,255,0.85);" id="sync-status-mini"></span>
+  </div>
+</div>
+
+<!-- ============================================================ TRACKER SUB-NAV -->
+<div class="tracker-subnav" style="background:#12203d;padding:6px 24px;display:flex;align-items:center;justify-content:space-evenly;gap:6px;flex-wrap:wrap;box-shadow:0 2px 6px rgba(0,0,0,.15);">
+  <span style="font-size:10px;font-weight:700;color:rgba(255,255,255,.5);text-transform:uppercase;letter-spacing:.5px;margin-right:4px;">Trackers:</span>
     <button class="nav-btn" draggable="true" ondragstart="navDragStart('nav-station2')" ondragover="event.preventDefault()" ondrop="navDrop('nav-station2')" id="nav-station2" onclick="showPage('station2')">&#9201; Station 2 Tracker</button>
     <button class="nav-btn" draggable="true" ondragstart="navDragStart('nav-stationtracker_Station1')" ondragover="event.preventDefault()" ondrop="navDrop('nav-stationtracker_Station1')" id="nav-stationtracker_Station1" onclick="showPage('stationtracker_Station1')">&#128736; Station 1 Tracker</button>
     <button class="nav-btn" draggable="true" ondragstart="navDragStart('nav-stationtracker_Station3')" ondragover="event.preventDefault()" ondrop="navDrop('nav-stationtracker_Station3')" id="nav-stationtracker_Station3" onclick="showPage('stationtracker_Station3')">&#128736; Station 3 Tracker</button>
@@ -972,10 +981,6 @@ label { font-size: 11px; font-weight: 600; color: var(--text-2); display: block;
     <button class="nav-btn" draggable="true" ondragstart="navDragStart('nav-stationtracker_Station7')" ondragover="event.preventDefault()" ondrop="navDrop('nav-stationtracker_Station7')" id="nav-stationtracker_Station7" onclick="showPage('stationtracker_Station7')">&#128736; Station 7 Tracker</button>
     <button class="nav-btn" draggable="true" ondragstart="navDragStart('nav-stationtracker_Station8')" ondragover="event.preventDefault()" ondrop="navDrop('nav-stationtracker_Station8')" id="nav-stationtracker_Station8" onclick="showPage('stationtracker_Station8')">&#128736; Station 8 Tracker</button>
     <button class="nav-btn" draggable="true" ondragstart="navDragStart('nav-stationtracker_Station9')" ondragover="event.preventDefault()" ondrop="navDrop('nav-stationtracker_Station9')" id="nav-stationtracker_Station9" onclick="showPage('stationtracker_Station9')">&#128736; Station 9 Tracker</button>
-  </div>
-  <div style="display:flex;align-items:center;gap:8px;">
-<span style="font-size:12px;color:rgba(255,255,255,0.85);" id="sync-status-mini"></span>
-  </div>
 </div>
 
 
@@ -1213,6 +1218,7 @@ label { font-size: 11px; font-weight: 600; color: var(--text-2); display: block;
   <div class="chart-card" id="pm-duedate-chart" style="margin-bottom:14px;"></div>
   <div class="chart-card" id="pm-lead-checkins" style="margin-bottom:14px;"></div>
   <div class="chart-card" id="pm-inspector-activity" style="margin-bottom:14px;"></div>
+  <div class="chart-card" id="pm-clocked-in" style="margin-bottom:14px;"></div>
 
   <!-- Ready to Ship Panel -->
   <div class="rts-panel" id="pm-rts-panel"></div>
@@ -2091,47 +2097,34 @@ function setChecklistItemStatus(unitId, idx, status) {
    Each task has its own Start / Pause / Hold-for-Material /
    Hold-for-Engineering / Finished Job buttons and its own timer.
    ============================================================ */
-let STATION2_TASKS = [
-  'Drill Pilot Holes into Moment Frames',
-  'Install Moment Frames',
-  'Secure Long Walls to Moment Frame Jig',
-  'Install Louver End Wall',
-  'Install Motorized Damper Short Wall',
-  'Install Gravity Damper Short Wall',
-  'Install Slanted End Wall',
-  'Install Louvers',
-  'Install Corner Brackets',
-  'Install Motorized Dampers',
-  'Install Doors',
-  'Prep Door Gutters',
-  'Install Door Gutters',
-  'Install Door Frames',
-  'Install Passthrough for CCV',
-  'Production Inspection',
-];
 
 /* ============================================================
    STATION TRACKER — generalizes the Station 2 Tracker pattern to
-   other stations. Station 2 keeps using its own existing field
-   (u.station2Tasks) untouched, so no migration risk to already-
-   recorded live data. Every OTHER station uses a new shared field
-   (u.stationTrackerTasks[stationKey]) instead, since those stations
-   have no existing data to worry about.
-   Task lists for the new stations start EMPTY — populate them via
-   Admin > Station Tracker Editor (same no-code pattern as Checklist
-   Editor), since the actual task content for these stations isn't
-   something to guess at.
+   other stations. Task lists are PROJECT-SPECIFIC: each station has
+   a different task list per project (SAT82, CYS43, COMPASS, etc.),
+   since different projects genuinely do different work at the same
+   physical station.
+   Per-unit STORAGE locations are unchanged from before — Station 2
+   still writes to u.station2Tasks, every other station still writes
+   to u.stationTrackerTasks[stationKey] — so no already-recorded time
+   data is at risk from this change. Only the task list DEFINITIONS
+   became project-aware; where a unit's own logged time lives did not.
+   Every station/project combination starts EMPTY — populate via
+   Admin > Station Tracker Editor, since real task content per project
+   per station isn't something to guess at.
    ============================================================ */
 const STATION_TRACKER_STATIONS = ['Station 1','Station 3','Station 4','Station 5','Station 6','Station 7','Station 8','Station 9'];
 // Station 2 already has its own dedicated page/route — this list is ONLY for
 // the Station Tracker Editor's station picker, which does cover Station 2 too.
 const STATION_TRACKER_EDITOR_STATIONS = ['Station 1', 'Station 2', ...STATION_TRACKER_STATIONS.filter(s => s !== 'Station 1')];
-let STATION_TRACKER_TASKS = {
-  'Station 1': [], 'Station 3': [], 'Station 4': [], 'Station 5': [],
-  'Station 6': [], 'Station 7': [], 'Station 8': [], 'Station 9': [],
-};
-function getStationTaskList(stationKey) {
-  return stationKey === 'Station 2' ? STATION2_TASKS : (STATION_TRACKER_TASKS[stationKey] || []);
+let STATION_TRACKER_TASKS = {};
+STATION_TRACKER_EDITOR_STATIONS.forEach(station => {
+  STATION_TRACKER_TASKS[station] = {};
+  Object.keys(CONFIG.boardCategories).forEach(project => { STATION_TRACKER_TASKS[station][project] = []; });
+});
+function getStationTaskList(stationKey, project) {
+  if (!STATION_TRACKER_TASKS[stationKey]) return [];
+  return STATION_TRACKER_TASKS[stationKey][project] || [];
 }
 function getTaskBucket(u, stationKey) {
   if (stationKey === 'Station 2') {
@@ -2335,6 +2328,106 @@ function s2OpenHoldNoteModal(unitId, taskName, empIdx, holdType, stationKey) {
   overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
 }
 
+/* Supervisor-gated: clock someone out and/or correct their logged time,
+   for when someone forgot to clock out and a timer's been running way
+   longer than it should have. Requires the supervisor password, same as
+   Deviation flags and Supervisor Release elsewhere in the app. */
+function s2OpenSupervisorClockOut(unitId, taskName, empIdx, stationKey) {
+  requireSupervisorPassword(() => s2ShowClockOutModal(unitId, taskName, empIdx, stationKey));
+}
+function s2ShowClockOutModal(unitId, taskName, empIdx, stationKey) {
+  const existing = document.getElementById('s2-clockout-overlay');
+  if (existing) existing.remove();
+
+  const u = ensureBoardTracked(unitId);
+  const t = getS2TaskState(u, taskName, stationKey);
+  const emp = t.employees[empIdx];
+  if (!emp) return;
+
+  // Show LIVE current values (including whatever's ticked up on the
+  // currently-running segment) so the supervisor is correcting from
+  // what's actually accrued right now, not a stale saved number.
+  const liveActive = s2LiveSeconds(emp, 'active');
+  const liveMat = s2LiveSeconds(emp, 'materialHold');
+  const liveEng = s2LiveSeconds(emp, 'engineeringHold');
+  const toHM = sec => { const h = Math.floor(sec/3600), m = Math.round((sec%3600)/60); return {h, m}; };
+  const a = toHM(liveActive), mh = toHM(liveMat), eh = toHM(liveEng);
+
+  const overlay = document.createElement('div');
+  overlay.id = 's2-clockout-overlay';
+  overlay.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.55);z-index:9999;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(2px);';
+  const fieldStyle = 'width:56px;font-size:14px;padding:8px;border:2px solid #e2e6ea;border-radius:8px;text-align:center;';
+  overlay.innerHTML = `
+    <div style="background:#fff;border-radius:16px;padding:28px 32px;max-width:420px;width:94%;box-shadow:0 24px 64px rgba(0,0,0,.28);">
+      <h2 style="font-size:16px;font-weight:800;color:#0f1923;margin-bottom:4px;letter-spacing:-.3px;">Clock Out — ${emp.num}</h2>
+      <p style="font-size:12px;color:#4a5568;margin-bottom:16px;">${taskName} &middot; ${u.id}</p>
+
+      <label style="font-size:11px;font-weight:700;color:#4a5568;text-transform:uppercase;">Active time</label>
+      <div style="display:flex;align-items:center;gap:6px;margin-bottom:12px;">
+        <input id="s2co-act-h" type="number" min="0" value="${a.h}" style="${fieldStyle}" /><span style="font-size:12px;color:#8a96a8;">hr</span>
+        <input id="s2co-act-m" type="number" min="0" max="59" value="${a.m}" style="${fieldStyle}" /><span style="font-size:12px;color:#8a96a8;">min</span>
+      </div>
+
+      <label style="font-size:11px;font-weight:700;color:#4a5568;text-transform:uppercase;">Material hold time</label>
+      <div style="display:flex;align-items:center;gap:6px;margin-bottom:12px;">
+        <input id="s2co-mat-h" type="number" min="0" value="${mh.h}" style="${fieldStyle}" /><span style="font-size:12px;color:#8a96a8;">hr</span>
+        <input id="s2co-mat-m" type="number" min="0" max="59" value="${mh.m}" style="${fieldStyle}" /><span style="font-size:12px;color:#8a96a8;">min</span>
+      </div>
+
+      <label style="font-size:11px;font-weight:700;color:#4a5568;text-transform:uppercase;">Engineering hold time</label>
+      <div style="display:flex;align-items:center;gap:6px;margin-bottom:16px;">
+        <input id="s2co-eng-h" type="number" min="0" value="${eh.h}" style="${fieldStyle}" /><span style="font-size:12px;color:#8a96a8;">hr</span>
+        <input id="s2co-eng-m" type="number" min="0" max="59" value="${eh.m}" style="${fieldStyle}" /><span style="font-size:12px;color:#8a96a8;">min</span>
+      </div>
+
+      <label style="display:flex;align-items:center;gap:8px;font-size:13px;color:#0f1923;margin-bottom:8px;cursor:pointer;">
+        <input id="s2co-finish" type="checkbox" checked style="width:auto;" /> Mark this task Finished for ${emp.num}
+      </label>
+
+      <label style="font-size:11px;font-weight:700;color:#4a5568;text-transform:uppercase;">Reason (required)</label>
+      <textarea id="s2co-reason" rows="2" placeholder="e.g. Forgot to clock out at end of shift" style="width:100%;font-size:14px;padding:10px;border:2px solid #e2e6ea;border-radius:8px;margin-bottom:6px;"></textarea>
+      <div id="s2co-err" style="color:#c0392b;font-size:12px;min-height:16px;margin-bottom:10px;"></div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+        <button id="s2co-cancel" style="padding:14px;font-size:14px;font-weight:600;background:#f0f2f5;color:#4a5568;border:none;border-radius:10px;cursor:pointer;">Cancel</button>
+        <button id="s2co-confirm" style="padding:14px;font-size:14px;font-weight:700;background:#892729;color:#fff;border:none;border-radius:10px;cursor:pointer;">&#10003; Confirm</button>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+
+  overlay.querySelector('#s2co-confirm').addEventListener('click', () => {
+    const reason = overlay.querySelector('#s2co-reason').value.trim();
+    const errEl = overlay.querySelector('#s2co-err');
+    if (!reason) { errEl.textContent = 'A reason is required.'; return; }
+
+    const newActiveSec = (parseInt(overlay.querySelector('#s2co-act-h').value)||0)*3600 + (parseInt(overlay.querySelector('#s2co-act-m').value)||0)*60;
+    const newMatSec = (parseInt(overlay.querySelector('#s2co-mat-h').value)||0)*3600 + (parseInt(overlay.querySelector('#s2co-mat-m').value)||0)*60;
+    const newEngSec = (parseInt(overlay.querySelector('#s2co-eng-h').value)||0)*3600 + (parseInt(overlay.querySelector('#s2co-eng-m').value)||0)*60;
+    const finish = overlay.querySelector('#s2co-finish').checked;
+
+    const oldTotal = liveActive + liveMat + liveEng;
+    const newTotal = newActiveSec + newMatSec + newEngSec;
+
+    emp.activeSec = newActiveSec;
+    emp.materialHoldSec = newMatSec;
+    emp.engineeringHoldSec = newEngSec;
+    emp.currentSegmentStart = null;
+    emp.status = finish ? 'finished' : 'paused';
+
+    u.history.push({
+      action: `Supervisor clock-out — ${emp.num} on "${taskName}" (${stationKey}). Time adjusted from ${s2FormatHM(oldTotal)} to ${s2FormatHM(newTotal)}${finish?' — marked Finished':''}. Reason: ${reason}`,
+      ts: now(), notes: ''
+    });
+
+    pushBoard();
+    overlay.remove();
+    renderStationTracker(stationKey);
+    if (document.getElementById('pm-clocked-in')) renderPMClockedIn();
+  });
+  overlay.querySelector('#s2co-cancel').addEventListener('click', () => overlay.remove());
+  overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
+}
+
 let s2TickTimer = null;
 let s2TickerActiveStation = 'Station 2';
 function startS2Ticker(stationKey) {
@@ -2353,7 +2446,7 @@ function s2TickUpdate(stationKey) {
   const units = getAllBoardUnits().filter(u => u.col === stationKey);
   const setText = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
   units.forEach(u => {
-    getStationTaskList(stationKey).forEach(taskName => {
+    getStationTaskList(stationKey, getProjectType(u.id)).forEach(taskName => {
       const t = getS2TaskState(u, taskName, stationKey);
       let taskEarned = 0;
       t.employees.forEach((emp, idx) => {
@@ -2362,13 +2455,13 @@ function s2TickUpdate(stationKey) {
         const engSec = s2LiveSeconds(emp, 'engineeringHold');
         taskEarned += activeSec + matSec + engSec;
         if (emp.status !== 'running' && emp.status !== 'holdMaterial' && emp.status !== 'holdEngineering') return;
-        const esid = safeId(u.id + '_' + taskName + '_' + idx);
+        const esid = safeId(u.id + '_' + stationKey + '_' + taskName + '_' + idx);
         setText('s2-active-'+esid, s2FormatHM(activeSec));
         setText('s2-mat-'+esid, s2FormatHM(matSec));
         setText('s2-eng-'+esid, s2FormatHM(engSec));
         setText('s2-earned-'+esid, s2FormatHM(activeSec+matSec+engSec));
       });
-      const tsid = safeId(u.id + '_' + taskName);
+      const tsid = safeId(u.id + '_' + stationKey + '_' + taskName);
       setText('s2-task-total-'+tsid, s2FormatHM(taskEarned));
     });
   });
@@ -2388,16 +2481,22 @@ function renderStationTracker(stationKey) {
   const el = document.getElementById(stationKey === 'Station 2' ? 'station2-tracker-body' : 'stationtracker-body-' + safeId(stationKey));
   if (!el) return;
   const units = getAllBoardUnits().filter(u => u.col === stationKey);
-  const taskList = getStationTaskList(stationKey);
 
-  if (!taskList.length) {
-    el.innerHTML = `<p style="font-size:13px;color:var(--text-3,#8a96a8);">No tasks defined for ${stationKey} yet — add some in Admin &rarr; Station Tracker Editor.</p>`;
-    return;
-  }
   if (!units.length) { el.innerHTML = `<p style="font-size:13px;color:var(--text-3,#8a96a8);">No units currently at ${stationKey}.</p>`; return; }
 
   el.innerHTML = units.map(u => {
     const cs = getBoardCatStyle(u.id);
+    const project = getProjectType(u.id);
+    const taskList = getStationTaskList(stationKey, project);
+    if (!taskList.length) {
+      return `<div style="background:var(--surface,#fff);border:1px solid var(--border,#edebe9);border-top:4px solid ${cs.border};border-radius:10px;padding:16px 18px;">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px;">
+          <span style="font-size:16px;font-weight:800;color:${cs.text};">${u.id}</span>
+          <span style="font-size:12px;font-weight:800;padding:4px 12px;border-radius:20px;background:${cs.border};color:#fff;letter-spacing:.3px;">${project}</span>
+        </div>
+        <p style="font-size:13px;color:var(--text-3,#8a96a8);">No tasks defined for ${project} at ${stationKey} yet — add some in Admin &rarr; Station Tracker Editor.</p>
+      </div>`;
+    }
     const taskRows = taskList.map(taskName => {
       const t = getS2TaskState(u, taskName, stationKey);
       const tsid = safeId(u.id + '_' + stationKey + '_' + taskName);
@@ -2442,6 +2541,8 @@ function renderStationTracker(stationKey) {
             <div style="display:flex;gap:6px;">
               <button onclick="s2ToggleTrainee('${u.id}','${taskName}',${idx},'${stationKey}')" title="${e.isTrainee?'Trainee — tap to unmark':'Mark as trainee'}"
                 style="min-height:36px;padding:0 10px;font-size:12px;font-weight:700;border-radius:8px;cursor:pointer;background:${e.isTrainee?'#c17f00':'#fff'};border:2px solid ${e.isTrainee?'#c17f00':'#c8d0dc'};color:${e.isTrainee?'#fff':'#605e5c'};">&#127891;</button>
+              ${(e.status==='running'||e.status==='paused'||e.status==='holdMaterial'||e.status==='holdEngineering') ? `<button onclick="s2OpenSupervisorClockOut('${u.id}','${taskName}',${idx},'${stationKey}')" title="Supervisor: clock out and/or adjust this person's time"
+                style="min-height:36px;padding:0 10px;font-size:12px;font-weight:700;border-radius:8px;cursor:pointer;background:#fff;border:2px solid #892729;color:#892729;">&#128274; Clock Out</button>` : ''}
               <button onclick="s2RemoveEmployee('${u.id}','${taskName}',${idx},'${stationKey}')" title="Remove"
                 style="min-width:36px;min-height:36px;font-size:15px;border-radius:8px;cursor:pointer;background:#fff;border:2px solid #c8d0dc;color:#A03033;padding:0;">&#10005;</button>
             </div>
@@ -2465,7 +2566,7 @@ function renderStationTracker(stationKey) {
         </div>
         <div style="margin-bottom:12px;">
           ${(() => {
-            const defaultLink = getDefaultTaskLink(stationKey, taskName);
+            const defaultLink = getDefaultTaskLink(stationKey, project, taskName);
             if (!defaultLink) return `<p style="font-size:12px;color:var(--text-3,#8a96a8);font-style:italic;">No reference link set for this task — add one in Admin &rarr; Station Tracker Editor.</p>`;
             return `<a href="${defaultLink}" target="_blank" rel="noopener" style="font-size:14px;color:#892729;text-decoration:none;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:320px;display:inline-block;" onmouseover="this.style.textDecoration='underline'" onmouseout="this.style.textDecoration='none'" title="${defaultLink}">&#128279; ${defaultLink.replace(/^https?:\/\//,'')}</a>`;
           })()}
@@ -2494,8 +2595,11 @@ function renderStationTracker(stationKey) {
     }, 0);
 
     return `<div style="background:var(--surface,#fff);border:1px solid var(--border,#edebe9);border-top:4px solid ${cs.border};border-radius:10px;padding:16px 18px;">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
-        <span style="font-size:16px;font-weight:800;color:${cs.text};">${u.id}</span>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:8px;">
+        <div style="display:flex;align-items:center;gap:10px;">
+          <span style="font-size:16px;font-weight:800;color:${cs.text};">${u.id}</span>
+          <span style="font-size:12px;font-weight:800;padding:4px 12px;border-radius:20px;background:${cs.border};color:#fff;letter-spacing:.3px;">${project}</span>
+        </div>
         <span style="font-size:13px;font-weight:700;color:var(--text-1,#323130);">Unit total earned: ${s2FormatHM(unitEarnedSec)}</span>
       </div>
       ${taskRows}
@@ -2795,11 +2899,11 @@ function saveStationTrackerOverrides(overrides) {
   localStorage.setItem('stationtracker_overrides_local', json);
   saveIssues();
 }
-/* Default reference (ABI) links, one per task per station — set once in the
-   Editor instead of re-pasted per unit. Kept as a separate lookup rather
-   than folded into the task list itself, so the existing per-unit link
-   (which some units may still want to override with something different)
-   keeps working exactly as before. */
+/* Default reference (ABI) links, one per task per station per project —
+   set once in the Editor instead of re-pasted per unit. Kept as a separate
+   lookup rather than folded into the task list itself, so the existing
+   per-unit link (which some units may still want to override with
+   something different) keeps working exactly as before. */
 function getStationTaskLinks() {
   const synced = unitIssues['__config__stationtracker_links'] && unitIssues['__config__stationtracker_links'].url;
   if (synced) { try { return JSON.parse(synced); } catch(e) {} }
@@ -2811,56 +2915,65 @@ function saveStationTaskLinks(links) {
   localStorage.setItem('stationtracker_links_local', json);
   saveIssues();
 }
-function getDefaultTaskLink(station, taskName) {
+function getDefaultTaskLink(station, project, taskName) {
   const links = getStationTaskLinks();
-  return (links[station] && links[station][taskName]) || '';
+  return (links[station] && links[station][project] && links[station][project][taskName]) || '';
 }
-function setDefaultTaskLink(station, taskName, url) {
+function setDefaultTaskLink(station, project, taskName, url) {
   const links = getStationTaskLinks();
   if (!links[station]) links[station] = {};
-  links[station][taskName] = url;
+  if (!links[station][project]) links[station][project] = {};
+  links[station][project][taskName] = url;
   saveStationTaskLinks(links);
 }
 function applyStationTrackerOverrides() {
+  // overrides shape: { station: { project: [taskNames] } }
   const overrides = getStationTrackerOverrides();
   Object.keys(overrides).forEach(station => {
-    if (station === 'Station 2') STATION2_TASKS = overrides[station];
-    else if (STATION_TRACKER_TASKS[station]) STATION_TRACKER_TASKS[station] = overrides[station];
+    if (!STATION_TRACKER_TASKS[station]) return;
+    Object.keys(overrides[station]).forEach(project => {
+      STATION_TRACKER_TASKS[station][project] = overrides[station][project];
+    });
   });
 }
-function steGetList(station) { return station === 'Station 2' ? STATION2_TASKS : (STATION_TRACKER_TASKS[station] || []); }
-function steSaveList(station, tasks) {
+function steGetList(station, project) {
+  return (STATION_TRACKER_TASKS[station] && STATION_TRACKER_TASKS[station][project]) || [];
+}
+function steSaveList(station, project, tasks) {
   const overrides = getStationTrackerOverrides();
-  overrides[station] = tasks;
+  if (!overrides[station]) overrides[station] = {};
+  overrides[station][project] = tasks;
   saveStationTrackerOverrides(overrides);
-  if (station === 'Station 2') STATION2_TASKS = tasks;
-  else STATION_TRACKER_TASKS[station] = tasks;
+  if (!STATION_TRACKER_TASKS[station]) STATION_TRACKER_TASKS[station] = {};
+  STATION_TRACKER_TASKS[station][project] = tasks;
   renderStationTrackerEditor();
 }
-function steAddTask(station) {
-  const tasks = steGetList(station).slice();
+function steAddTask(station, project) {
+  const tasks = steGetList(station, project).slice();
   tasks.push('New task');
-  steSaveList(station, tasks);
+  steSaveList(station, project, tasks);
 }
-function steSetTaskLink(station, taskName, url) {
-  setDefaultTaskLink(station, taskName, url.trim());
+function steSetTaskLink(station, project, taskName, url) {
+  setDefaultTaskLink(station, project, taskName, url.trim());
   renderStationTrackerEditor();
 }
-function steRemoveTask(station, idx) {
-  const tasks = steGetList(station).slice();
+function steRemoveTask(station, project, idx) {
+  const tasks = steGetList(station, project).slice();
   const removed = tasks[idx];
   if (!confirm('Remove task "'+removed+'"? Any earned time already logged under it, on any unit, stays associated with that name but will not be reachable from this list anymore.')) return;
   tasks.splice(idx, 1);
-  steSaveList(station, tasks);
+  steSaveList(station, project, tasks);
 }
-function steEditTask(station, idx, newName) {
-  const tasks = steGetList(station).slice();
+function steEditTask(station, project, idx, newName) {
+  const tasks = steGetList(station, project).slice();
   const oldName = tasks[idx];
   if (oldName === newName) return;
   tasks[idx] = newName;
   // Migrate any already-recorded time from the old task name to the new one,
-  // on every unit, so a rename doesn't orphan real logged hours.
+  // on every unit OF THIS PROJECT at this station, so a rename doesn't
+  // orphan real logged hours.
   getAllBoardUnits().forEach(u => {
+    if (getProjectType(u.id) !== project) return;
     const bucket = station === 'Station 2' ? u.station2Tasks : (u.stationTrackerTasks && u.stationTrackerTasks[station]);
     if (bucket && bucket[oldName]) {
       bucket[newName] = bucket[oldName];
@@ -2870,43 +2983,49 @@ function steEditTask(station, idx, newName) {
   pushBoard();
   // Migrate the default link too, same reasoning
   const links = getStationTaskLinks();
-  if (links[station] && links[station][oldName] !== undefined) {
-    if (!links[station]) links[station] = {};
-    links[station][newName] = links[station][oldName];
-    delete links[station][oldName];
+  if (links[station] && links[station][project] && links[station][project][oldName] !== undefined) {
+    links[station][project][newName] = links[station][project][oldName];
+    delete links[station][project][oldName];
     saveStationTaskLinks(links);
   }
-  steSaveList(station, tasks);
+  steSaveList(station, project, tasks);
 }
 
 let steActiveStation = null;
+let steActiveProject = null;
 function steSwitchStation(station) { steActiveStation = station; renderStationTrackerEditor(); }
+function steSwitchProject(project) { steActiveProject = project; renderStationTrackerEditor(); }
 function renderStationTrackerEditor() {
   const el = document.getElementById('station-tracker-editor-body'); if (!el) return;
   if (!steActiveStation || !STATION_TRACKER_EDITOR_STATIONS.includes(steActiveStation)) steActiveStation = STATION_TRACKER_EDITOR_STATIONS[0];
+  const projectKeys = Object.keys(CONFIG.boardCategories);
+  if (!steActiveProject || !projectKeys.includes(steActiveProject)) steActiveProject = projectKeys[0];
 
-  const stationTabs = `<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:16px;">
+  const stationTabs = `<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px;">
     ${STATION_TRACKER_EDITOR_STATIONS.map(s => `<button onclick="steSwitchStation('${s}')" style="font-size:12px;font-weight:600;padding:5px 12px;border-radius:20px;border:1px solid ${s===steActiveStation?'#006A8E':'#c8d0dc'};background:${s===steActiveStation?'#006A8E':'#fff'};color:${s===steActiveStation?'#fff':'#605e5c'};cursor:pointer;">${s}</button>`).join('')}
   </div>`;
+  const projectTabs = `<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:16px;">
+    ${projectKeys.map(p => `<button onclick="steSwitchProject('${p}')" style="font-size:11px;font-weight:700;padding:4px 10px;border-radius:20px;border:1px solid ${p===steActiveProject?'#892729':'#c8d0dc'};background:${p===steActiveProject?'#892729':'#fff'};color:${p===steActiveProject?'#fff':'#605e5c'};cursor:pointer;">${p}</button>`).join('')}
+  </div>`;
 
-  const tasks = steGetList(steActiveStation);
+  const tasks = steGetList(steActiveStation, steActiveProject);
   const links = getStationTaskLinks();
   const rows = tasks.map((text, idx) => {
-    const link = (links[steActiveStation] && links[steActiveStation][text]) || '';
+    const link = (links[steActiveStation] && links[steActiveStation][steActiveProject] && links[steActiveStation][steActiveProject][text]) || '';
     return `<div style="display:flex;gap:8px;align-items:center;margin-bottom:8px;">
     <span style="font-size:11px;color:var(--text-3,#8a96a8);width:20px;text-align:right;">${idx+1}.</span>
-    <input value="${text.replace(/"/g,'&quot;')}" onchange="steEditTask('${steActiveStation}',${idx},this.value)" style="flex:1;font-size:13px;padding:8px 10px;" placeholder="Task name" />
-    <input value="${link.replace(/"/g,'&quot;')}" onchange="steSetTaskLink('${steActiveStation}','${text.replace(/'/g,"\\'")}',this.value)" style="flex:1;font-size:13px;padding:8px 10px;" placeholder="ABI / reference link (optional)" type="url" />
-    <button onclick="steRemoveTask('${steActiveStation}',${idx})" title="Remove" style="width:32px;height:32px;border-radius:8px;border:1px solid #e2e6ea;background:#fff;color:#A03033;cursor:pointer;flex-shrink:0;">&#10005;</button>
+    <input value="${text.replace(/"/g,'&quot;')}" onchange="steEditTask('${steActiveStation}','${steActiveProject}',${idx},this.value)" style="flex:1;font-size:13px;padding:8px 10px;" placeholder="Task name" />
+    <input value="${link.replace(/"/g,'&quot;')}" onchange="steSetTaskLink('${steActiveStation}','${steActiveProject}','${text.replace(/'/g,"\\'")}',this.value)" style="flex:1;font-size:13px;padding:8px 10px;" placeholder="ABI / reference link (optional)" type="url" />
+    <button onclick="steRemoveTask('${steActiveStation}','${steActiveProject}',${idx})" title="Remove" style="width:32px;height:32px;border-radius:8px;border:1px solid #e2e6ea;background:#fff;color:#A03033;cursor:pointer;flex-shrink:0;">&#10005;</button>
   </div>`;
   }).join('');
 
-  el.innerHTML = `${stationTabs}
-    <div style="font-size:12px;color:var(--text-2,#605e5c);margin-bottom:10px;">${steActiveStation} &middot; ${tasks.length} task${tasks.length!==1?'s':''}</div>
+  el.innerHTML = `${stationTabs}${projectTabs}
+    <div style="font-size:12px;color:var(--text-2,#605e5c);margin-bottom:10px;">${steActiveStation} &middot; ${steActiveProject} &middot; ${tasks.length} task${tasks.length!==1?'s':''}</div>
     ${tasks.length?`<div style="display:flex;gap:8px;margin-bottom:4px;padding-left:28px;"><span style="flex:1;font-size:10px;font-weight:700;color:var(--text-3,#8a96a8);text-transform:uppercase;">Task name</span><span style="flex:1;font-size:10px;font-weight:700;color:var(--text-3,#8a96a8);text-transform:uppercase;">ABI / reference link</span><span style="width:32px;"></span></div>`:''}
-    ${rows || '<p style="font-size:13px;color:var(--text-3,#8a96a8);font-style:italic;">No tasks yet — add one below.</p>'}
-    <button class="primary sm" onclick="steAddTask('${steActiveStation}')" style="margin-top:8px;">+ Add Task</button>
-    <p style="font-size:11px;color:var(--text-3,#8a96a8);margin-top:12px;">Renaming a task carries its already-logged time and link over to the new name automatically. Removing a task is safe for every other task's data — nothing else gets affected. The reference link set here shows automatically on this task for every unit, on the tracker page itself — no need to paste it in per unit.</p>`;
+    ${rows || '<p style="font-size:13px;color:var(--text-3,#8a96a8);font-style:italic;">No tasks yet for this station/project — add one below.</p>'}
+    <button class="primary sm" onclick="steAddTask('${steActiveStation}','${steActiveProject}')" style="margin-top:8px;">+ Add Task</button>
+    <p style="font-size:11px;color:var(--text-3,#8a96a8);margin-top:12px;">Each project has its own task list at every station — ${steActiveProject}'s tasks here don't affect any other project's list at ${steActiveStation}. Renaming a task carries its already-logged time and link over to the new name automatically, for units of this project only. The reference link set here shows automatically on this task for every matching unit, on the tracker page itself.</p>`;
 }
 
 function ceSaveList(type, station, items) {
@@ -3499,7 +3618,7 @@ function jsonpSave(tab, rows) {
   const header = tab==='QC'
     ? ['Serial','Type','Station','InspectionStarted','Held','Remediation','RemediationOrigin','Completed','Status','HistoryJSON']
     : tab==='Board'
-    ? ['UnitID','Line','Column','Held','Completed','Notes','ESONumber','GensetSerial','ReadyForInspection','InspectionStarted','HistoryJSON','SupervisorReleased','SupervisorReleaseTs','DeviationNeeded','DeviationNote','DeviationTs','ChecklistJSON','QCChecklistJSON','FailOverridesJSON','Station2TasksJSON','SolutionsESO','DueDate','LeadCheckinsJSON','StationTrackerTasksJSON','FuelTankSerial']
+    ? ['UnitID','Line','Column','Held','Completed','Notes','ESONumber','GensetSerial','ReadyForInspection','InspectionStarted','HistoryJSON','SupervisorReleased','SupervisorReleaseTs','DeviationNeeded','DeviationNote','DeviationTs','ChecklistJSON','QCChecklistJSON','FailOverridesJSON','Station2TasksJSON','SolutionsESO','DueDate','LeadCheckinsJSON','StationTrackerTasksJSON','FuelTankSerial','Location']
     : ['UnitID','Link','UpdatedAt'];
   const payload = JSON.stringify({action:'save', rows:[header,...rows]});
 
@@ -3553,7 +3672,7 @@ function syncFromSheetsViaGAS(onDone) {
           let stationTrackerTasks={}; try{stationTrackerTasks=JSON.parse(r[23]||'{}');}catch(e){}
           return {id:r[0],line:r[1],col:r[2],held:r[3]==='TRUE'||r[3]===true,completed:r[4]==='TRUE'||r[4]===true,notes:r[5]||'',esoNumber:r[6]||'',gensetSerial:r[7]||'',readyForInspection:r[8]==='TRUE'||r[8]===true,inspectionStarted:r[9]==='TRUE'||r[9]===true,history,
             supervisorReleased:r[11]==='TRUE'||r[11]===true,supervisorReleaseTs:r[12]||'',
-            deviationNeeded:r[13]==='TRUE'||r[13]===true,deviationNote:r[14]||'',deviationTs:r[15]||'',checklist,qcChecklist,failOverrides,station2Tasks,solutionsEso:r[20]||'',dueDate:r[21]||'',leadCheckins,stationTrackerTasks,fuelTankSerial:r[24]||''};
+            deviationNeeded:r[13]==='TRUE'||r[13]===true,deviationNote:r[14]||'',deviationTs:r[15]||'',checklist,qcChecklist,failOverrides,station2Tasks,solutionsEso:r[20]||'',dueDate:r[21]||'',leadCheckins,stationTrackerTasks,fuelTankSerial:r[24]||'',location:r[25]||''};
         });
       }
       jsonpCall(sheetsUrl+'?tab=Issues', function(err3, rows3) {
@@ -3580,7 +3699,7 @@ function proxySave(tab, rows) {
   const header = tab==='QC'
     ? ['Serial','Type','Station','InspectionStarted','Held','Remediation','RemediationOrigin','Completed','Status','HistoryJSON']
     : tab==='Board'
-    ? ['UnitID','Line','Column','Held','Completed','Notes','ESONumber','GensetSerial','ReadyForInspection','InspectionStarted','HistoryJSON','SupervisorReleased','SupervisorReleaseTs','DeviationNeeded','DeviationNote','DeviationTs','ChecklistJSON','QCChecklistJSON','FailOverridesJSON','Station2TasksJSON','SolutionsESO','DueDate','LeadCheckinsJSON','StationTrackerTasksJSON','FuelTankSerial']
+    ? ['UnitID','Line','Column','Held','Completed','Notes','ESONumber','GensetSerial','ReadyForInspection','InspectionStarted','HistoryJSON','SupervisorReleased','SupervisorReleaseTs','DeviationNeeded','DeviationNote','DeviationTs','ChecklistJSON','QCChecklistJSON','FailOverridesJSON','Station2TasksJSON','SolutionsESO','DueDate','LeadCheckinsJSON','StationTrackerTasksJSON','FuelTankSerial','Location']
     : ['UnitID','Link','UpdatedAt'];
   return proxyFetch('?action=save&tab='+tab, {
     method: 'POST',
@@ -3856,7 +3975,7 @@ function syncFromSheetsViaSmartsheet(onDone) {
         let stationTrackerTasks={}; try{stationTrackerTasks=JSON.parse(r[23]||'{}');}catch(e){}
         return {id:r[0],line:r[1],col:r[2],held:r[3]==='TRUE'||r[3]===true,completed:r[4]==='TRUE'||r[4]===true,notes:r[5]||'',esoNumber:r[6]||'',gensetSerial:r[7]||'',readyForInspection:r[8]==='TRUE'||r[8]===true,inspectionStarted:r[9]==='TRUE'||r[9]===true,history,
           supervisorReleased:r[11]==='TRUE'||r[11]===true,supervisorReleaseTs:r[12]||'',
-          deviationNeeded:r[13]==='TRUE'||r[13]===true,deviationNote:r[14]||'',deviationTs:r[15]||'',checklist,qcChecklist,failOverrides,station2Tasks,solutionsEso:r[20]||'',dueDate:r[21]||'',leadCheckins,stationTrackerTasks,fuelTankSerial:r[24]||''};
+          deviationNeeded:r[13]==='TRUE'||r[13]===true,deviationNote:r[14]||'',deviationTs:r[15]||'',checklist,qcChecklist,failOverrides,station2Tasks,solutionsEso:r[20]||'',dueDate:r[21]||'',leadCheckins,stationTrackerTasks,fuelTankSerial:r[24]||'',location:r[25]||''};
       });
     }
     if (rows3 && rows3.length>1) {
@@ -3906,7 +4025,7 @@ function pushQC() {
 }
 function pushBoard() {
   saveLocalCache();
-  const rows = boardUnits.map(u=>[u.id,u.line,u.col,u.held,u.completed,u.notes,u.esoNumber||'',u.gensetSerial||'',u.readyForInspection||false,u.inspectionStarted||false,JSON.stringify(u.history),u.supervisorReleased||false,u.supervisorReleaseTs||'',u.deviationNeeded||false,u.deviationNote||'',u.deviationTs||'',JSON.stringify(u.checklist||{}),JSON.stringify(u.qcChecklist||{}),JSON.stringify(u.failOverrides||[]),JSON.stringify(u.station2Tasks||{}),u.solutionsEso||'',u.dueDate||'',JSON.stringify(u.leadCheckins||[]),JSON.stringify(u.stationTrackerTasks||{}),u.fuelTankSerial||'']);
+  const rows = boardUnits.map(u=>[u.id,u.line,u.col,u.held,u.completed,u.notes,u.esoNumber||'',u.gensetSerial||'',u.readyForInspection||false,u.inspectionStarted||false,JSON.stringify(u.history),u.supervisorReleased||false,u.supervisorReleaseTs||'',u.deviationNeeded||false,u.deviationNote||'',u.deviationTs||'',JSON.stringify(u.checklist||{}),JSON.stringify(u.qcChecklist||{}),JSON.stringify(u.failOverrides||[]),JSON.stringify(u.station2Tasks||{}),u.solutionsEso||'',u.dueDate||'',JSON.stringify(u.leadCheckins||[]),JSON.stringify(u.stationTrackerTasks||{}),u.fuelTankSerial||'',u.location||'']);
   if (syncTarget === 'smartsheet') proxySave('Board', rows); else jsonpSave('Board', rows);
 }
 function pushIssues() {
@@ -4105,7 +4224,7 @@ function _addAllBoardUnits() {
   });
   if (hasError) return;
   toAdd.forEach(u => {
-    boardUnits.push({id:u.id,line:u.line,col:u.col,held:false,completed:false,notes:u.notes,esoNumber:'',gensetSerial:'',fuelTankSerial:'',solutionsEso:u.solEso||'',dueDate:u.dueDate||'',leadCheckins:[],readyForInspection:false,inspectionStarted:false,supervisorReleased:false,supervisorReleaseTs:'',deviationNeeded:false,deviationNote:'',deviationTs:'',checklist:{},qcChecklist:{},failOverrides:[],station2Tasks:{},stationTrackerTasks:{},history:[{action:'Added to '+u.col,ts:now(),notes:u.notes}]});
+    boardUnits.push({id:u.id,line:u.line,col:u.col,held:false,completed:false,notes:u.notes,esoNumber:'',gensetSerial:'',fuelTankSerial:'',location:'',solutionsEso:u.solEso||'',dueDate:u.dueDate||'',leadCheckins:[],readyForInspection:false,inspectionStarted:false,supervisorReleased:false,supervisorReleaseTs:'',deviationNeeded:false,deviationNote:'',deviationTs:'',checklist:{},qcChecklist:{},failOverrides:[],station2Tasks:{},stationTrackerTasks:{},history:[{action:'Added to '+u.col,ts:now(),notes:u.notes}]});
   });
   err.textContent=''; document.getElementById('board-add-form').style.display='none';
   pushBoard(); renderAll();
@@ -4123,7 +4242,7 @@ function getAllBoardUnits() {
         if (deleted.includes(uid)) return; // tombstoned — don't resurrect from the static seed
         if (!merged.find(u=>u.id===uid)) {
           const tracked=boardUnits.find(u=>u.id===uid);
-          merged.push(tracked||{id:uid,line:line.id,col:col.label,held:false,completed:false,notes:'',esoNumber:'',gensetSerial:'',fuelTankSerial:'',solutionsEso:'',dueDate:'',leadCheckins:[],readyForInspection:false,inspectionStarted:false,supervisorReleased:false,supervisorReleaseTs:'',deviationNeeded:false,deviationNote:'',deviationTs:'',checklist:{},qcChecklist:{},failOverrides:[],station2Tasks:{},stationTrackerTasks:{},history:[]});
+          merged.push(tracked||{id:uid,line:line.id,col:col.label,held:false,completed:false,notes:'',esoNumber:'',gensetSerial:'',fuelTankSerial:'',location:'',solutionsEso:'',dueDate:'',leadCheckins:[],readyForInspection:false,inspectionStarted:false,supervisorReleased:false,supervisorReleaseTs:'',deviationNeeded:false,deviationNote:'',deviationTs:'',checklist:{},qcChecklist:{},failOverrides:[],station2Tasks:{},stationTrackerTasks:{},history:[]});
         }
       });
     });
@@ -4182,7 +4301,8 @@ function renderLineSummary() {
           const dueColor = (!isNaN(d) && d < today) ? '#A03033' : (!isNaN(d) && d <= weekOut) ? '#b45309' : '#8a96a8';
           dueTag = ` <span style="color:${dueColor};font-weight:600;font-size:10px;">(${formatDueDate(u.dueDate)})</span>`;
         }
-        return `<div style="color:${color};font-weight:${weight};">${u.id}${dueTag}</div>`;
+        const locTag = u.location ? `<div style="font-size:9px;color:#006A8E;font-weight:600;">&#128205; ${u.location}</div>` : '';
+        return `<div style="color:${color};font-weight:${weight};">${u.id}${dueTag}${locTag}</div>`;
       }).join('');
       return `<div class="station-chip ${cls}" onclick="event.stopPropagation();jumpToLine('${line.id}');setTimeout(()=>switchCol('${col.label}'),50)">
         <div class="station-chip-header">${shortLabel}</div>
@@ -4327,25 +4447,30 @@ function getNavOrder() {
   try { return JSON.parse(localStorage.getItem('nav_bar_order') || 'null'); } catch(e) { return null; }
 }
 function saveNavOrder() {
-  const bar = document.querySelector('.header-nav'); if (!bar) return;
-  const order = Array.from(bar.children).map(el => el.id || '__divider__');
+  const bars = document.querySelectorAll('.header-nav, .tracker-subnav');
+  const order = {};
+  bars.forEach(bar => { order[bar.className] = Array.from(bar.children).map(el => el.id || '__divider__'); });
   localStorage.setItem('nav_bar_order', JSON.stringify(order));
 }
 function applyNavOrder() {
   const saved = getNavOrder();
-  const bar = document.querySelector('.header-nav'); if (!saved || !bar) return;
-  const byId = {}; Array.from(bar.children).forEach(el => { byId[el.id || '__divider__'] = el; });
-  saved.forEach(id => { if (byId[id]) bar.appendChild(byId[id]); });
-  // Anything saved-order doesn't know about (e.g. a newly added nav item) stays appended at the end already
+  if (!saved) return;
+  document.querySelectorAll('.header-nav, .tracker-subnav').forEach(bar => {
+    const savedOrder = saved[bar.className];
+    if (!savedOrder) return;
+    const byId = {}; Array.from(bar.children).forEach(el => { byId[el.id || '__divider__'] = el; });
+    savedOrder.forEach(id => { if (byId[id]) bar.appendChild(byId[id]); });
+  });
 }
 let navDragId = null;
 function navDragStart(id) { navDragId = id; }
 function navDrop(targetId) {
   if (!navDragId || navDragId === targetId) return;
-  const bar = document.querySelector('.header-nav'); if (!bar) return;
   const dragEl = document.getElementById(navDragId);
   const targetEl = document.getElementById(targetId);
   if (!dragEl || !targetEl) return;
+  const bar = dragEl.parentElement;
+  if (!bar || targetEl.parentElement !== bar) return; // only reorder within the same bar, never move between bars
   bar.insertBefore(dragEl, targetEl);
   saveNavOrder();
   navDragId = null;
@@ -4459,10 +4584,10 @@ function renderBoardUnitCard(u) {
       actions+=`<button class="primary" onclick="togglePanel('bd-eso-${sid}')">&#9998; ESO / Genset / Fuel Tank #s</button>`;
       panels+=`<div class="action-group" id="bd-eso-${sid}"><div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:8px;"><div><label>${CONFIG.fieldLabels.field1}</label><input id="bd-eso-num-${sid}" type="text" placeholder="e.g. ESO-12345" value="${u.esoNumber||''}" /></div><div><label>${CONFIG.fieldLabels.field2}</label><input id="bd-genset-${sid}" type="text" placeholder="e.g. GEN-98765" value="${u.gensetSerial||''}" /></div><div><label>Fuel Tank Serial #</label><input id="bd-fueltank-${sid}" type="text" placeholder="e.g. FT-11223" value="${u.fuelTankSerial||''}" /></div></div><button class="primary sm" onclick="saveStation7Data('${u.id}')">&#10003; Save</button></div>`;
     }
-    // Solutions ESO # / Due Date — separate from ESO/Genset, available at every station
+    // Solutions ESO # / Due Date / Location — separate from ESO/Genset, available at every station
     {
-      actions+=`<button class="primary" onclick="togglePanel('bd-soldue-${sid}')">&#9998; Solutions ESO / Due Date</button>`;
-      panels+=`<div class="action-group" id="bd-soldue-${sid}"><div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:8px;"><div><label>Solutions ESO #</label><input id="bd-sol-eso-${sid}" type="text" placeholder="e.g. SOL-4521" value="${u.solutionsEso||''}" /></div><div><label>Due Date</label><input id="bd-due-date-${sid}" type="date" value="${u.dueDate||''}" /></div></div><button class="primary sm" onclick="saveStation7Data('${u.id}')">&#10003; Save</button></div>`;
+      actions+=`<button class="primary" onclick="togglePanel('bd-soldue-${sid}')">&#9998; Solutions ESO / Due Date / Location</button>`;
+      panels+=`<div class="action-group" id="bd-soldue-${sid}"><div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:8px;"><div><label>Solutions ESO #</label><input id="bd-sol-eso-${sid}" type="text" placeholder="e.g. SOL-4521" value="${u.solutionsEso||''}" /></div><div><label>Due Date</label><input id="bd-due-date-${sid}" type="date" value="${u.dueDate||''}" /></div><div><label>Location</label><input id="bd-location-${sid}" type="text" placeholder="e.g. Bay 3" value="${u.location||''}" /></div></div><button class="primary sm" onclick="saveStation7Data('${u.id}')">&#10003; Save</button></div>`;
     }
     // LEAD CHECK-IN — whoever's checking in enters their own name/email, logged per station
     {
@@ -4629,7 +4754,7 @@ function ensureBoardTracked(unitId) {
   if (!u) {
     const line=CONFIG.lines.find(l=>l.columns.some(c=>c.units.includes(unitId)));
     const col=line?line.columns.find(c=>c.units.includes(unitId)):null;
-    u={id:unitId,line:line?line.id:activeLine,col:col?col.label:activeCol,held:false,completed:false,notes:'',esoNumber:'',gensetSerial:'',fuelTankSerial:'',solutionsEso:'',dueDate:'',leadCheckins:[],readyForInspection:false,inspectionStarted:false,supervisorReleased:false,supervisorReleaseTs:'',deviationNeeded:false,deviationNote:'',deviationTs:'',checklist:{},qcChecklist:{},failOverrides:[],station2Tasks:{},stationTrackerTasks:{},history:[]};
+    u={id:unitId,line:line?line.id:activeLine,col:col?col.label:activeCol,held:false,completed:false,notes:'',esoNumber:'',gensetSerial:'',fuelTankSerial:'',location:'',solutionsEso:'',dueDate:'',leadCheckins:[],readyForInspection:false,inspectionStarted:false,supervisorReleased:false,supervisorReleaseTs:'',deviationNeeded:false,deviationNote:'',deviationTs:'',checklist:{},qcChecklist:{},failOverrides:[],station2Tasks:{},stationTrackerTasks:{},history:[]};
     boardUnits.push(u);
   }
   return u;
@@ -4662,6 +4787,12 @@ function saveStation7Data(unitId) {
     const due=dueEl.value;
     u.dueDate=due;
     parts.push('Due date: '+(due||'—'));
+  }
+  const locEl=document.getElementById('bd-location-'+sid);
+  if (locEl) {
+    const loc=locEl.value.trim();
+    u.location=loc;
+    parts.push('Location: '+(loc||'—'));
   }
   u.history.push({action:(parts.length?'ESO/Genset info recorded — '+parts.join(' | '):'ESO/Genset panel saved'),ts:now(),notes:''});
   togglePanel('bd-eso-'+sid); pushBoard(); renderAll();
@@ -5144,7 +5275,7 @@ function eauAddAllUnits() {
   });
   if (hasError) return;
   toAdd.forEach(u => {
-    boardUnits.push({id:u.id,line:u.line,col:u.col,held:false,completed:false,notes:u.notes,esoNumber:'',gensetSerial:'',fuelTankSerial:'',solutionsEso:u.solEso,dueDate:u.dueDate,leadCheckins:[],readyForInspection:false,inspectionStarted:false,supervisorReleased:false,supervisorReleaseTs:'',deviationNeeded:false,deviationNote:'',deviationTs:'',checklist:{},qcChecklist:{},failOverrides:[],station2Tasks:{},stationTrackerTasks:{},history:[{action:'Added to '+u.col,ts:now(),notes:u.notes}]});
+    boardUnits.push({id:u.id,line:u.line,col:u.col,held:false,completed:false,notes:u.notes,esoNumber:'',gensetSerial:'',fuelTankSerial:'',location:'',solutionsEso:u.solEso,dueDate:u.dueDate,leadCheckins:[],readyForInspection:false,inspectionStarted:false,supervisorReleased:false,supervisorReleaseTs:'',deviationNeeded:false,deviationNote:'',deviationTs:'',checklist:{},qcChecklist:{},failOverrides:[],station2Tasks:{},stationTrackerTasks:{},history:[{action:'Added to '+u.col,ts:now(),notes:u.notes}]});
   });
   err.textContent = '';
   document.getElementById('eau-rows').innerHTML = ''; eauRowCtr = 0; eauAddRow();
@@ -5419,6 +5550,7 @@ function renderPMPage() {
   renderPMDueDateChart();
   renderPMLeadCheckins();
   renderPMInspectorActivity();
+  renderPMClockedIn();
   renderRTSPanel();
   renderSheetTabs();
   switchFTITab(ftiActiveTab === 'gantt' || ftiActiveTab === 'allgantt' ? 'calendar' : (ftiActiveTab || 'calendar'));
@@ -6075,6 +6207,68 @@ function getInspectorActivity() {
   })).sort((a,b) => b.totalSec - a.totalSec);
 }
 
+/* Live view of everyone currently mid-task — running, paused, or on a
+   hold — across every station's timer system. Doesn't include idle or
+   finished entries, since those aren't "clocked in" right now. */
+function getCurrentlyClockedIn() {
+  const rows = [];
+  getAllBoardUnits().forEach(u => {
+    const scan = (bucket, stationKey) => {
+      if (!bucket) return;
+      Object.keys(bucket).forEach(taskName => {
+        (bucket[taskName].employees || []).forEach((e, empIdx) => {
+          if (e.status === 'running' || e.status === 'paused' || e.status === 'holdMaterial' || e.status === 'holdEngineering') {
+            rows.push({
+              num: e.num, isTrainee: e.isTrainee, status: e.status,
+              unitId: u.id, station: stationKey, task: taskName, empIdx,
+              sinceMs: e.currentSegmentStart || null,
+            });
+          }
+        });
+      });
+    };
+    scan(u.station2Tasks, 'Station 2');
+    if (u.stationTrackerTasks) Object.keys(u.stationTrackerTasks).forEach(sk => scan(u.stationTrackerTasks[sk], sk));
+  });
+  return rows.sort((a,b) => a.num.localeCompare(b.num));
+}
+function renderPMClockedIn() {
+  const el = document.getElementById('pm-clocked-in'); if (!el) return;
+  const rows = getCurrentlyClockedIn();
+  if (!rows.length) {
+    el.innerHTML = `<div class="chart-title">Currently Clocked In</div><p style="font-size:13px;color:#605e5c;">No one's currently clocked in on a task across any station tracker.</p>`;
+    return;
+  }
+  const runningCount = rows.filter(r=>r.status==='running').length;
+  const tableRows = rows.map(r => {
+    const sinceLabel = (r.status==='running' && r.sinceMs) ? s2FormatHM(Math.floor((Date.now()-r.sinceMs)/1000)) + ' ago' : '—';
+    return `<tr>
+    <td style="padding:6px 10px;font-size:12px;font-weight:700;">${r.num}${r.isTrainee?' &#127891;':''}</td>
+    <td style="padding:6px 10px;font-size:12px;"><span style="font-size:11px;font-weight:700;padding:2px 9px;border-radius:20px;background:${S2_STATUS_COLOR[r.status]}22;color:${S2_STATUS_COLOR[r.status]};">${S2_STATUS_LABEL[r.status]}</span></td>
+    <td style="padding:6px 10px;font-size:12px;">${r.unitId}</td>
+    <td style="padding:6px 10px;font-size:12px;">${r.station}</td>
+    <td style="padding:6px 10px;font-size:12px;">${r.task}</td>
+    <td style="padding:6px 10px;font-size:11px;color:var(--text-3,#8a96a8);">${sinceLabel}</td>
+    <td style="padding:6px 10px;"><button onclick="s2OpenSupervisorClockOut('${r.unitId}','${r.task}',${r.empIdx},'${r.station}')" style="font-size:11px;font-weight:700;padding:5px 10px;border-radius:8px;cursor:pointer;background:#fff;border:2px solid #892729;color:#892729;white-space:nowrap;">&#128274; Clock Out</button></td>
+  </tr>`;
+  }).join('');
+  el.innerHTML = `<div class="chart-title">Currently Clocked In <span class="chart-subtitle">${rows.length} active &middot; ${runningCount} running right now</span></div>
+    <div style="overflow-x:auto;">
+      <table style="width:100%;border-collapse:collapse;">
+        <thead><tr style="border-bottom:2px solid #edebe9;text-align:left;">
+          <th style="padding:6px 10px;font-size:11px;color:var(--text-3,#8a96a8);text-transform:uppercase;">Employee #</th>
+          <th style="padding:6px 10px;font-size:11px;color:var(--text-3,#8a96a8);text-transform:uppercase;">Status</th>
+          <th style="padding:6px 10px;font-size:11px;color:var(--text-3,#8a96a8);text-transform:uppercase;">Unit</th>
+          <th style="padding:6px 10px;font-size:11px;color:var(--text-3,#8a96a8);text-transform:uppercase;">Station</th>
+          <th style="padding:6px 10px;font-size:11px;color:var(--text-3,#8a96a8);text-transform:uppercase;">Task</th>
+          <th style="padding:6px 10px;font-size:11px;color:var(--text-3,#8a96a8);text-transform:uppercase;">Running since</th>
+          <th style="padding:6px 10px;font-size:11px;color:var(--text-3,#8a96a8);text-transform:uppercase;"></th>
+        </tr></thead>
+        <tbody>${tableRows}</tbody>
+      </table>
+    </div>`;
+}
+
 function renderPMInspectorActivity() {
   const el = document.getElementById('pm-inspector-activity'); if (!el) return;
   const rows = getInspectorActivity();
@@ -6212,7 +6406,7 @@ function renderPMTimeChart() {
     const u = getAllBoardUnits().find(x => x.id === pmTimeSelectedUnit);
     const r = allRows.find(x=>x.id===pmTimeSelectedUnit && x.pt===pmTimeSelectedProject);
     if (u && r) {
-      const jobRows = STATION2_TASKS.map(taskName => {
+      const jobRows = getStationTaskList('Station 2', getProjectType(u.id)).map(taskName => {
         const t = getS2TaskState(u, taskName);
         const hrs = t.employees.reduce((s,e) => s + s2LiveSeconds(e,'active') + s2LiveSeconds(e,'materialHold') + s2LiveSeconds(e,'engineeringHold'), 0) / 3600;
         return { taskName, hrs, employees: t.employees.map(e=>e.num).join(', ') || '—' };
@@ -6320,7 +6514,7 @@ function exportPMTimeChartCsv() {
     const u = getAllBoardUnits().find(x=>x.id===pmTimeSelectedUnit);
     if (!u) return;
     header = ['Unit','Job','Employees','Hours','Duration'];
-    rowsOut = STATION2_TASKS.map(taskName => {
+    rowsOut = getStationTaskList('Station 2', getProjectType(u.id)).map(taskName => {
       const t = getS2TaskState(u, taskName);
       const hrs = t.employees.reduce((s,e) => s + s2LiveSeconds(e,'active') + s2LiveSeconds(e,'materialHold') + s2LiveSeconds(e,'engineeringHold'), 0) / 3600;
       return { taskName, hrs, employees: t.employees.map(e=>e.num).join('; ') || '' };

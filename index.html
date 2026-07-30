@@ -2966,6 +2966,31 @@ function steAddTask(station, project) {
   tasks.push('New task');
   steSaveList(station, project, tasks);
 }
+/* Quick-add a whole pasted list of task names (one per line, no columns
+   needed) straight into the currently-selected station/project — the
+   simplest possible version of the bulk import, for when someone's just
+   copying one column of task names out of Excel. */
+function steQuickPaste(station, project, textareaId) {
+  const input = document.getElementById(textareaId);
+  if (!input) return;
+  const lines = input.value.split(/\r?\n/).map(l => l.trim()).filter(l => l !== '');
+  if (!lines.length) {
+    const statusEl = document.getElementById('ste-quickpaste-status');
+    if (statusEl) statusEl.innerHTML = '<span style="color:#A03033;">Paste some task names first.</span>';
+    return;
+  }
+
+  const tasks = steGetList(station, project).slice();
+  let added = 0, skippedDupe = 0;
+  lines.forEach(line => {
+    if (tasks.includes(line)) { skippedDupe++; return; }
+    tasks.push(line);
+    added++;
+  });
+  steSaveList(station, project, tasks); // re-renders the whole editor, so grab a fresh status element after
+  const statusEl = document.getElementById('ste-quickpaste-status');
+  if (statusEl) statusEl.innerHTML = `<span style="color:#0e7c3a;">&#10003; Added ${added} task${added!==1?'s':''}${skippedDupe?`, skipped ${skippedDupe} already there`:''}.</span>`;
+}
 function steSetTaskLink(station, project, taskName, url) {
   setDefaultTaskLink(station, project, taskName, url.trim());
   renderStationTrackerEditor();
@@ -3038,6 +3063,13 @@ function renderStationTrackerEditor() {
     ${tasks.length?`<div style="display:flex;gap:8px;margin-bottom:4px;padding-left:28px;"><span style="flex:1;font-size:10px;font-weight:700;color:var(--text-3,#8a96a8);text-transform:uppercase;">Task name</span><span style="flex:1;font-size:10px;font-weight:700;color:var(--text-3,#8a96a8);text-transform:uppercase;">ABI / reference link</span><span style="width:32px;"></span></div>`:''}
     ${rows || '<p style="font-size:13px;color:var(--text-3,#8a96a8);font-style:italic;">No tasks yet for this station/project — add one below.</p>'}
     <button class="primary sm" onclick="steAddTask('${steActiveStation}','${steActiveProject}')" style="margin-top:8px;">+ Add Task</button>
+    <div style="margin-top:16px;padding-top:14px;border-top:1px solid #edebe9;">
+      <label style="font-size:11px;font-weight:700;color:var(--text-2,#605e5c);text-transform:uppercase;display:block;margin-bottom:6px;">Paste a task list for ${steActiveStation} / ${steActiveProject}</label>
+      <p style="font-size:11px;color:var(--text-3,#8a96a8);margin-bottom:6px;">Copy a column of task names straight from Excel (one per line, no headers needed) and paste below — they'll be added to this station and project automatically.</p>
+      <textarea id="ste-quickpaste-${safeId(steActiveStation+steActiveProject)}" rows="4" placeholder="Paste task names here, one per line..." style="width:100%;font-size:13px;padding:8px 10px;margin-bottom:8px;"></textarea>
+      <button class="primary sm" onclick="steQuickPaste('${steActiveStation}','${steActiveProject}','ste-quickpaste-${safeId(steActiveStation+steActiveProject)}')">Add Pasted Tasks</button>
+      <span id="ste-quickpaste-status" style="font-size:12px;margin-left:8px;"></span>
+    </div>
     <p style="font-size:11px;color:var(--text-3,#8a96a8);margin-top:12px;">Each project has its own task list at every station — ${steActiveProject}'s tasks here don't affect any other project's list at ${steActiveStation}. Renaming a task carries its already-logged time and link over to the new name automatically, for units of this project only. The reference link set here shows automatically on this task for every matching unit, on the tracker page itself.</p>`;
 }
 

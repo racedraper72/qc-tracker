@@ -1353,8 +1353,15 @@ label { font-size: 11px; font-weight: 600; color: var(--text-2); display: block;
   </div>
   <!-- STATION TRACKER EDITOR -->
   <div class="card">
-    <div class="section-title">&#128736; Station Tracker editor</div>
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:10px;margin-bottom:4px;">
+      <div class="section-title" style="margin:0;">&#128736; Station Tracker editor</div>
+      <div>
+        <input type="file" id="ste-import-file" accept=".xlsx,.xls,.csv" style="display:none;" onchange="steHandleImport(event)" />
+        <button class="subtle sm" onclick="document.getElementById('ste-import-file').click()">&#8593; Import from Excel</button>
+      </div>
+    </div>
     <p style="font-size:12px;color:#605e5c;margin-bottom:12px;">Add, edit, or remove tasks tracked at Stations 1, 2, 3, 4, 5, 6, 7, 8, and 9 — no code changes needed. Syncs to every device.</p>
+    <div id="ste-import-status" style="font-size:12px;margin-bottom:12px;"></div>
     <div id="station-tracker-editor-body"></div>
   </div>
   <!-- DASHBOARD CARDS -->
@@ -3776,6 +3783,89 @@ function mseHandleFileUpload(event) {
   };
   reader.readAsArrayBuffer(file);
   event.target.value = ''; // allow re-uploading the same filename later
+}
+
+/* Bulk-import Station Tracker task lists from an Excel/CSV file, instead
+   of typing each task in one at a time. Expected columns (flexible on
+   exact header text, matched case-insensitively): Station, Project, Task,
+   and optionally a reference/ABI Link column. Appends to whatever's
+   already there per station/project — never wipes out existing tasks,
+   and skips (rather than guesses at) any row with a station or project
+   name that doesn't match this app's real list. */
+function steHandleImport(event) {
+  const file = event.target.files && event.target.files[0];
+  if (!file) return;
+  const statusEl = document.getElementById('ste-import-status');
+  if (typeof XLSX === 'undefined') {
+    if (statusEl) statusEl.innerHTML = '<span style="color:#A03033;">The spreadsheet reader library did not load — check your internet connection and try again.</span>';
+    return;
+  }
+  if (statusEl) statusEl.innerHTML = '<span style="color:#605e5c;">&#8635; Reading file...</span>';
+
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    try {
+      const wb = XLSX.read(e.target.result, { type: 'array', cellDates: true });
+      const sheet = wb.Sheets[wb.SheetNames[0]];
+      const data = XLSX.utils.sheet_to_json(sheet, { header: 1, raw: false, defval: '' });
+      if (!data.length) throw new Error('The uploaded file has no rows.');
+
+      const header = (data[0] || []).map(h => String(h||'').trim().toLowerCase());
+      const findCol = (...names) => header.findIndex(h => names.some(n => h.includes(n)));
+      const stationIdx = findCol('station');
+      const projectIdx = findCol('project');
+      const taskIdx = findCol('task');
+      const linkIdx = findCol('abi', 'link', 'reference');
+
+      if (stationIdx === -1 || projectIdx === -1 || taskIdx === -1) {
+        throw new Error('Could not find Station, Project, and Task columns — check the file has headers like "Station", "Project", "Task".');
+      }
+
+      const validStations = STATION_TRACKER_EDITOR_STATIONS;
+      const validProjects = Object.keys(CONFIG.boardCategories);
+      let added = 0, skippedInvalid = 0, skippedDupe = 0;
+      const touched = {}; // 'station|||project' -> true, so we only call steSaveList once per combo
+
+      data.slice(1).forEach(row => {
+        const station = String(row[stationIdx]||'').trim();
+        const project = String(row[projectIdx]||'').trim().toUpperCase();
+        const task = String(row[taskIdx]||'').trim();
+        const link = linkIdx !== -1 ? String(row[linkIdx]||'').trim() : '';
+        if (!station || !project || !task) return; // blank row
+        if (!validStations.includes(station) || !validProjects.includes(project)) { skippedInvalid++; return; }
+
+        if (!STATION_TRACKER_TASKS[station]) STATION_TRACKER_TASKS[station] = {};
+        if (!STATION_TRACKER_TASKS[station][project]) STATION_TRACKER_TASKS[station][project] = [];
+        const list = STATION_TRACKER_TASKS[station][project];
+        if (list.includes(task)) { skippedDupe++; return; }
+        list.push(task);
+        if (link) setDefaultTaskLink(station, project, task, link);
+        touched[station+'|||'+project] = true;
+        added++;
+      });
+
+      Object.keys(touched).forEach(key => {
+        const [station, project] = key.split('|||');
+        const overrides = getStationTrackerOverrides();
+        if (!overrides[station]) overrides[station] = {};
+        overrides[station][project] = STATION_TRACKER_TASKS[station][project];
+        saveStationTrackerOverrides(overrides);
+      });
+
+      if (statusEl) statusEl.innerHTML = `<span style="color:#0e7c3a;">&#10003; Imported ${added} task${added!==1?'s':''}` +
+        (skippedInvalid ? `, skipped ${skippedInvalid} row${skippedInvalid!==1?'s':''} with an unrecognized station/project` : '') +
+        (skippedDupe ? `, skipped ${skippedDupe} already-existing task${skippedDupe!==1?'s':''}` : '') + `.</span>`;
+      renderStationTrackerEditor();
+    } catch (err) {
+      console.error('Station Tracker import failed:', err);
+      if (statusEl) statusEl.innerHTML = '<span style="color:#A03033;">Could not read that file: ' + String(err && err.message ? err.message : err) + '</span>';
+    }
+  };
+  reader.onerror = () => {
+    if (statusEl) statusEl.innerHTML = '<span style="color:#A03033;">Could not read the file.</span>';
+  };
+  reader.readAsArrayBuffer(file);
+  event.target.value = '';
 }
 
 let mseGroupBy = null;   // column name to group/count by for the chart

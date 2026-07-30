@@ -1355,10 +1355,16 @@ label { font-size: 11px; font-weight: 600; color: var(--text-2); display: block;
   <div class="card">
     <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:10px;margin-bottom:4px;">
       <div class="section-title" style="margin:0;">&#128736; Station Tracker editor</div>
-      <div>
+      <div style="display:flex;gap:8px;">
         <input type="file" id="ste-import-file" accept=".xlsx,.xls,.csv" style="display:none;" onchange="steHandleImport(event)" />
         <button class="subtle sm" onclick="document.getElementById('ste-import-file').click()">&#8593; Import from Excel</button>
+        <button class="subtle sm" onclick="steTogglePasteArea()">&#128203; Paste from Excel</button>
       </div>
+    </div>
+    <div id="ste-paste-area" style="display:none;margin-bottom:12px;">
+      <p style="font-size:11px;color:#605e5c;margin-bottom:6px;">Select cells in Excel (including the header row — Station, Project, Task, and optionally Link), copy (Ctrl+C), click below, then paste (Ctrl+V).</p>
+      <textarea id="ste-paste-input" rows="4" placeholder="Paste copied Excel cells here..." style="width:100%;font-size:12px;font-family:monospace;padding:8px;margin-bottom:8px;"></textarea>
+      <button class="primary sm" onclick="steHandlePaste()">Import Pasted Data</button>
     </div>
     <p style="font-size:12px;color:#605e5c;margin-bottom:12px;">Add, edit, or remove tasks tracked at Stations 1, 2, 3, 4, 5, 6, 7, 8, and 9 — no code changes needed. Syncs to every device.</p>
     <div id="ste-import-status" style="font-size:12px;margin-bottom:12px;"></div>
@@ -3792,6 +3798,82 @@ function mseHandleFileUpload(event) {
    already there per station/project — never wipes out existing tasks,
    and skips (rather than guesses at) any row with a station or project
    name that doesn't match this app's real list. */
+/* Shared by both the Excel file upload and the paste-from-clipboard path —
+   takes a 2D array of rows (first row = headers) and does the actual
+   validation/import. Returns a status message string. */
+function steProcessImportRows(data) {
+  if (!data.length) throw new Error('No rows found.');
+
+  const header = (data[0] || []).map(h => String(h||'').trim().toLowerCase());
+  const findCol = (...names) => header.findIndex(h => names.some(n => h.includes(n)));
+  const stationIdx = findCol('station');
+  const projectIdx = findCol('project');
+  const taskIdx = findCol('task');
+  const linkIdx = findCol('abi', 'link', 'reference');
+
+  if (stationIdx === -1 || projectIdx === -1 || taskIdx === -1) {
+    throw new Error('Could not find Station, Project, and Task columns — check the first row has headers like "Station", "Project", "Task".');
+  }
+
+  const validStations = STATION_TRACKER_EDITOR_STATIONS;
+  const validProjects = Object.keys(CONFIG.boardCategories);
+  let added = 0, skippedInvalid = 0, skippedDupe = 0;
+  const touched = {}; // 'station|||project' -> true, so we only call steSaveList once per combo
+
+  data.slice(1).forEach(row => {
+    const station = String(row[stationIdx]||'').trim();
+    const project = String(row[projectIdx]||'').trim().toUpperCase();
+    const task = String(row[taskIdx]||'').trim();
+    const link = linkIdx !== -1 ? String(row[linkIdx]||'').trim() : '';
+    if (!station || !project || !task) return; // blank row
+    if (!validStations.includes(station) || !validProjects.includes(project)) { skippedInvalid++; return; }
+
+    if (!STATION_TRACKER_TASKS[station]) STATION_TRACKER_TASKS[station] = {};
+    if (!STATION_TRACKER_TASKS[station][project]) STATION_TRACKER_TASKS[station][project] = [];
+    const list = STATION_TRACKER_TASKS[station][project];
+    if (list.includes(task)) { skippedDupe++; return; }
+    list.push(task);
+    if (link) setDefaultTaskLink(station, project, task, link);
+    touched[station+'|||'+project] = true;
+    added++;
+  });
+
+  Object.keys(touched).forEach(key => {
+    const [station, project] = key.split('|||');
+    const overrides = getStationTrackerOverrides();
+    if (!overrides[station]) overrides[station] = {};
+    overrides[station][project] = STATION_TRACKER_TASKS[station][project];
+    saveStationTrackerOverrides(overrides);
+  });
+
+  renderStationTrackerEditor();
+  return `<span style="color:#0e7c3a;">&#10003; Imported ${added} task${added!==1?'s':''}` +
+    (skippedInvalid ? `, skipped ${skippedInvalid} row${skippedInvalid!==1?'s':''} with an unrecognized station/project` : '') +
+    (skippedDupe ? `, skipped ${skippedDupe} already-existing task${skippedDupe!==1?'s':''}` : '') + `.</span>`;
+}
+
+function steTogglePasteArea() {
+  const el = document.getElementById('ste-paste-area');
+  if (el) el.style.display = el.style.display === 'none' ? 'block' : 'none';
+}
+function steHandlePaste() {
+  const statusEl = document.getElementById('ste-import-status');
+  const input = document.getElementById('ste-paste-input');
+  const raw = input ? input.value : '';
+  if (!raw.trim()) { if (statusEl) statusEl.innerHTML = '<span style="color:#A03033;">Paste some cells first.</span>'; return; }
+  try {
+    // Excel's clipboard format is tab-separated columns, newline-separated rows
+    const data = raw.split(/\r?\n/).filter(line => line.trim() !== '').map(line => line.split('\t'));
+    const msg = steProcessImportRows(data);
+    if (statusEl) statusEl.innerHTML = msg;
+    input.value = '';
+    document.getElementById('ste-paste-area').style.display = 'none';
+  } catch (err) {
+    console.error('Station Tracker paste import failed:', err);
+    if (statusEl) statusEl.innerHTML = '<span style="color:#A03033;">Could not read that: ' + String(err && err.message ? err.message : err) + '</span>';
+  }
+}
+
 function steHandleImport(event) {
   const file = event.target.files && event.target.files[0];
   if (!file) return;
@@ -3808,54 +3890,8 @@ function steHandleImport(event) {
       const wb = XLSX.read(e.target.result, { type: 'array', cellDates: true });
       const sheet = wb.Sheets[wb.SheetNames[0]];
       const data = XLSX.utils.sheet_to_json(sheet, { header: 1, raw: false, defval: '' });
-      if (!data.length) throw new Error('The uploaded file has no rows.');
-
-      const header = (data[0] || []).map(h => String(h||'').trim().toLowerCase());
-      const findCol = (...names) => header.findIndex(h => names.some(n => h.includes(n)));
-      const stationIdx = findCol('station');
-      const projectIdx = findCol('project');
-      const taskIdx = findCol('task');
-      const linkIdx = findCol('abi', 'link', 'reference');
-
-      if (stationIdx === -1 || projectIdx === -1 || taskIdx === -1) {
-        throw new Error('Could not find Station, Project, and Task columns — check the file has headers like "Station", "Project", "Task".');
-      }
-
-      const validStations = STATION_TRACKER_EDITOR_STATIONS;
-      const validProjects = Object.keys(CONFIG.boardCategories);
-      let added = 0, skippedInvalid = 0, skippedDupe = 0;
-      const touched = {}; // 'station|||project' -> true, so we only call steSaveList once per combo
-
-      data.slice(1).forEach(row => {
-        const station = String(row[stationIdx]||'').trim();
-        const project = String(row[projectIdx]||'').trim().toUpperCase();
-        const task = String(row[taskIdx]||'').trim();
-        const link = linkIdx !== -1 ? String(row[linkIdx]||'').trim() : '';
-        if (!station || !project || !task) return; // blank row
-        if (!validStations.includes(station) || !validProjects.includes(project)) { skippedInvalid++; return; }
-
-        if (!STATION_TRACKER_TASKS[station]) STATION_TRACKER_TASKS[station] = {};
-        if (!STATION_TRACKER_TASKS[station][project]) STATION_TRACKER_TASKS[station][project] = [];
-        const list = STATION_TRACKER_TASKS[station][project];
-        if (list.includes(task)) { skippedDupe++; return; }
-        list.push(task);
-        if (link) setDefaultTaskLink(station, project, task, link);
-        touched[station+'|||'+project] = true;
-        added++;
-      });
-
-      Object.keys(touched).forEach(key => {
-        const [station, project] = key.split('|||');
-        const overrides = getStationTrackerOverrides();
-        if (!overrides[station]) overrides[station] = {};
-        overrides[station][project] = STATION_TRACKER_TASKS[station][project];
-        saveStationTrackerOverrides(overrides);
-      });
-
-      if (statusEl) statusEl.innerHTML = `<span style="color:#0e7c3a;">&#10003; Imported ${added} task${added!==1?'s':''}` +
-        (skippedInvalid ? `, skipped ${skippedInvalid} row${skippedInvalid!==1?'s':''} with an unrecognized station/project` : '') +
-        (skippedDupe ? `, skipped ${skippedDupe} already-existing task${skippedDupe!==1?'s':''}` : '') + `.</span>`;
-      renderStationTrackerEditor();
+      const msg = steProcessImportRows(data);
+      if (statusEl) statusEl.innerHTML = msg;
     } catch (err) {
       console.error('Station Tracker import failed:', err);
       if (statusEl) statusEl.innerHTML = '<span style="color:#A03033;">Could not read that file: ' + String(err && err.message ? err.message : err) + '</span>';

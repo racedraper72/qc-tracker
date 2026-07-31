@@ -2720,7 +2720,7 @@ function getChecklistOverrides() {
 }
 function saveChecklistOverrides(overrides) {
   const json = JSON.stringify(overrides);
-  unitIssues['__config__checklist_overrides'] = { url: json, updatedAt: now() };
+  unitIssues['__config__checklist_overrides'] = { url: json, updatedAt: new Date().toISOString() };
   localStorage.setItem('checklist_overrides_local', json);
   saveIssues();
 }
@@ -2765,7 +2765,7 @@ function getLineOverrides() {
 }
 function saveLineOverrides(lines) {
   const json = JSON.stringify(lines);
-  unitIssues['__config__line_overrides'] = { url: json, updatedAt: now() };
+  unitIssues['__config__line_overrides'] = { url: json, updatedAt: new Date().toISOString() };
   localStorage.setItem('line_overrides_local', json);
   saveIssues();
 }
@@ -2939,7 +2939,7 @@ function getProjectOverrides() {
 }
 function saveProjectOverrides(categories) {
   const json = JSON.stringify(categories);
-  unitIssues['__config__project_overrides'] = { url: json, updatedAt: now() };
+  unitIssues['__config__project_overrides'] = { url: json, updatedAt: new Date().toISOString() };
   localStorage.setItem('project_overrides_local', json);
   saveIssues();
 }
@@ -3036,7 +3036,7 @@ function getStationTrackerOverrides() {
 }
 function saveStationTrackerOverrides(overrides) {
   const json = JSON.stringify(overrides);
-  unitIssues['__config__stationtracker_overrides'] = { url: json, updatedAt: now() };
+  unitIssues['__config__stationtracker_overrides'] = { url: json, updatedAt: new Date().toISOString() };
   localStorage.setItem('stationtracker_overrides_local', json);
   saveIssues();
 }
@@ -3052,7 +3052,7 @@ function getStationTaskLinks() {
 }
 function saveStationTaskLinks(links) {
   const json = JSON.stringify(links);
-  unitIssues['__config__stationtracker_links'] = { url: json, updatedAt: now() };
+  unitIssues['__config__stationtracker_links'] = { url: json, updatedAt: new Date().toISOString() };
   localStorage.setItem('stationtracker_links_local', json);
   saveIssues();
 }
@@ -3858,9 +3858,23 @@ function syncFromSheetsViaGAS(onDone) {
       }
       jsonpCall(sheetsUrl+'?tab=Issues', function(err3, rows3) {
         if (!err3 && rows3 && rows3.length>1) {
-          unitIssues = {};
+          // Merge, don't overwrite — the remote sheet may not have caught up
+          // to a very recent local save yet (Apps Script write lag, or the
+          // push simply hasn't landed). Keep whichever version of each key
+          // is actually newer, rather than blindly trusting the remote copy
+          // and discarding a more recent local one. Anything local-only
+          // (pending its first push) is preserved either way.
+          const remoteIssues = {};
           rows3.slice(1).filter(r=>r[0] && r[1]).forEach(r => {
-            unitIssues[r[0]] = { url: r[1], updatedAt: r[2] || '' };
+            remoteIssues[r[0]] = { url: r[1], updatedAt: r[2] || '' };
+          });
+          Object.keys(remoteIssues).forEach(key => {
+            const local = unitIssues[key];
+            const remote = remoteIssues[key];
+            if (!local || !local.updatedAt || (remote.updatedAt && remote.updatedAt >= local.updatedAt)) {
+              unitIssues[key] = remote;
+            }
+            // else: local is newer (or remote has no timestamp to compare) — keep local as-is
           });
           localStorage.setItem('unit_issues', JSON.stringify(unitIssues));
         }
@@ -4273,9 +4287,19 @@ function syncFromSheetsViaSmartsheet(onDone) {
       });
     }
     if (rows3 && rows3.length>1) {
-      unitIssues = {};
+      // Same merge logic as the Google Sheets path — keep whichever
+      // version of each config key is actually newer, don't blindly trust
+      // the remote copy over a more recent local one.
+      const remoteIssues = {};
       rows3.slice(1).filter(r=>r[0] && r[1]).forEach(r => {
-        unitIssues[r[0]] = { url: r[1], updatedAt: r[2] || '' };
+        remoteIssues[r[0]] = { url: r[1], updatedAt: r[2] || '' };
+      });
+      Object.keys(remoteIssues).forEach(key => {
+        const local = unitIssues[key];
+        const remote = remoteIssues[key];
+        if (!local || !local.updatedAt || (remote.updatedAt && remote.updatedAt >= local.updatedAt)) {
+          unitIssues[key] = remote;
+        }
       });
       localStorage.setItem('unit_issues', JSON.stringify(unitIssues));
     }
@@ -5937,7 +5961,7 @@ function getAdminDashboardWidgets() {
 }
 function saveAdminDashboardWidgets(ids) {
   const json = JSON.stringify(ids);
-  unitIssues['__config__admin_dashboard_widgets'] = { url: json, updatedAt: now() };
+  unitIssues['__config__admin_dashboard_widgets'] = { url: json, updatedAt: new Date().toISOString() };
   localStorage.setItem('admin_dashboard_widgets_local', json);
   saveIssues();
 }
@@ -5948,7 +5972,7 @@ function getAdminDashboardChartTypes() {
 }
 function saveAdminDashboardChartTypes(types) {
   const json = JSON.stringify(types);
-  unitIssues['__config__admin_dashboard_charttypes'] = { url: json, updatedAt: now() };
+  unitIssues['__config__admin_dashboard_charttypes'] = { url: json, updatedAt: new Date().toISOString() };
   localStorage.setItem('admin_dashboard_charttypes_local', json);
   saveIssues();
 }
@@ -8727,7 +8751,7 @@ function addDeletedUnitId(uid) {
   const ids = getDeletedUnitIds();
   if (!ids.includes(uid)) ids.push(uid);
   const json = JSON.stringify(ids);
-  unitIssues['__config__deleted_units'] = { url: json, updatedAt: now() };
+  unitIssues['__config__deleted_units'] = { url: json, updatedAt: new Date().toISOString() };
   localStorage.setItem('deleted_units_local', json);
   saveIssues();
 }
@@ -8745,7 +8769,7 @@ function getSupervisorPassword() {
       || 'supervisor123';
 }
 function setSupervisorPassword(pw) {
-  unitIssues['__config__supervisor_pw'] = { url: pw, updatedAt: now() };
+  unitIssues['__config__supervisor_pw'] = { url: pw, updatedAt: new Date().toISOString() };
   localStorage.setItem('supervisor_pw_local', pw);
   saveIssues();
 }

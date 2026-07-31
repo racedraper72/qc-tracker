@@ -1382,6 +1382,12 @@ label { font-size: 11px; font-weight: 600; color: var(--text-2); display: block;
     <p style="font-size:12px;color:#605e5c;margin-bottom:12px;">Add, edit, remove, and reorder production lines and their stations — no code changes needed. Syncs to every device.</p>
     <div id="line-editor-body"></div>
   </div>
+  <!-- PROJECT EDITOR -->
+  <div class="card">
+    <div class="section-title">&#127991; Project editor</div>
+    <p style="font-size:12px;color:#605e5c;margin-bottom:12px;">Add or remove the project codes used for color-coding and Station Tracker task lists (SAT82, CYS43, COMPASS, etc.). Syncs to every device.</p>
+    <div id="project-editor-body"></div>
+  </div>
   <!-- OPERATOR MANAGEMENT -->
   <div class="card">
     <div class="section-title">&#128100; Operator management</div>
@@ -2763,7 +2769,14 @@ function saveLineOverrides(lines) {
   localStorage.setItem('line_overrides_local', json);
   saveIssues();
 }
-function applyLineOverrides() {
+let leLastLocalEditAt = 0;
+function applyLineOverrides(force) {
+  // Same recency guard as Station Tracker/Project edits — a remote pull
+  // racing ahead of a just-made local edit's push shouldn't be able to
+  // silently revert it a few seconds after saving. force=true is used by
+  // the editor's own functions applying their own just-made change, which
+  // should always go through regardless of timing.
+  if (!force && Date.now() - leLastLocalEditAt < 15000) return;
   const overrides = getLineOverrides();
   if (!overrides) return;
   CONFIG.lines.length = 0;
@@ -2780,7 +2793,8 @@ function leAddLine() {
   let n = 1; while (lines.some(l => l.id === 'line_custom_'+n)) n++;
   lines.push({ id:'line_custom_'+n, name:'New Line', subtitle:'', headerColor:'#892729', bgColor:'#D0D3D4', columns:[{label:'Station 1', units:[]}] });
   saveLineOverrides(lines);
-  applyLineOverrides();
+  leLastLocalEditAt = Date.now();
+  applyLineOverrides(true);
   renderLineEditor();
 }
 function leRemoveLine(lineId) {
@@ -2791,7 +2805,8 @@ function leRemoveLine(lineId) {
   if (!confirm(msg)) return;
   const lines = lineEditorSnapshot().filter(l => l.id !== lineId);
   saveLineOverrides(lines);
-  applyLineOverrides();
+  leLastLocalEditAt = Date.now();
+  applyLineOverrides(true);
   renderLineEditor();
 }
 function leEditLineField(lineId, field, value) {
@@ -2799,7 +2814,8 @@ function leEditLineField(lineId, field, value) {
   const line = lines.find(l => l.id === lineId); if (!line) return;
   line[field] = value;
   saveLineOverrides(lines);
-  applyLineOverrides();
+  leLastLocalEditAt = Date.now();
+  applyLineOverrides(true);
   if (field !== 'name' && field !== 'subtitle') renderLineEditor(); // avoid re-render stealing focus mid-typing on text fields
 }
 function leAddStation(lineId) {
@@ -2807,7 +2823,8 @@ function leAddStation(lineId) {
   const line = lines.find(l => l.id === lineId); if (!line) return;
   line.columns.push({ label:'New Station', units:[] });
   saveLineOverrides(lines);
-  applyLineOverrides();
+  leLastLocalEditAt = Date.now();
+  applyLineOverrides(true);
   renderLineEditor();
 }
 function leRemoveStation(lineId, idx) {
@@ -2821,7 +2838,8 @@ function leRemoveStation(lineId, idx) {
   if (!confirm(msg)) return;
   line.columns.splice(idx, 1);
   saveLineOverrides(lines);
-  applyLineOverrides();
+  leLastLocalEditAt = Date.now();
+  applyLineOverrides(true);
   renderLineEditor();
 }
 function leEditStationLabel(lineId, idx, newLabel) {
@@ -2835,7 +2853,8 @@ function leEditStationLabel(lineId, idx, newLabel) {
   pushBoard();
   line.columns[idx].label = newLabel;
   saveLineOverrides(lines);
-  applyLineOverrides();
+  leLastLocalEditAt = Date.now();
+  applyLineOverrides(true);
   renderLineEditor();
 }
 let leDragLineId = null;
@@ -2848,7 +2867,8 @@ function leLineDrop(targetId) {
   const [moved] = lines.splice(from, 1);
   lines.splice(to, 0, moved);
   saveLineOverrides(lines);
-  applyLineOverrides();
+  leLastLocalEditAt = Date.now();
+  applyLineOverrides(true);
   leDragLineId = null;
   renderLineEditor();
 }
@@ -2865,7 +2885,8 @@ function leStationDrop(lineId, targetIdx) {
   const [moved] = line.columns.splice(dragIdx, 1);
   line.columns.splice(targetIdx, 0, moved);
   saveLineOverrides(lines);
-  applyLineOverrides();
+  leLastLocalEditAt = Date.now();
+  applyLineOverrides(true);
   leDragStationKey = null;
   renderLineEditor();
 }
@@ -2899,6 +2920,113 @@ function renderLineEditor() {
     <p style="font-size:11px;color:var(--text-3,#8a96a8);margin-bottom:14px;">Drag a line card by its edge to reorder lines. Renaming a station moves any units currently there to the new name automatically. Syncs to every device.</p>
     ${cards}
     <button class="primary sm" onclick="leAddLine()">+ Add New Line</button>`;
+}
+
+/* ============================================================
+   PROJECT EDITOR — add, edit colors, and remove the project codes
+   used for color-coding and Station Tracker task lists (SAT82,
+   CYS43, COMPASS, etc.). No rename support on purpose: a project
+   code is matched against the START of a unit's actual ID (e.g.
+   "SAT82-27") — renaming the code wouldn't rename any real units,
+   it would just silently break color/tracker matching for every
+   unit already using that prefix. Add a new code or remove one
+   instead of trying to rename.
+   ============================================================ */
+function getProjectOverrides() {
+  const synced = unitIssues['__config__project_overrides'] && unitIssues['__config__project_overrides'].url;
+  if (synced) { try { return JSON.parse(synced); } catch(e) {} }
+  try { return JSON.parse(localStorage.getItem('project_overrides_local') || 'null'); } catch(e) { return null; }
+}
+function saveProjectOverrides(categories) {
+  const json = JSON.stringify(categories);
+  unitIssues['__config__project_overrides'] = { url: json, updatedAt: now() };
+  localStorage.setItem('project_overrides_local', json);
+  saveIssues();
+}
+let peLastLocalEditAt = 0;
+function applyProjectOverrides() {
+  // Same recency guard as Station Tracker task saves — a remote pull
+  // racing ahead of a just-made local edit's push shouldn't be able to
+  // silently revert it a few seconds after saving.
+  if (Date.now() - peLastLocalEditAt < 15000) return;
+  const overrides = getProjectOverrides();
+  if (!overrides) return;
+  Object.keys(CONFIG.boardCategories).forEach(k => delete CONFIG.boardCategories[k]);
+  Object.keys(overrides).forEach(k => { CONFIG.boardCategories[k] = overrides[k]; });
+}
+function peAddProject() {
+  const codeInput = document.getElementById('pe-new-code');
+  const code = codeInput.value.trim().toUpperCase();
+  const errEl = document.getElementById('pe-add-err');
+  if (!code) { errEl.textContent = 'Enter a project code.'; return; }
+  if (CONFIG.boardCategories[code]) { errEl.textContent = 'A project called "'+code+'" already exists.'; return; }
+  const categories = JSON.parse(JSON.stringify(CONFIG.boardCategories));
+  categories[code] = { bg:'#f0f2f5', text:'#323130', border:'#892729' };
+  saveProjectOverrides(categories);
+  peLastLocalEditAt = Date.now();
+  CONFIG.boardCategories[code] = categories[code]; // apply directly — don't rely on the guarded applyProjectOverrides()
+  // Give the new project an empty task list at every station right away,
+  // so it shows up correctly in the Station Tracker Editor immediately.
+  STATION_TRACKER_EDITOR_STATIONS.forEach(station => {
+    if (!STATION_TRACKER_TASKS[station]) STATION_TRACKER_TASKS[station] = {};
+    if (!STATION_TRACKER_TASKS[station][code]) STATION_TRACKER_TASKS[station][code] = [];
+  });
+  errEl.textContent = '';
+  codeInput.value = '';
+  renderProjectEditor();
+}
+function peRemoveProject(code) {
+  const inUse = getAllBoardUnits().filter(u => !u.completed && getProjectType(u.id) === code).length;
+  const msg = inUse
+    ? `${inUse} active unit${inUse!==1?'s are':' is'} currently matched to "${code}". Removing it won't delete those units, but they'll lose their color-coding and stop finding a matching Station Tracker task list until this project code exists again. Remove anyway?`
+    : `Remove project "${code}"?`;
+  if (!confirm(msg)) return;
+  const categories = JSON.parse(JSON.stringify(CONFIG.boardCategories));
+  delete categories[code];
+  saveProjectOverrides(categories);
+  peLastLocalEditAt = Date.now();
+  delete CONFIG.boardCategories[code]; // apply directly
+  renderProjectEditor();
+}
+function peEditColor(code, field, value) {
+  const categories = JSON.parse(JSON.stringify(CONFIG.boardCategories));
+  if (!categories[code]) return;
+  categories[code][field] = value;
+  saveProjectOverrides(categories);
+  peLastLocalEditAt = Date.now();
+  CONFIG.boardCategories[code][field] = value; // apply directly
+}
+function renderProjectEditor() {
+  const el = document.getElementById('project-editor-body'); if (!el) return;
+  const codes = Object.keys(CONFIG.boardCategories);
+  const rows = codes.map(code => {
+    const c = CONFIG.boardCategories[code];
+    return `<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid #f0f2f5;">
+      <span style="font-size:12px;font-weight:800;padding:4px 12px;border-radius:20px;background:${c.border};color:#fff;min-width:70px;text-align:center;">${code}</span>
+      <div style="display:flex;align-items:center;gap:4px;">
+        <label style="font-size:10px;color:var(--text-3,#8a96a8);">Border</label>
+        <input type="color" value="${c.border}" onchange="peEditColor('${code}','border',this.value)" style="width:32px;height:28px;padding:1px;" />
+      </div>
+      <div style="display:flex;align-items:center;gap:4px;">
+        <label style="font-size:10px;color:var(--text-3,#8a96a8);">Text</label>
+        <input type="color" value="${c.text}" onchange="peEditColor('${code}','text',this.value)" style="width:32px;height:28px;padding:1px;" />
+      </div>
+      <div style="display:flex;align-items:center;gap:4px;">
+        <label style="font-size:10px;color:var(--text-3,#8a96a8);">Background</label>
+        <input type="color" value="${c.bg}" onchange="peEditColor('${code}','bg',this.value)" style="width:32px;height:28px;padding:1px;" />
+      </div>
+      <button onclick="peRemoveProject('${code}')" title="Remove project" style="margin-left:auto;width:28px;height:28px;border-radius:8px;border:1px solid #e2e6ea;background:#fff;color:#A03033;cursor:pointer;flex-shrink:0;">&#10005;</button>
+    </div>`;
+  }).join('');
+
+  el.innerHTML = `
+    <p style="font-size:11px;color:var(--text-3,#8a96a8);margin-bottom:12px;">This is the same project list used for unit color-coding everywhere in the app and for the Station Tracker Editor's project tabs. Renaming isn't offered here — add a new code or remove an old one instead, since a project code is matched against the start of a unit's actual ID.</p>
+    ${rows}
+    <div style="display:flex;gap:8px;align-items:flex-end;margin-top:14px;">
+      <div><label style="font-size:10px;font-weight:700;color:var(--text-3,#8a96a8);text-transform:uppercase;">New project code</label><input id="pe-new-code" type="text" placeholder="e.g. WDC2" style="font-size:13px;padding:8px 10px;" /></div>
+      <button class="primary sm" onclick="peAddProject()">+ Add Project</button>
+    </div>
+    <div id="pe-add-err" style="color:#A03033;font-size:12px;min-height:16px;margin-top:6px;"></div>`;
 }
 
 function getStationTrackerOverrides() {
@@ -2939,7 +3067,14 @@ function setDefaultTaskLink(station, project, taskName, url) {
   links[station][project][taskName] = url;
   saveStationTaskLinks(links);
 }
+let steLastLocalEditAt = 0;
 function applyStationTrackerOverrides() {
+  // If a task list was edited on THIS device in the last 15 seconds, skip
+  // re-applying from unitIssues this cycle — a remote pull racing ahead of
+  // the push that hasn't landed yet would otherwise overwrite the fresh
+  // local edit with the still-stale server copy, making a just-saved task
+  // appear to "disappear" a few seconds after adding it.
+  if (Date.now() - steLastLocalEditAt < 15000) return;
   // overrides shape: { station: { project: [taskNames] } }
   const overrides = getStationTrackerOverrides();
   Object.keys(overrides).forEach(station => {
@@ -2953,6 +3088,7 @@ function steGetList(station, project) {
   return (STATION_TRACKER_TASKS[station] && STATION_TRACKER_TASKS[station][project]) || [];
 }
 function steSaveList(station, project, tasks) {
+  steLastLocalEditAt = Date.now();
   const overrides = getStationTrackerOverrides();
   if (!overrides[station]) overrides[station] = {};
   overrides[station][project] = tasks;
@@ -4229,7 +4365,7 @@ function _showPage(page) {
   if (page==='editunit') { renderEditUnitPage(); }
   if (page==='masterschedule') { renderMasterSchedulePage(); }
   if (page==='admin') {
-    renderAdminQC(); renderAdminBoard(); renderOperatorList(); renderChecklistEditor(); renderStationTrackerEditor(); renderAdminDashboardCardManager(); renderLineEditor();
+    renderAdminQC(); renderAdminBoard(); renderOperatorList(); renderChecklistEditor(); renderStationTrackerEditor(); renderAdminDashboardCardManager(); renderLineEditor(); renderProjectEditor();
     document.getElementById('cfg-target').value = syncTarget;
     document.getElementById('cfg-url-sheets').value = sheetsUrl;
     document.getElementById('cfg-url-smartsheet').value = smartsheetUrl;
@@ -4281,6 +4417,7 @@ function renderAll() {
   applyChecklistOverrides();
   applyStationTrackerOverrides();
   applyLineOverrides();
+  applyProjectOverrides();
   renderCatLegend(); initMatrixFilter();
   renderColCounts();
   renderBoardStats(); renderLineSummary(); renderBoardCompleted();
@@ -8750,6 +8887,7 @@ function init() {
   applyChecklistOverrides();
   applyStationTrackerOverrides();
   applyLineOverrides();
+  applyProjectOverrides();
   applyNavOrder();
   initOperatorSelect();
   // Bookmark this device's browser to .../?tv=1 to boot straight into TV Mode —

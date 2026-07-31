@@ -935,6 +935,7 @@ label { font-size: 11px; font-weight: 600; color: var(--text-2); display: block;
 }
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 </head>
 <body>
 
@@ -954,6 +955,7 @@ label { font-size: 11px; font-weight: 600; color: var(--text-2); display: block;
   <div class="header-nav">
     <button class="nav-btn active" draggable="true" ondragstart="navDragStart('nav-dashboard')" ondragover="event.preventDefault()" ondrop="navDrop('nav-dashboard')" id="nav-dashboard" onclick="showPage('dashboard')">&#9632; Dashboard</button>
     <button class="nav-btn" draggable="true" ondragstart="navDragStart('nav-cat')" ondragover="event.preventDefault()" ondrop="navDrop('nav-cat')" id="nav-cat" onclick="showPage('cat')">&#128663; Cat Dashboard</button>
+    <button class="nav-btn" draggable="true" ondragstart="navDragStart('nav-floormap')" ondragover="event.preventDefault()" ondrop="navDrop('nav-floormap')" id="nav-floormap" onclick="showPage('floormap')">&#128506; Floor Map</button>
     <button class="nav-btn" draggable="true" ondragstart="navDragStart('nav-editunit')" ondragover="event.preventDefault()" ondrop="navDrop('nav-editunit')" id="nav-editunit" onclick="showPage('editunit')">&#9998; Edit/Add Unit</button>
     <button class="nav-btn" draggable="true" ondragstart="navDragStart('nav-masterschedule')" ondragover="event.preventDefault()" ondrop="navDrop('nav-masterschedule')" id="nav-masterschedule" onclick="showPage('masterschedule')">&#128197; Master Schedule</button>
     <button class="nav-btn" draggable="true" ondragstart="navDragStart('nav-pm')" ondragover="event.preventDefault()" ondrop="navDrop('nav-pm')" id="nav-pm" onclick="showPage('pm')">&#128200; PM View</button>
@@ -1671,6 +1673,32 @@ label { font-size: 11px; font-weight: 600; color: var(--text-2); display: block;
   <div id="cat-dashboard-body" style="display:flex;flex-direction:column;gap:16px;"></div>
 </div>
 <!-- ============================================================ END CAT DASHBOARD PAGE -->
+
+<!-- ============================================================ FLOOR MAP PAGE -->
+<div id="page-floormap" class="app-body" style="display:none;">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:8px;">
+    <div>
+      <h2 style="font-size:16px;font-weight:800;letter-spacing:-.3px;">&#128506; Floor Map</h2>
+      <p style="font-size:12px;color:var(--text-2);margin-top:3px;">Drag a unit marker to update where it physically sits on the floor right now.</p>
+    </div>
+    <div style="display:flex;gap:8px;">
+      <input type="file" id="fm-bg-upload" accept="image/*,.pdf" style="display:none;" onchange="fmHandleBgUpload(event)" />
+      <button class="subtle sm" onclick="document.getElementById('fm-bg-upload').click()">&#8593; Upload Floor Plan (image or PDF)</button>
+      <button class="subtle sm" onclick="fmClearBg()">&#10005; Clear Floor Plan</button>
+    </div>
+  </div>
+  <div style="display:grid;grid-template-columns:220px 1fr;gap:16px;align-items:start;">
+    <div class="card" style="padding:12px;">
+      <div style="font-size:11px;font-weight:700;color:var(--text-2,#605e5c);text-transform:uppercase;margin-bottom:8px;">Unplaced Units</div>
+      <div id="fm-unplaced-list" style="display:flex;flex-direction:column;gap:6px;max-height:70vh;overflow-y:auto;"></div>
+    </div>
+    <div id="fm-map-container" style="position:relative;width:100%;aspect-ratio:16/10;background:#f0f2f5;border:2px dashed #c8d0dc;border-radius:10px;overflow:hidden;">
+      <div id="fm-map-empty" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#8a96a8;font-size:13px;text-align:center;padding:20px;">No floor plan uploaded yet — click "Upload Floor Plan" to add one, or place units on this blank canvas for now.</div>
+      <div id="fm-markers-layer" style="position:absolute;inset:0;"></div>
+    </div>
+  </div>
+</div>
+<!-- ============================================================ END FLOOR MAP PAGE -->
 
 <!-- ============================================================ EDIT/ADD UNIT PAGE -->
 <div id="page-editunit" class="app-body" style="display:none;">
@@ -3056,6 +3084,209 @@ function saveStationTaskLinks(links) {
   localStorage.setItem('stationtracker_links_local', json);
   saveIssues();
 }
+
+/* ============================================================
+   FLOOR MAP — drag a unit marker onto (or around) an uploaded floor
+   plan image to record where it physically sits right now. Position
+   is stored as u.mapX/u.mapY (0-100, percentage of the map container),
+   synced the same way as every other unit field. The background image
+   itself is stored as a resized base64 image in the same synced config
+   store as everything else in Admin, so it's shared across devices too.
+   ============================================================ */
+function getFloorMapBg() {
+  const synced = unitIssues['__config__floormap_bg'] && unitIssues['__config__floormap_bg'].url;
+  if (synced) return synced;
+  return localStorage.getItem('floormap_bg_local') || '';
+}
+function saveFloorMapBg(dataUrl) {
+  unitIssues['__config__floormap_bg'] = { url: dataUrl, updatedAt: new Date().toISOString() };
+  localStorage.setItem('floormap_bg_local', dataUrl);
+  fmLastLocalEditAt = Date.now();
+  saveIssues();
+}
+let fmLastLocalEditAt = 0;
+function applyFloorMapBgGuard() {
+  // Same recency-guard reasoning as the other editors — a remote pull
+  // shouldn't be able to revert a just-uploaded floor plan a few seconds
+  // after uploading it, before the push has had time to actually land.
+  return Date.now() - fmLastLocalEditAt < 15000;
+}
+
+function fmSaveResizedCanvas(sourceCanvasOrImg, sourceW, sourceH) {
+  // Shared by both the image path and the PDF path — resize down to a
+  // reasonable max width before storing, so an unresized phone photo or
+  // a high-DPI PDF render doesn't risk the same kind of oversized-payload
+  // problem this app's sync already had to get fixed once before.
+  const maxW = 1600;
+  const scale = Math.min(1, maxW / sourceW);
+  const canvas = document.createElement('canvas');
+  canvas.width = sourceW * scale;
+  canvas.height = sourceH * scale;
+  const ctx = canvas.getContext('2d');
+  ctx.drawImage(sourceCanvasOrImg, 0, 0, canvas.width, canvas.height);
+  const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
+  saveFloorMapBg(dataUrl);
+  renderFloorMap();
+}
+
+function fmHandleBgUpload(event) {
+  const file = event.target.files && event.target.files[0];
+  if (!file) return;
+  const isPdf = file.type === 'application/pdf' || /\.pdf$/i.test(file.name);
+
+  if (isPdf) {
+    if (typeof pdfjsLib === 'undefined') {
+      alert('The PDF reader library did not load — check your internet connection and try again.');
+      event.target.value = '';
+      return;
+    }
+    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      pdfjsLib.getDocument({ data: e.target.result }).promise.then(pdf => {
+        return pdf.getPage(1); // floor plans are almost always a single-page PDF — use the first page
+      }).then(page => {
+        const viewport = page.getViewport({ scale: 2 }); // render at 2x for reasonable sharpness before we downscale anyway
+        const canvas = document.createElement('canvas');
+        canvas.width = viewport.width;
+        canvas.height = viewport.height;
+        const ctx = canvas.getContext('2d');
+        return page.render({ canvasContext: ctx, viewport }).promise.then(() => canvas);
+      }).then(canvas => {
+        fmSaveResizedCanvas(canvas, canvas.width, canvas.height);
+      }).catch(err => {
+        console.error('PDF floor plan render failed:', err);
+        alert('Could not read that PDF: ' + (err && err.message ? err.message : err));
+      });
+    };
+    reader.readAsArrayBuffer(file);
+    event.target.value = '';
+    return;
+  }
+
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    const img = new Image();
+    img.onload = () => { fmSaveResizedCanvas(img, img.width, img.height); };
+    img.src = e.target.result;
+  };
+  reader.readAsDataURL(file);
+  event.target.value = '';
+}
+function fmClearBg() {
+  if (!confirm('Remove the current floor plan image? Unit positions stay put, just the background image goes away.')) return;
+  saveFloorMapBg('');
+  renderFloorMap();
+}
+
+function fmPlaceUnit(unitId) {
+  const u = ensureBoardTracked(unitId);
+  // Drop newly-placed units at a staggered default spot near the top-left
+  // rather than always the exact same point, so multiple new placements
+  // don't all stack invisibly on top of each other.
+  const placedCount = getAllBoardUnits().filter(x => !x.completed && x.mapX != null).length;
+  u.mapX = 8 + (placedCount % 8) * 4;
+  u.mapY = 8 + Math.floor(placedCount / 8) * 10;
+  pushBoard();
+  renderFloorMap();
+}
+function fmUnplaceUnit(unitId) {
+  const u = ensureBoardTracked(unitId);
+  u.mapX = null; u.mapY = null;
+  pushBoard();
+  renderFloorMap();
+}
+
+let fmDragUnitId = null, fmDragOffsetX = 0, fmDragOffsetY = 0;
+function fmMarkerMouseDown(e, unitId) {
+  e.preventDefault();
+  fmDragUnitId = unitId;
+  const container = document.getElementById('fm-map-container');
+  const marker = document.getElementById('fm-marker-' + safeId(unitId));
+  if (!container || !marker) return;
+  const containerRect = container.getBoundingClientRect();
+  const markerRect = marker.getBoundingClientRect();
+  fmDragOffsetX = e.clientX - markerRect.left;
+  fmDragOffsetY = e.clientY - markerRect.top;
+  marker.style.zIndex = 100;
+  marker.style.cursor = 'grabbing';
+  document.addEventListener('mousemove', fmMarkerMouseMove);
+  document.addEventListener('mouseup', fmMarkerMouseUp);
+}
+function fmMarkerMouseMove(e) {
+  if (!fmDragUnitId) return;
+  const container = document.getElementById('fm-map-container');
+  const marker = document.getElementById('fm-marker-' + safeId(fmDragUnitId));
+  if (!container || !marker) return;
+  const rect = container.getBoundingClientRect();
+  let x = e.clientX - rect.left - fmDragOffsetX + 14; // +14 to roughly center on the marker's own width
+  let y = e.clientY - rect.top - fmDragOffsetY + 14;
+  const pctX = Math.max(0, Math.min(100, (x / rect.width) * 100));
+  const pctY = Math.max(0, Math.min(100, (y / rect.height) * 100));
+  marker.style.left = pctX + '%';
+  marker.style.top = pctY + '%';
+  marker.dataset.pendingX = pctX;
+  marker.dataset.pendingY = pctY;
+}
+function fmMarkerMouseUp() {
+  document.removeEventListener('mousemove', fmMarkerMouseMove);
+  document.removeEventListener('mouseup', fmMarkerMouseUp);
+  if (!fmDragUnitId) return;
+  const marker = document.getElementById('fm-marker-' + safeId(fmDragUnitId));
+  if (marker && marker.dataset.pendingX !== undefined) {
+    const u = ensureBoardTracked(fmDragUnitId);
+    u.mapX = parseFloat(marker.dataset.pendingX);
+    u.mapY = parseFloat(marker.dataset.pendingY);
+    pushBoard();
+    marker.style.cursor = 'grab';
+    marker.style.zIndex = 10;
+  }
+  fmDragUnitId = null;
+}
+
+function renderFloorMap() {
+  const bgEl = document.getElementById('fm-map-container');
+  const emptyEl = document.getElementById('fm-map-empty');
+  const markersEl = document.getElementById('fm-markers-layer');
+  const listEl = document.getElementById('fm-unplaced-list');
+  if (!bgEl || !markersEl || !listEl) return;
+
+  const bg = getFloorMapBg();
+  if (bg) {
+    bgEl.style.backgroundImage = `url(${bg})`;
+    bgEl.style.backgroundSize = 'contain';
+    bgEl.style.backgroundRepeat = 'no-repeat';
+    bgEl.style.backgroundPosition = 'center';
+    if (emptyEl) emptyEl.style.display = 'none';
+  } else {
+    bgEl.style.backgroundImage = '';
+    if (emptyEl) emptyEl.style.display = 'flex';
+  }
+
+  const active = getAllBoardUnits().filter(u => !u.completed);
+  const placed = active.filter(u => u.mapX != null && u.mapY != null);
+  const unplaced = active.filter(u => u.mapX == null || u.mapY == null);
+
+  markersEl.innerHTML = placed.map(u => {
+    const cs = getBoardCatStyle(u.id);
+    return `<div id="fm-marker-${safeId(u.id)}" onmousedown="fmMarkerMouseDown(event,'${u.id}')" title="${u.id} — ${u.col} — drag to move, double-click to unplace"
+      style="position:absolute;left:${u.mapX}%;top:${u.mapY}%;width:28px;height:28px;border-radius:50%;background:${cs.border};border:3px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,.35);cursor:grab;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:800;color:#fff;user-select:none;z-index:10;"
+      ondblclick="fmUnplaceUnit('${u.id}')">
+      ${u.id.replace(/[^0-9]/g,'').slice(-3) || '&#9679;'}
+    </div>`;
+  }).join('');
+
+  listEl.innerHTML = unplaced.length
+    ? unplaced.map(u => {
+        const cs = getBoardCatStyle(u.id);
+        return `<button onclick="fmPlaceUnit('${u.id}')" style="text-align:left;font-size:12px;padding:8px 10px;border-radius:8px;border:1px solid ${cs.border};background:#fff;color:${cs.text};cursor:pointer;">
+          <div style="font-weight:700;">${u.id}</div>
+          <div style="font-size:10px;color:var(--text-3,#8a96a8);">${u.col}</div>
+        </button>`;
+      }).join('')
+    : '<p style="font-size:12px;color:var(--text-3,#8a96a8);font-style:italic;">Every active unit has a placed position.</p>';
+}
+
 function getDefaultTaskLink(station, project, taskName) {
   const links = getStationTaskLinks();
   return (links[station] && links[station][project] && links[station][project][taskName]) || '';
@@ -3799,7 +4030,7 @@ function jsonpSave(tab, rows) {
   const header = tab==='QC'
     ? ['Serial','Type','Station','InspectionStarted','Held','Remediation','RemediationOrigin','Completed','Status','HistoryJSON']
     : tab==='Board'
-    ? ['UnitID','Line','Column','Held','Completed','Notes','ESONumber','GensetSerial','ReadyForInspection','InspectionStarted','HistoryJSON','SupervisorReleased','SupervisorReleaseTs','DeviationNeeded','DeviationNote','DeviationTs','ChecklistJSON','QCChecklistJSON','FailOverridesJSON','Station2TasksJSON','SolutionsESO','DueDate','LeadCheckinsJSON','StationTrackerTasksJSON','FuelTankSerial','Location']
+    ? ['UnitID','Line','Column','Held','Completed','Notes','ESONumber','GensetSerial','ReadyForInspection','InspectionStarted','HistoryJSON','SupervisorReleased','SupervisorReleaseTs','DeviationNeeded','DeviationNote','DeviationTs','ChecklistJSON','QCChecklistJSON','FailOverridesJSON','Station2TasksJSON','SolutionsESO','DueDate','LeadCheckinsJSON','StationTrackerTasksJSON','FuelTankSerial','Location','MapX','MapY']
     : ['UnitID','Link','UpdatedAt'];
   const payload = JSON.stringify({action:'save', rows:[header,...rows]});
 
@@ -3853,7 +4084,7 @@ function syncFromSheetsViaGAS(onDone) {
           let stationTrackerTasks={}; try{stationTrackerTasks=JSON.parse(r[23]||'{}');}catch(e){}
           return {id:r[0],line:r[1],col:r[2],held:r[3]==='TRUE'||r[3]===true,completed:r[4]==='TRUE'||r[4]===true,notes:r[5]||'',esoNumber:r[6]||'',gensetSerial:r[7]||'',readyForInspection:r[8]==='TRUE'||r[8]===true,inspectionStarted:r[9]==='TRUE'||r[9]===true,history,
             supervisorReleased:r[11]==='TRUE'||r[11]===true,supervisorReleaseTs:r[12]||'',
-            deviationNeeded:r[13]==='TRUE'||r[13]===true,deviationNote:r[14]||'',deviationTs:r[15]||'',checklist,qcChecklist,failOverrides,station2Tasks,solutionsEso:r[20]||'',dueDate:r[21]||'',leadCheckins,stationTrackerTasks,fuelTankSerial:r[24]||'',location:r[25]||''};
+            deviationNeeded:r[13]==='TRUE'||r[13]===true,deviationNote:r[14]||'',deviationTs:r[15]||'',checklist,qcChecklist,failOverrides,station2Tasks,solutionsEso:r[20]||'',dueDate:r[21]||'',leadCheckins,stationTrackerTasks,fuelTankSerial:r[24]||'',location:r[25]||'',mapX:r[26]!==undefined&&r[26]!==''?parseFloat(r[26]):null,mapY:r[27]!==undefined&&r[27]!==''?parseFloat(r[27]):null};
         });
       }
       jsonpCall(sheetsUrl+'?tab=Issues', function(err3, rows3) {
@@ -3894,7 +4125,7 @@ function proxySave(tab, rows) {
   const header = tab==='QC'
     ? ['Serial','Type','Station','InspectionStarted','Held','Remediation','RemediationOrigin','Completed','Status','HistoryJSON']
     : tab==='Board'
-    ? ['UnitID','Line','Column','Held','Completed','Notes','ESONumber','GensetSerial','ReadyForInspection','InspectionStarted','HistoryJSON','SupervisorReleased','SupervisorReleaseTs','DeviationNeeded','DeviationNote','DeviationTs','ChecklistJSON','QCChecklistJSON','FailOverridesJSON','Station2TasksJSON','SolutionsESO','DueDate','LeadCheckinsJSON','StationTrackerTasksJSON','FuelTankSerial','Location']
+    ? ['UnitID','Line','Column','Held','Completed','Notes','ESONumber','GensetSerial','ReadyForInspection','InspectionStarted','HistoryJSON','SupervisorReleased','SupervisorReleaseTs','DeviationNeeded','DeviationNote','DeviationTs','ChecklistJSON','QCChecklistJSON','FailOverridesJSON','Station2TasksJSON','SolutionsESO','DueDate','LeadCheckinsJSON','StationTrackerTasksJSON','FuelTankSerial','Location','MapX','MapY']
     : ['UnitID','Link','UpdatedAt'];
   return proxyFetch('?action=save&tab='+tab, {
     method: 'POST',
@@ -4283,7 +4514,7 @@ function syncFromSheetsViaSmartsheet(onDone) {
         let stationTrackerTasks={}; try{stationTrackerTasks=JSON.parse(r[23]||'{}');}catch(e){}
         return {id:r[0],line:r[1],col:r[2],held:r[3]==='TRUE'||r[3]===true,completed:r[4]==='TRUE'||r[4]===true,notes:r[5]||'',esoNumber:r[6]||'',gensetSerial:r[7]||'',readyForInspection:r[8]==='TRUE'||r[8]===true,inspectionStarted:r[9]==='TRUE'||r[9]===true,history,
           supervisorReleased:r[11]==='TRUE'||r[11]===true,supervisorReleaseTs:r[12]||'',
-          deviationNeeded:r[13]==='TRUE'||r[13]===true,deviationNote:r[14]||'',deviationTs:r[15]||'',checklist,qcChecklist,failOverrides,station2Tasks,solutionsEso:r[20]||'',dueDate:r[21]||'',leadCheckins,stationTrackerTasks,fuelTankSerial:r[24]||'',location:r[25]||''};
+          deviationNeeded:r[13]==='TRUE'||r[13]===true,deviationNote:r[14]||'',deviationTs:r[15]||'',checklist,qcChecklist,failOverrides,station2Tasks,solutionsEso:r[20]||'',dueDate:r[21]||'',leadCheckins,stationTrackerTasks,fuelTankSerial:r[24]||'',location:r[25]||'',mapX:r[26]!==undefined&&r[26]!==''?parseFloat(r[26]):null,mapY:r[27]!==undefined&&r[27]!==''?parseFloat(r[27]):null};
       });
     }
     if (rows3 && rows3.length>1) {
@@ -4343,7 +4574,7 @@ function pushQC() {
 }
 function pushBoard() {
   saveLocalCache();
-  const rows = boardUnits.map(u=>[u.id,u.line,u.col,u.held,u.completed,u.notes,u.esoNumber||'',u.gensetSerial||'',u.readyForInspection||false,u.inspectionStarted||false,JSON.stringify(u.history),u.supervisorReleased||false,u.supervisorReleaseTs||'',u.deviationNeeded||false,u.deviationNote||'',u.deviationTs||'',JSON.stringify(u.checklist||{}),JSON.stringify(u.qcChecklist||{}),JSON.stringify(u.failOverrides||[]),JSON.stringify(u.station2Tasks||{}),u.solutionsEso||'',u.dueDate||'',JSON.stringify(u.leadCheckins||[]),JSON.stringify(u.stationTrackerTasks||{}),u.fuelTankSerial||'',u.location||'']);
+  const rows = boardUnits.map(u=>[u.id,u.line,u.col,u.held,u.completed,u.notes,u.esoNumber||'',u.gensetSerial||'',u.readyForInspection||false,u.inspectionStarted||false,JSON.stringify(u.history),u.supervisorReleased||false,u.supervisorReleaseTs||'',u.deviationNeeded||false,u.deviationNote||'',u.deviationTs||'',JSON.stringify(u.checklist||{}),JSON.stringify(u.qcChecklist||{}),JSON.stringify(u.failOverrides||[]),JSON.stringify(u.station2Tasks||{}),u.solutionsEso||'',u.dueDate||'',JSON.stringify(u.leadCheckins||[]),JSON.stringify(u.stationTrackerTasks||{}),u.fuelTankSerial||'',u.location||'',u.mapX==null?'':u.mapX,u.mapY==null?'':u.mapY]);
   if (syncTarget === 'smartsheet') proxySave('Board', rows); else jsonpSave('Board', rows);
 }
 function pushIssues() {
@@ -4368,7 +4599,7 @@ function showPage(page) {
 function _showPage(page) {
   currentPage=page;
   const STATION_TRACKER_PAGE_IDS = STATION_TRACKER_STATIONS.map(s => 'stationtracker_' + s.replace(/\s+/g,''));
-  ['dashboard','floor','pm','tracker','history','admin','tv','station2','cat','editunit','masterschedule', ...STATION_TRACKER_PAGE_IDS].forEach(p => {
+  ['dashboard','floor','pm','tracker','history','admin','tv','station2','cat','editunit','masterschedule','floormap', ...STATION_TRACKER_PAGE_IDS].forEach(p => {
     const el=document.getElementById('page-'+p); if(el) el.style.display=p===page?'block':'none';
     const btn=document.getElementById('nav-'+p); if(btn) btn.classList.toggle('active',p===page);
   });
@@ -4386,6 +4617,7 @@ function _showPage(page) {
   }
   else                    { stopS2Ticker(); }
   if (page==='cat')      { renderCatDashboard(); }
+  if (page==='floormap') { renderFloorMap(); }
   if (page==='editunit') { renderEditUnitPage(); }
   if (page==='masterschedule') { renderMasterSchedulePage(); }
   if (page==='admin') {
@@ -4543,7 +4775,7 @@ function _addAllBoardUnits() {
   });
   if (hasError) return;
   toAdd.forEach(u => {
-    boardUnits.push({id:u.id,line:u.line,col:u.col,held:false,completed:false,notes:u.notes,esoNumber:'',gensetSerial:'',fuelTankSerial:'',location:'',solutionsEso:u.solEso||'',dueDate:u.dueDate||'',leadCheckins:[],readyForInspection:false,inspectionStarted:false,supervisorReleased:false,supervisorReleaseTs:'',deviationNeeded:false,deviationNote:'',deviationTs:'',checklist:{},qcChecklist:{},failOverrides:[],station2Tasks:{},stationTrackerTasks:{},history:[{action:'Added to '+u.col,ts:now(),notes:u.notes}]});
+    boardUnits.push({id:u.id,line:u.line,col:u.col,held:false,completed:false,notes:u.notes,esoNumber:'',gensetSerial:'',fuelTankSerial:'',location:'',mapX:null,mapY:null,solutionsEso:u.solEso||'',dueDate:u.dueDate||'',leadCheckins:[],readyForInspection:false,inspectionStarted:false,supervisorReleased:false,supervisorReleaseTs:'',deviationNeeded:false,deviationNote:'',deviationTs:'',checklist:{},qcChecklist:{},failOverrides:[],station2Tasks:{},stationTrackerTasks:{},history:[{action:'Added to '+u.col,ts:now(),notes:u.notes}]});
   });
   err.textContent=''; document.getElementById('board-add-form').style.display='none';
   pushBoard(); renderAll();
@@ -4561,7 +4793,7 @@ function getAllBoardUnits() {
         if (deleted.includes(uid)) return; // tombstoned — don't resurrect from the static seed
         if (!merged.find(u=>u.id===uid)) {
           const tracked=boardUnits.find(u=>u.id===uid);
-          merged.push(tracked||{id:uid,line:line.id,col:col.label,held:false,completed:false,notes:'',esoNumber:'',gensetSerial:'',fuelTankSerial:'',location:'',solutionsEso:'',dueDate:'',leadCheckins:[],readyForInspection:false,inspectionStarted:false,supervisorReleased:false,supervisorReleaseTs:'',deviationNeeded:false,deviationNote:'',deviationTs:'',checklist:{},qcChecklist:{},failOverrides:[],station2Tasks:{},stationTrackerTasks:{},history:[]});
+          merged.push(tracked||{id:uid,line:line.id,col:col.label,held:false,completed:false,notes:'',esoNumber:'',gensetSerial:'',fuelTankSerial:'',location:'',mapX:null,mapY:null,solutionsEso:'',dueDate:'',leadCheckins:[],readyForInspection:false,inspectionStarted:false,supervisorReleased:false,supervisorReleaseTs:'',deviationNeeded:false,deviationNote:'',deviationTs:'',checklist:{},qcChecklist:{},failOverrides:[],station2Tasks:{},stationTrackerTasks:{},history:[]});
         }
       });
     });
@@ -5073,7 +5305,7 @@ function ensureBoardTracked(unitId) {
   if (!u) {
     const line=CONFIG.lines.find(l=>l.columns.some(c=>c.units.includes(unitId)));
     const col=line?line.columns.find(c=>c.units.includes(unitId)):null;
-    u={id:unitId,line:line?line.id:activeLine,col:col?col.label:activeCol,held:false,completed:false,notes:'',esoNumber:'',gensetSerial:'',fuelTankSerial:'',location:'',solutionsEso:'',dueDate:'',leadCheckins:[],readyForInspection:false,inspectionStarted:false,supervisorReleased:false,supervisorReleaseTs:'',deviationNeeded:false,deviationNote:'',deviationTs:'',checklist:{},qcChecklist:{},failOverrides:[],station2Tasks:{},stationTrackerTasks:{},history:[]};
+    u={id:unitId,line:line?line.id:activeLine,col:col?col.label:activeCol,held:false,completed:false,notes:'',esoNumber:'',gensetSerial:'',fuelTankSerial:'',location:'',mapX:null,mapY:null,solutionsEso:'',dueDate:'',leadCheckins:[],readyForInspection:false,inspectionStarted:false,supervisorReleased:false,supervisorReleaseTs:'',deviationNeeded:false,deviationNote:'',deviationTs:'',checklist:{},qcChecklist:{},failOverrides:[],station2Tasks:{},stationTrackerTasks:{},history:[]};
     boardUnits.push(u);
   }
   return u;
@@ -5594,7 +5826,7 @@ function eauAddAllUnits() {
   });
   if (hasError) return;
   toAdd.forEach(u => {
-    boardUnits.push({id:u.id,line:u.line,col:u.col,held:false,completed:false,notes:u.notes,esoNumber:'',gensetSerial:'',fuelTankSerial:'',location:'',solutionsEso:u.solEso,dueDate:u.dueDate,leadCheckins:[],readyForInspection:false,inspectionStarted:false,supervisorReleased:false,supervisorReleaseTs:'',deviationNeeded:false,deviationNote:'',deviationTs:'',checklist:{},qcChecklist:{},failOverrides:[],station2Tasks:{},stationTrackerTasks:{},history:[{action:'Added to '+u.col,ts:now(),notes:u.notes}]});
+    boardUnits.push({id:u.id,line:u.line,col:u.col,held:false,completed:false,notes:u.notes,esoNumber:'',gensetSerial:'',fuelTankSerial:'',location:'',mapX:null,mapY:null,solutionsEso:u.solEso,dueDate:u.dueDate,leadCheckins:[],readyForInspection:false,inspectionStarted:false,supervisorReleased:false,supervisorReleaseTs:'',deviationNeeded:false,deviationNote:'',deviationTs:'',checklist:{},qcChecklist:{},failOverrides:[],station2Tasks:{},stationTrackerTasks:{},history:[{action:'Added to '+u.col,ts:now(),notes:u.notes}]});
   });
   err.textContent = '';
   document.getElementById('eau-rows').innerHTML = ''; eauRowCtr = 0; eauAddRow();

@@ -5708,7 +5708,6 @@ function formatDuration(hours) {
 }
 
 function getProjectType(unitId) {
-  if (/^SAT(82|93)/i.test(unitId)) return 'SAT';
   const cats = Object.keys(CONFIG.boardCategories).sort((a,b) => b.length - a.length);
   return cats.find(k => unitId.toUpperCase().startsWith(k.toUpperCase())) || unitId.replace(/-.*$/,'');
 }

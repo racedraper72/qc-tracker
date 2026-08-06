@@ -1684,7 +1684,10 @@ label { font-size: 11px; font-weight: 600; color: var(--text-2); display: block;
     <div style="display:flex;gap:8px;">
       <input type="file" id="fm-bg-upload" accept="image/*,.pdf" style="display:none;" onchange="fmHandleBgUpload(event)" />
       <button class="subtle sm" onclick="document.getElementById('fm-bg-upload').click()">&#8593; Upload Floor Plan (image or PDF)</button>
+      <button class="subtle sm" onclick="fmRotateBg(-90)" title="Rotate left 90&deg;">&#8634;</button>
+      <button class="subtle sm" onclick="fmRotateBg(90)" title="Rotate right 90&deg;">&#8635;</button>
       <button class="subtle sm" onclick="fmClearBg()">&#10005; Clear Floor Plan</button>
+      <button class="subtle sm" onclick="fmToggleFullscreen()" id="fm-fullscreen-btn">&#10530; Fit to Screen</button>
     </div>
   </div>
   <div style="display:grid;grid-template-columns:220px 1fr;gap:16px;align-items:start;">
@@ -3179,6 +3182,66 @@ function fmClearBg() {
   renderFloorMap();
 }
 
+function fmToggleFullscreen() {
+  const container = document.getElementById('fm-map-container');
+  if (!container) return;
+  if (!document.fullscreenElement) {
+    container.requestFullscreen().catch(err => {
+      alert('Could not enter fullscreen: ' + err.message);
+    });
+  } else {
+    document.exitFullscreen();
+  }
+}
+document.addEventListener('fullscreenchange', () => {
+  const container = document.getElementById('fm-map-container');
+  const btn = document.getElementById('fm-fullscreen-btn');
+  if (!container) return;
+  if (document.fullscreenElement === container) {
+    // The fixed aspect-ratio that keeps the map a sane size inside the
+    // normal page layout would otherwise letterbox it in fullscreen
+    // instead of actually filling the screen — drop it while fullscreen.
+    container.style.aspectRatio = 'unset';
+    container.style.width = '100vw';
+    container.style.height = '100vh';
+    container.style.border = 'none';
+    container.style.borderRadius = '0';
+    if (btn) btn.textContent = '\u2716 Exit Fullscreen';
+  } else {
+    container.style.aspectRatio = '16/10';
+    container.style.width = '100%';
+    container.style.height = '';
+    container.style.border = '2px dashed #c8d0dc';
+    container.style.borderRadius = '10px';
+    if (btn) btn.innerHTML = '&#10530; Fit to Screen';
+  }
+});
+
+/* Rotates the actual stored image data (not a CSS transform) — this way
+   marker positions, which are percentages relative to the container,
+   stay correctly aligned with the floor plan underneath them regardless
+   of rotation, instead of drifting out of place. */
+function fmRotateBg(degrees) {
+  const bg = getFloorMapBg();
+  if (!bg) { alert('Upload a floor plan first.'); return; }
+  const img = new Image();
+  img.onload = () => {
+    const canvas = document.createElement('canvas');
+    const rad = degrees * Math.PI / 180;
+    // 90/270 degree turns swap width and height
+    const swapped = Math.abs(degrees % 180) === 90;
+    canvas.width = swapped ? img.height : img.width;
+    canvas.height = swapped ? img.width : img.height;
+    const ctx = canvas.getContext('2d');
+    ctx.translate(canvas.width / 2, canvas.height / 2);
+    ctx.rotate(rad);
+    ctx.drawImage(img, -img.width / 2, -img.height / 2);
+    saveFloorMapBg(canvas.toDataURL('image/jpeg', 0.9));
+    renderFloorMap();
+  };
+  img.src = bg;
+}
+
 function fmPlaceUnit(unitId) {
   const u = ensureBoardTracked(unitId);
   // Drop newly-placed units at a staggered default spot near the top-left
@@ -3219,8 +3282,8 @@ function fmMarkerMouseMove(e) {
   const marker = document.getElementById('fm-marker-' + safeId(fmDragUnitId));
   if (!container || !marker) return;
   const rect = container.getBoundingClientRect();
-  let x = e.clientX - rect.left - fmDragOffsetX + 14; // +14 to roughly center on the marker's own width
-  let y = e.clientY - rect.top - fmDragOffsetY + 14;
+  let x = e.clientX - rect.left - fmDragOffsetX;
+  let y = e.clientY - rect.top - fmDragOffsetY;
   const pctX = Math.max(0, Math.min(100, (x / rect.width) * 100));
   const pctY = Math.max(0, Math.min(100, (y / rect.height) * 100));
   marker.style.left = pctX + '%';
@@ -3269,10 +3332,10 @@ function renderFloorMap() {
 
   markersEl.innerHTML = placed.map(u => {
     const cs = getBoardCatStyle(u.id);
-    return `<div id="fm-marker-${safeId(u.id)}" onmousedown="fmMarkerMouseDown(event,'${u.id}')" title="${u.id} — ${u.col} — drag to move, double-click to unplace"
-      style="position:absolute;left:${u.mapX}%;top:${u.mapY}%;width:28px;height:28px;border-radius:50%;background:${cs.border};border:3px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,.35);cursor:grab;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:800;color:#fff;user-select:none;z-index:10;"
-      ondblclick="fmUnplaceUnit('${u.id}')">
-      ${u.id.replace(/[^0-9]/g,'').slice(-3) || '&#9679;'}
+    return `<div id="fm-marker-${safeId(u.id)}" onmousedown="fmMarkerMouseDown(event,'${u.id}')" title="${u.id} — ${u.col} — drag to move"
+      style="position:absolute;left:${u.mapX}%;top:${u.mapY}%;min-width:46px;padding:3px 14px 3px 6px;border-radius:3px;background:${cs.border};border:1.5px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.35);cursor:grab;display:flex;align-items:center;justify-content:center;font-size:8.5px;font-weight:800;color:#fff;user-select:none;z-index:10;white-space:nowrap;line-height:1.1;">
+      ${u.id}
+      <button onmousedown="event.stopPropagation()" onclick="fmUnplaceUnit('${u.id}')" title="Remove from map" style="position:absolute;top:-6px;right:-6px;width:13px;height:13px;border-radius:50%;background:#fff;border:1px solid ${cs.border};color:${cs.border};font-size:8px;line-height:1;cursor:pointer;padding:0;display:flex;align-items:center;justify-content:center;font-weight:900;">&#10005;</button>
     </div>`;
   }).join('');
 

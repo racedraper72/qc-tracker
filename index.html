@@ -138,6 +138,38 @@ button.nav-btn.active {
   margin-bottom: 16px;
   box-shadow: var(--shadow-sm);
 }
+
+/* ---- Dashboard card reordering (order controlled from Admin > Dashboard cards) ---- */
+.dash-card-wrap { position: relative; }
+
+/* ---- Admin: section order list ---- */
+.sec-order-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px 10px;
+  margin-bottom: 6px;
+}
+.sec-order-row.sec-order-dragging { opacity: .35; }
+.sec-order-row.sec-order-drag-over { outline: 2px dashed #4b3a9e; outline-offset: 2px; }
+.sec-order-handle { cursor: grab; user-select: none; font-size: 13px; color: #605e5c; padding: 2px 4px; }
+.sec-order-handle:active { cursor: grabbing; }
+.sec-order-label { flex: 1; font-size: 12px; font-weight: 600; color: var(--text-1,#323130); }
+.sec-order-btn {
+  border: 1px solid var(--border);
+  background: var(--surface);
+  border-radius: 4px;
+  font-size: 10px;
+  line-height: 1;
+  padding: 4px 7px;
+  cursor: pointer;
+  color: #605e5c;
+}
+.sec-order-btn:hover { background: #f3f2f1; color: #201f1e; }
+.sec-order-btn:disabled { opacity: .3; cursor: default; }
 .section-title {
   font-size: 13px;
   font-weight: 700;
@@ -1041,54 +1073,70 @@ label { font-size: 11px; font-weight: 600; color: var(--text-2); display: block;
     <button class="primary sm" onclick="showPage('pm');setTimeout(()=>switchFTITab('calendar'),50)">&#128197; Open Calendar — Due Dates &amp; Shipments</button>
   </div>
 
+  <div id="dashboard-cards-container">
+
   <!-- All lines + QC pipeline together -->
-  <div class="card">
-    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:10px;">
-      <div class="section-title" style="margin-bottom:0;border:none;padding:0;">Production &amp; QC lines — click to track</div>
-      <div style="display:flex;align-items:center;gap:10px;">
-        <span id="cat-legend" style="display:inline-flex;flex-wrap:wrap;gap:6px;"></span>
-        <div style="display:flex;gap:10px;flex-wrap:wrap;">
-          <span style="font-size:11px;color:#605e5c;"><span style="display:inline-block;width:10px;height:10px;background:#f0eeff;border:1.5px solid #4b3a9e;border-radius:2px;margin-right:3px;"></span>Inspecting</span>
-          <span style="font-size:11px;color:#605e5c;"><span style="display:inline-block;width:10px;height:10px;background:#fde7e9;border:1.5px solid #A03033;border-radius:2px;margin-right:3px;"></span>Remed.</span>
-          <span style="font-size:11px;color:#605e5c;"><span style="display:inline-block;width:10px;height:10px;background:#fff4ce;border:1.5px solid #7a5d00;border-radius:2px;margin-right:3px;"></span>On hold</span>
+  <div class="dash-card-wrap" data-card-id="lines">
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:10px;">
+        <div class="section-title" style="margin-bottom:0;border:none;padding:0;">Production &amp; QC lines — click to track</div>
+        <div style="display:flex;align-items:center;gap:10px;">
+          <span id="cat-legend" style="display:inline-flex;flex-wrap:wrap;gap:6px;"></span>
+          <div style="display:flex;gap:10px;flex-wrap:wrap;">
+            <span style="font-size:11px;color:#605e5c;"><span style="display:inline-block;width:10px;height:10px;background:#f0eeff;border:1.5px solid #4b3a9e;border-radius:2px;margin-right:3px;"></span>Inspecting</span>
+            <span style="font-size:11px;color:#605e5c;"><span style="display:inline-block;width:10px;height:10px;background:#fde7e9;border:1.5px solid #A03033;border-radius:2px;margin-right:3px;"></span>Remed.</span>
+            <span style="font-size:11px;color:#605e5c;"><span style="display:inline-block;width:10px;height:10px;background:#fff4ce;border:1.5px solid #7a5d00;border-radius:2px;margin-right:3px;"></span>On hold</span>
+          </div>
         </div>
       </div>
-    </div>
-    <!-- Production board lines -->
-    <div id="line-summary-list"></div>
+      <!-- Production board lines -->
+      <div id="line-summary-list"></div>
 
+    </div>
   </div>
 
   <!-- Admin-configured Dashboard cards — hidden until Admin adds at least one -->
-  <div id="dashboard-custom-cards" style="display:none;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:10px;margin-bottom:18px;"></div>
+  <div class="dash-card-wrap" data-card-id="custom">
+    <div id="dashboard-custom-cards" style="display:none;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:10px;margin-bottom:18px;"></div>
+  </div>
 
   <!-- Checklist Pass/Fail KPI -->
-  <div class="card">
-    <div class="section-title">&#9989; Checklist Pass Rate</div>
-    <div id="checklist-kpi-body"></div>
+  <div class="dash-card-wrap" data-card-id="checklist">
+    <div class="card">
+      <div class="section-title">&#9989; Checklist Pass Rate</div>
+      <div id="checklist-kpi-body"></div>
+    </div>
   </div>
 
   <!-- QC Matrix -->
-  <div class="card">
-    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:12px;">
-      <div class="section-title" style="margin-bottom:0;border:none;padding:0;">QC matrix</div>
-      <div class="filter-bar">
-        <label>Type:</label><select id="matrix-filter-type" onchange="renderMatrix()"><option value="All">All types</option></select>
-        <label>Status:</label><select id="matrix-filter-status" onchange="renderMatrix()"><option value="All">All</option><option>In Progress</option><option>Inspecting</option><option>Remediation</option><option>On Hold</option><option>Complete</option></select>
-        <button onclick="exportCSV()" class="sm">&#8595; Export CSV</button>
+  <div class="dash-card-wrap" data-card-id="qcmatrix">
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:12px;">
+        <div class="section-title" style="margin-bottom:0;border:none;padding:0;">QC matrix</div>
+        <div class="filter-bar">
+          <label>Type:</label><select id="matrix-filter-type" onchange="renderMatrix()"><option value="All">All types</option></select>
+          <label>Status:</label><select id="matrix-filter-status" onchange="renderMatrix()"><option value="All">All</option><option>In Progress</option><option>Inspecting</option><option>Remediation</option><option>On Hold</option><option>Complete</option></select>
+          <button onclick="exportCSV()" class="sm">&#8595; Export CSV</button>
+        </div>
       </div>
+      <div class="matrix-wrap" id="matrix-wrap"></div>
     </div>
-    <div class="matrix-wrap" id="matrix-wrap"></div>
   </div>
 
   <!-- Completed -->
-  <div class="card">
-    <div class="section-title">Completed — Board</div>
-    <div id="board-completed-list"><p style="font-size:13px;color:#605e5c;">No completed units yet.</p></div>
+  <div class="dash-card-wrap" data-card-id="completedboard">
+    <div class="card">
+      <div class="section-title">Completed — Board</div>
+      <div id="board-completed-list"><p style="font-size:13px;color:#605e5c;">No completed units yet.</p></div>
+    </div>
   </div>
-  <div class="card">
-    <div class="section-title">Completed — QC</div>
-    <div id="completed-list"><p style="font-size:13px;color:#605e5c;">No completed units yet.</p></div>
+  <div class="dash-card-wrap" data-card-id="completedqc">
+    <div class="card">
+      <div class="section-title">Completed — QC</div>
+      <div id="completed-list"><p style="font-size:13px;color:#605e5c;">No completed units yet.</p></div>
+    </div>
+  </div>
+
   </div>
 </div>
 
@@ -1376,6 +1424,14 @@ label { font-size: 11px; font-weight: 600; color: var(--text-2); display: block;
   <div class="card">
     <div class="section-title">&#128200; Dashboard cards</div>
     <p style="font-size:12px;color:#605e5c;margin-bottom:12px;">Add, remove, and reorder metric cards on the main Dashboard. This is shared — every device sees the same cards, unlike PM View's personal My Dashboard.</p>
+
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+      <div style="font-size:11px;font-weight:700;color:var(--text-3,#8a96a8);text-transform:uppercase;letter-spacing:.3px;">Section order</div>
+      <button class="subtle sm" onclick="resetDashboardOrder()" title="Restore default section order">&#8635; Reset order</button>
+    </div>
+    <p style="font-size:11px;color:#605e5c;margin-bottom:10px;">Drag a row, or use the arrows, to change the order the sections appear in on the main Dashboard.</p>
+    <div id="admin-section-order-body" style="margin-bottom:20px;"></div>
+
     <div id="admin-dashboard-cards-body"></div>
   </div>
   <!-- LINE EDITOR -->
@@ -4684,7 +4740,7 @@ function _showPage(page) {
   if (page==='editunit') { renderEditUnitPage(); }
   if (page==='masterschedule') { renderMasterSchedulePage(); }
   if (page==='admin') {
-    renderAdminQC(); renderAdminBoard(); renderOperatorList(); renderChecklistEditor(); renderStationTrackerEditor(); renderAdminDashboardCardManager(); renderLineEditor(); renderProjectEditor();
+    renderAdminQC(); renderAdminBoard(); renderOperatorList(); renderChecklistEditor(); renderStationTrackerEditor(); renderAdminDashboardCardManager(); renderAdminSectionOrder(); renderLineEditor(); renderProjectEditor();
     document.getElementById('cfg-target').value = syncTarget;
     document.getElementById('cfg-url-sheets').value = sheetsUrl;
     document.getElementById('cfg-url-smartsheet').value = smartsheetUrl;
@@ -4731,6 +4787,118 @@ function renderQCContent(el) {
   }).join('');
 }
 
+/* ---- Dashboard card reordering ---- */
+const DASH_CARD_ORDER_KEY = 'dashboard_card_order';
+const DASH_CARD_DEFAULT_ORDER = ['lines','custom','checklist','qcmatrix','completedboard','completedqc'];
+let dashDraggedId = null;
+
+function getDashCardOrder() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(DASH_CARD_ORDER_KEY) || 'null');
+    if (Array.isArray(saved) && saved.length) {
+      // Include any card ids that exist in the DOM but weren't saved yet (e.g. newly added),
+      // and drop any saved ids that no longer exist.
+      const existing = new Set(DASH_CARD_DEFAULT_ORDER);
+      const cleaned = saved.filter(id => existing.has(id));
+      DASH_CARD_DEFAULT_ORDER.forEach(id => { if (!cleaned.includes(id)) cleaned.push(id); });
+      return cleaned;
+    }
+  } catch(e) {}
+  return DASH_CARD_DEFAULT_ORDER.slice();
+}
+
+function saveDashCardOrder(order) {
+  localStorage.setItem(DASH_CARD_ORDER_KEY, JSON.stringify(order));
+}
+
+function applyDashboardCardOrder() {
+  const container = document.getElementById('dashboard-cards-container');
+  if (!container) return;
+  const order = getDashCardOrder();
+  order.forEach(id => {
+    const el = container.querySelector(`.dash-card-wrap[data-card-id="${id}"]`);
+    if (el) container.appendChild(el);
+  });
+}
+
+function moveDashCard(id, dir) {
+  const order = getDashCardOrder();
+  const idx = order.indexOf(id);
+  if (idx === -1) return;
+  const newIdx = idx + dir;
+  if (newIdx < 0 || newIdx >= order.length) return;
+  [order[idx], order[newIdx]] = [order[newIdx], order[idx]];
+  saveDashCardOrder(order);
+  applyDashboardCardOrder();
+  renderAdminSectionOrder();
+}
+
+function resetDashboardOrder() {
+  localStorage.removeItem(DASH_CARD_ORDER_KEY);
+  applyDashboardCardOrder();
+  renderAdminSectionOrder();
+}
+
+/* ---- Admin: reorder-list UI for the fixed Dashboard sections ---- */
+const DASH_SECTION_LABELS = {
+  lines: '&#128203; Production &amp; QC lines',
+  custom: '&#128200; Custom metric cards (below)',
+  checklist: '&#9989; Checklist Pass Rate',
+  qcmatrix: '&#128202; QC matrix',
+  completedboard: '&#9989; Completed — Board',
+  completedqc: '&#9989; Completed — QC',
+};
+let secOrderDraggedId = null;
+
+function renderAdminSectionOrder() {
+  const el = document.getElementById('admin-section-order-body');
+  if (!el) return;
+  const order = getDashCardOrder();
+  el.innerHTML = order.map((id, i) => `
+    <div class="sec-order-row" draggable="true" data-sec-id="${id}"
+      ondragstart="secOrderDragStart(event,'${id}')" ondragend="secOrderDragEnd(event)"
+      ondragover="secOrderDragOver(event,'${id}')" ondrop="secOrderDrop(event,'${id}')">
+      <span class="sec-order-handle">&#10021;&#10021;</span>
+      <span class="sec-order-label">${DASH_SECTION_LABELS[id] || id}</span>
+      <button class="sec-order-btn" onclick="moveDashCard('${id}',-1)" ${i===0?'disabled':''} title="Move up">&#9650;</button>
+      <button class="sec-order-btn" onclick="moveDashCard('${id}',1)" ${i===order.length-1?'disabled':''} title="Move down">&#9660;</button>
+    </div>
+  `).join('');
+}
+
+function secOrderDragStart(e, id) {
+  secOrderDraggedId = id;
+  e.currentTarget.classList.add('sec-order-dragging');
+  e.dataTransfer.effectAllowed = 'move';
+  try { e.dataTransfer.setData('text/plain', id); } catch(err) {}
+}
+function secOrderDragEnd(e) {
+  e.currentTarget.classList.remove('sec-order-dragging');
+  document.querySelectorAll('.sec-order-drag-over').forEach(el => el.classList.remove('sec-order-drag-over'));
+  secOrderDraggedId = null;
+}
+function secOrderDragOver(e, id) {
+  if (!secOrderDraggedId || secOrderDraggedId === id) return;
+  e.preventDefault();
+  e.dataTransfer.dropEffect = 'move';
+  document.querySelectorAll('.sec-order-drag-over').forEach(el => el.classList.remove('sec-order-drag-over'));
+  e.currentTarget.classList.add('sec-order-drag-over');
+}
+function secOrderDrop(e, id) {
+  if (!secOrderDraggedId || secOrderDraggedId === id) return;
+  e.preventDefault();
+  document.querySelectorAll('.sec-order-drag-over').forEach(el => el.classList.remove('sec-order-drag-over'));
+  const order = getDashCardOrder();
+  const fromIdx = order.indexOf(secOrderDraggedId);
+  const toIdx = order.indexOf(id);
+  if (fromIdx === -1 || toIdx === -1) return;
+  order.splice(fromIdx, 1);
+  order.splice(toIdx, 0, secOrderDraggedId);
+  saveDashCardOrder(order);
+  applyDashboardCardOrder();
+  renderAdminSectionOrder();
+}
+
 /* ---- RENDER ALL ---- */
 function renderAll() {
   applyChecklistOverrides();
@@ -4743,6 +4911,7 @@ function renderAll() {
   renderQCStats(); renderMatrix(); renderQCCompleted();
   renderChecklistKPI();
   renderDashboardCards();
+  applyDashboardCardOrder();
   if (currentPage==='tracker') { renderUnifiedTabs(); renderUnifiedContent(); }
   if (currentPage==='floor') { renderFloorPage(); }
   if (currentPage==='pm') { renderPMPage(); }

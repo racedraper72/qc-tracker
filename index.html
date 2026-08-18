@@ -1460,6 +1460,11 @@ label { font-size: 11px; font-weight: 600; color: var(--text-2); display: block;
   </div>
 
   <div class="card">
+    <div class="section-title">&#128203; QC Stations</div>
+    <p style="font-size:12px;color:#605e5c;margin-bottom:12px;">Add, rename, remove, and reorder the stations units move through in the QC Tracker. Renaming a station automatically moves any units currently on it to the new name — nothing gets stranded.</p>
+    <div id="qc-station-editor-body"></div>
+  </div>
+  <div class="card">
     <div class="section-title">QC unit overrides</div>
     <div id="admin-unit-list"></div>
   </div>
@@ -1738,22 +1743,40 @@ label { font-size: 11px; font-weight: 600; color: var(--text-2); display: block;
       <h2 style="font-size:16px;font-weight:800;letter-spacing:-.3px;">&#128506; Floor Map</h2>
       <p style="font-size:12px;color:var(--text-2);margin-top:3px;">Drag a unit marker to update where it physically sits on the floor right now. Click a marker's &#8635; to rotate it 90&deg; (Shift+click = 15&deg;, Alt+click = -15&deg;; double-click a marker to reset its rotation).</p>
     </div>
-    <div style="display:flex;gap:8px;">
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
       <input type="file" id="fm-bg-upload" accept="image/*,.pdf" style="display:none;" onchange="fmHandleBgUpload(event)" />
       <button class="subtle sm" onclick="document.getElementById('fm-bg-upload').click()">&#8593; Upload Floor Plan (image or PDF)</button>
       <button class="subtle sm" onclick="fmRotateBg(-90)" title="Rotate left 90&deg;">&#8634;</button>
       <button class="subtle sm" onclick="fmRotateBg(90)" title="Rotate right 90&deg;">&#8635;</button>
       <button class="subtle sm" onclick="fmClearBg()">&#10005; Clear Floor Plan</button>
       <button class="subtle sm" onclick="fmToggleFullscreen()" id="fm-fullscreen-btn">&#10530; Fit to Screen</button>
+      <span style="width:1px;height:20px;background:var(--border,#e1dfdd);margin:0 2px;"></span>
+      <label style="display:flex;align-items:center;gap:5px;font-size:12px;color:var(--text-2);cursor:pointer;">
+        <input type="checkbox" id="fm-grid-toggle" checked onchange="fmSaveGridConfig();renderFloorMap();" /> Grid
+      </label>
+      <label style="display:flex;align-items:center;gap:4px;font-size:12px;color:var(--text-2);">Cols
+        <input type="number" id="fm-grid-cols" value="12" min="1" max="52" style="width:48px;padding:4px 6px;font-size:12px;" onchange="fmSaveGridConfig();renderFloorMap();" />
+      </label>
+      <label style="display:flex;align-items:center;gap:4px;font-size:12px;color:var(--text-2);">Rows
+        <input type="number" id="fm-grid-rows" value="8" min="1" max="52" style="width:48px;padding:4px 6px;font-size:12px;" onchange="fmSaveGridConfig();renderFloorMap();" />
+      </label>
     </div>
   </div>
   <div style="display:grid;grid-template-columns:220px 1fr;gap:16px;align-items:start;">
     <div class="card" style="padding:12px;">
-      <div style="font-size:11px;font-weight:700;color:var(--text-2,#605e5c);text-transform:uppercase;margin-bottom:8px;">Unplaced Units</div>
-      <div id="fm-unplaced-list" style="display:flex;flex-direction:column;gap:6px;max-height:70vh;overflow-y:auto;"></div>
+      <div style="font-size:11px;font-weight:700;color:var(--text-2,#605e5c);text-transform:uppercase;margin-bottom:8px;">Place by grid reference</div>
+      <select id="fm-grid-unit-picker" style="margin-bottom:6px;width:100%;"></select>
+      <div style="display:flex;gap:6px;">
+        <input type="text" id="fm-grid-ref-input" placeholder="e.g. C4" style="flex:1;min-width:0;text-transform:uppercase;" onkeydown="if(event.key==='Enter')fmPlaceByGridRef();" />
+        <button class="primary sm" onclick="fmPlaceByGridRef()">Place</button>
+      </div>
+      <div id="fm-grid-ref-err" style="color:#A03033;font-size:11px;min-height:14px;margin-top:4px;"></div>
+      <div style="font-size:11px;font-weight:700;color:var(--text-2,#605e5c);text-transform:uppercase;margin:14px 0 8px;">Unplaced Units</div>
+      <div id="fm-unplaced-list" style="display:flex;flex-direction:column;gap:6px;max-height:60vh;overflow-y:auto;"></div>
     </div>
     <div id="fm-map-container" style="position:relative;width:100%;aspect-ratio:16/10;background:#f0f2f5;border:2px dashed #c8d0dc;border-radius:10px;overflow:hidden;">
       <div id="fm-map-empty" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#8a96a8;font-size:13px;text-align:center;padding:20px;">No floor plan uploaded yet — click "Upload Floor Plan" to add one, or place units on this blank canvas for now.</div>
+      <div id="fm-grid-layer" style="position:absolute;inset:0;pointer-events:none;"></div>
       <div id="fm-markers-layer" style="position:absolute;inset:0;"></div>
     </div>
   </div>
@@ -3299,6 +3322,116 @@ function fmRotateBg(degrees) {
   img.src = bg;
 }
 
+/* ---- Floor Map grid overlay + "place by grid reference" ---- */
+function fmGetGridConfig() {
+  let cfg = { cols: 12, rows: 8, visible: true };
+  try {
+    const saved = JSON.parse(localStorage.getItem('floor_map_grid') || 'null');
+    if (saved) cfg = { ...cfg, ...saved };
+  } catch (e) {}
+  return cfg;
+}
+function fmSaveGridConfig() {
+  const colsEl = document.getElementById('fm-grid-cols');
+  const rowsEl = document.getElementById('fm-grid-rows');
+  const visEl = document.getElementById('fm-grid-toggle');
+  const cfg = {
+    cols: colsEl ? Math.max(1, Math.min(52, parseInt(colsEl.value) || 12)) : 12,
+    rows: rowsEl ? Math.max(1, Math.min(52, parseInt(rowsEl.value) || 8)) : 8,
+    visible: visEl ? visEl.checked : true,
+  };
+  localStorage.setItem('floor_map_grid', JSON.stringify(cfg));
+}
+function fmApplyGridConfigToControls() {
+  const cfg = fmGetGridConfig();
+  const colsEl = document.getElementById('fm-grid-cols');
+  const rowsEl = document.getElementById('fm-grid-rows');
+  const visEl = document.getElementById('fm-grid-toggle');
+  if (colsEl && document.activeElement !== colsEl) colsEl.value = cfg.cols;
+  if (rowsEl && document.activeElement !== rowsEl) rowsEl.value = cfg.rows;
+  if (visEl) visEl.checked = cfg.visible;
+  return cfg;
+}
+function fmColLetterToIndex(letters) {
+  letters = letters.toUpperCase();
+  let idx = 0;
+  for (let i = 0; i < letters.length; i++) idx = idx * 26 + (letters.charCodeAt(i) - 64);
+  return idx - 1; // zero-based
+}
+function fmColIndexToLetter(idx) {
+  idx += 1;
+  let s = '';
+  while (idx > 0) {
+    const rem = (idx - 1) % 26;
+    s = String.fromCharCode(65 + rem) + s;
+    idx = Math.floor((idx - 1) / 26);
+  }
+  return s;
+}
+function fmParseGridRef(ref) {
+  const m = /^([A-Za-z]+)\s*-?\s*(\d+)$/.exec((ref || '').trim());
+  if (!m) return null;
+  const colIdx = fmColLetterToIndex(m[1]);
+  const rowIdx = parseInt(m[2], 10) - 1;
+  if (colIdx < 0 || rowIdx < 0) return null;
+  return { colIdx, rowIdx };
+}
+function fmGridRefToPct(ref) {
+  const cfg = fmGetGridConfig();
+  const parsed = fmParseGridRef(ref);
+  if (!parsed) return null;
+  if (parsed.colIdx >= cfg.cols || parsed.rowIdx >= cfg.rows) return null;
+  const cellW = 100 / cfg.cols, cellH = 100 / cfg.rows;
+  return { x: (parsed.colIdx + 0.5) * cellW, y: (parsed.rowIdx + 0.5) * cellH };
+}
+function fmPctToGridRef(x, y) {
+  const cfg = fmGetGridConfig();
+  const cellW = 100 / cfg.cols, cellH = 100 / cfg.rows;
+  const colIdx = Math.min(cfg.cols - 1, Math.max(0, Math.floor(x / cellW)));
+  const rowIdx = Math.min(cfg.rows - 1, Math.max(0, Math.floor(y / cellH)));
+  return fmColIndexToLetter(colIdx) + (rowIdx + 1);
+}
+function fmRenderGridOverlay() {
+  const cfg = fmApplyGridConfigToControls();
+  const layer = document.getElementById('fm-grid-layer');
+  if (!layer) return;
+  if (!cfg.visible) { layer.innerHTML = ''; return; }
+  const cellW = 100 / cfg.cols, cellH = 100 / cfg.rows;
+  let html = '';
+  // Vertical + horizontal gridlines
+  for (let c = 1; c < cfg.cols; c++) html += `<div style="position:absolute;left:${c*cellW}%;top:0;bottom:0;width:1px;background:rgba(75,58,158,.22);"></div>`;
+  for (let r = 1; r < cfg.rows; r++) html += `<div style="position:absolute;top:${r*cellH}%;left:0;right:0;height:1px;background:rgba(75,58,158,.22);"></div>`;
+  // Column letters along the top, row numbers down the left
+  for (let c = 0; c < cfg.cols; c++) html += `<div style="position:absolute;left:${c*cellW}%;top:2px;width:${cellW}%;text-align:center;font-size:9px;font-weight:700;color:rgba(75,58,158,.55);">${fmColIndexToLetter(c)}</div>`;
+  for (let r = 0; r < cfg.rows; r++) html += `<div style="position:absolute;top:${r*cellH}%;left:2px;height:${cellH}%;display:flex;align-items:flex-start;font-size:9px;font-weight:700;color:rgba(75,58,158,.55);">${r+1}</div>`;
+  layer.innerHTML = html;
+}
+function fmRenderGridUnitPicker() {
+  const el = document.getElementById('fm-grid-unit-picker');
+  if (!el) return;
+  const selected = el.value;
+  const active = getAllBoardUnits().filter(u => !u.completed).sort((a,b) => a.id.localeCompare(b.id));
+  el.innerHTML = '<option value="">Select a unit...</option>' + active.map(u => {
+    const posLabel = (u.mapX != null && u.mapY != null) ? ` — currently at ${fmPctToGridRef(u.mapX, u.mapY)}` : ' — unplaced';
+    return `<option value="${u.id}">${u.id}${posLabel}</option>`;
+  }).join('');
+  if (selected && active.find(u => u.id === selected)) el.value = selected;
+}
+function fmPlaceByGridRef() {
+  const errEl = document.getElementById('fm-grid-ref-err');
+  const unitId = document.getElementById('fm-grid-unit-picker').value;
+  const ref = document.getElementById('fm-grid-ref-input').value;
+  if (errEl) errEl.textContent = '';
+  if (!unitId) { if (errEl) errEl.textContent = 'Select a unit first.'; return; }
+  const pct = fmGridRefToPct(ref);
+  if (!pct) { if (errEl) errEl.textContent = 'Enter a valid cell in range, e.g. C4.'; return; }
+  const u = ensureBoardTracked(unitId);
+  u.mapX = pct.x; u.mapY = pct.y;
+  pushBoard();
+  document.getElementById('fm-grid-ref-input').value = '';
+  renderFloorMap();
+}
+
 function fmPlaceUnit(unitId) {
   const u = ensureBoardTracked(unitId);
   // Drop newly-placed units at a staggered default spot near the top-left
@@ -3390,6 +3523,9 @@ function renderFloorMap() {
   const listEl = document.getElementById('fm-unplaced-list');
   if (!bgEl || !markersEl || !listEl) return;
 
+  fmRenderGridOverlay();
+  fmRenderGridUnitPicker();
+
   const bg = getFloorMapBg();
   if (bg) {
     bgEl.style.backgroundImage = `url(${bg})`;
@@ -3409,9 +3545,10 @@ function renderFloorMap() {
   markersEl.innerHTML = placed.map(u => {
     const cs = getBoardCatStyle(u.id);
     const rot = u.mapRotation || 0;
+    const gridRef = fmPctToGridRef(u.mapX, u.mapY);
     return `<div id="fm-marker-${safeId(u.id)}" onmousedown="fmMarkerMouseDown(event,'${u.id}')" ondblclick="fmResetUnitRotation(event,'${u.id}')"
       style="position:absolute;left:${u.mapX}%;top:${u.mapY}%;z-index:10;cursor:grab;user-select:none;">
-      <div style="min-width:46px;padding:3px 14px 3px 6px;border-radius:3px;background:${cs.border};border:1.5px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.35);display:flex;align-items:center;justify-content:center;font-size:8.5px;font-weight:800;color:#fff;white-space:nowrap;line-height:1.1;transform:rotate(${rot}deg);transition:transform .1s ease;" title="${u.id} — ${u.col} — drag to move — rotation ${rot}&deg;">
+      <div style="min-width:46px;padding:3px 14px 3px 6px;border-radius:3px;background:${cs.border};border:1.5px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.35);display:flex;align-items:center;justify-content:center;font-size:8.5px;font-weight:800;color:#fff;white-space:nowrap;line-height:1.1;transform:rotate(${rot}deg);transition:transform .1s ease;" title="${u.id} — ${u.col} — cell ${gridRef} — drag to move — rotation ${rot}&deg;">
         ${u.id}
       </div>
       <button onmousedown="event.stopPropagation()" onclick="fmUnplaceUnit('${u.id}')" title="Remove from map" style="position:absolute;top:-6px;right:-6px;width:13px;height:13px;border-radius:50%;background:#fff;border:1px solid ${cs.border};color:${cs.border};font-size:8px;line-height:1;cursor:pointer;padding:0;display:flex;align-items:center;justify-content:center;font-weight:900;">&#10005;</button>
@@ -3943,6 +4080,154 @@ const CATEGORIES  = CONFIG.categories;
 const NEXT_MAP    = {};
 STATIONS.forEach((s,i) => { NEXT_MAP[s] = STATIONS[i+1] || null; });
 
+/* ============================================================
+   QC STATION EDITOR — add, rename, remove, and reorder QC
+   stations from Admin, no code changes needed. Mirrors the
+   Board Line Editor's override pattern exactly: STATIONS is the
+   SAME array object as CONFIG.stations (set by reference above),
+   so it's mutated in place (length=0 + push) rather than
+   reassigned — every existing `STATIONS`/`ALL_TABS.includes`/
+   `NEXT_MAP[...]` reference throughout the app keeps working
+   without needing to know this override system exists.
+   Renaming a station immediately migrates any units currently
+   sitting on the old name over to the new one, so a rename can
+   never strand units on a station name that no longer exists —
+   that mismatch was the root cause of units silently vanishing
+   from every tab after a station got renamed.
+   ============================================================ */
+function getQCStationOverrides() {
+  const synced = unitIssues['__config__qc_station_overrides'] && unitIssues['__config__qc_station_overrides'].url;
+  if (synced) { try { return JSON.parse(synced); } catch(e) {} }
+  try { return JSON.parse(localStorage.getItem('qc_station_overrides_local') || 'null'); } catch(e) { return null; }
+}
+function saveQCStationOverrides(stations) {
+  const json = JSON.stringify(stations);
+  unitIssues['__config__qc_station_overrides'] = { url: json, updatedAt: new Date().toISOString() };
+  localStorage.setItem('qc_station_overrides_local', json);
+  saveIssues();
+}
+let qseLastLocalEditAt = 0;
+function rebuildStationDerivedGlobals() {
+  ALL_TABS.length = 0;
+  ALL_TABS.push(...STATIONS, 'Remediation');
+  Object.keys(NEXT_MAP).forEach(k => delete NEXT_MAP[k]);
+  STATIONS.forEach((s,i) => { NEXT_MAP[s] = STATIONS[i+1] || null; });
+  if (typeof activeTab !== 'undefined' && !ALL_TABS.includes(activeTab)) activeTab = STATIONS[0] || 'Remediation';
+}
+function applyQCStationOverrides(force) {
+  // Same recency guard used for Line/Checklist/Project overrides elsewhere
+  // in this file — a remote pull racing ahead of a just-made local edit's
+  // push shouldn't be able to silently revert it a few seconds after saving.
+  if (!force && Date.now() - qseLastLocalEditAt < 15000) return;
+  const overrides = getQCStationOverrides();
+  if (!overrides) return;
+  STATIONS.length = 0; overrides.forEach(s => STATIONS.push(s.label));
+  CONFIG.needsInspectionStart.length = 0; overrides.filter(s=>s.needsInspectionStart).forEach(s=>CONFIG.needsInspectionStart.push(s.label));
+  CONFIG.canRemediate.length = 0; overrides.filter(s=>s.canRemediate).forEach(s=>CONFIG.canRemediate.push(s.label));
+  CONFIG.remedDestinations.length = 0; overrides.filter(s=>s.remedDest).forEach(s=>CONFIG.remedDestinations.push(s.label));
+  rebuildStationDerivedGlobals();
+}
+function qseSnapshot() {
+  // Whatever STATIONS currently is (either the original hardcoded set, or
+  // a previously-saved override) — this is what gets edited and then
+  // saved back as the new override.
+  return STATIONS.map(label => ({
+    label,
+    needsInspectionStart: CONFIG.needsInspectionStart.includes(label),
+    canRemediate: CONFIG.canRemediate.includes(label),
+    remedDest: CONFIG.remedDestinations.includes(label),
+  }));
+}
+function qseAddStation() {
+  const stations = qseSnapshot();
+  let n = 1; while (stations.some(s => s.label === 'New Station '+n)) n++;
+  stations.push({ label: 'New Station '+n, needsInspectionStart:false, canRemediate:false, remedDest:false });
+  saveQCStationOverrides(stations);
+  qseLastLocalEditAt = Date.now();
+  applyQCStationOverrides(true);
+  renderQCStationEditor();
+  renderAll();
+}
+function qseRemoveStation(idx) {
+  const stations = qseSnapshot();
+  const label = stations[idx].label;
+  const inUse = qcUnits.filter(u => u.station === label && !u.completed).length;
+  const msg = inUse
+    ? `${inUse} active unit${inUse!==1?'s are':' is'} currently at "${label}". Removing this station won't delete those units, but they'll show up under the "⚠ Unmatched" tab in the Tracker until reassigned to a different station. Remove anyway?`
+    : `Remove station "${label}"?`;
+  if (!confirm(msg)) return;
+  stations.splice(idx, 1);
+  saveQCStationOverrides(stations);
+  qseLastLocalEditAt = Date.now();
+  applyQCStationOverrides(true);
+  renderQCStationEditor();
+  renderAll();
+}
+function qseEditStationLabel(idx, newLabel) {
+  const stations = qseSnapshot();
+  const oldLabel = stations[idx].label;
+  newLabel = (newLabel || '').trim();
+  if (!newLabel || oldLabel === newLabel) return;
+  qcUnits.forEach(u => { if (u.station === oldLabel) u.station = newLabel; });
+  pushQC();
+  stations[idx].label = newLabel;
+  saveQCStationOverrides(stations);
+  qseLastLocalEditAt = Date.now();
+  applyQCStationOverrides(true);
+  renderQCStationEditor();
+  renderAll();
+}
+function qseToggleFlag(idx, flag) {
+  const stations = qseSnapshot();
+  stations[idx][flag] = !stations[idx][flag];
+  saveQCStationOverrides(stations);
+  qseLastLocalEditAt = Date.now();
+  applyQCStationOverrides(true);
+  renderQCStationEditor();
+}
+let qseDragIdx = null;
+function qseDragStart(idx) { qseDragIdx = idx; }
+function qseDrop(targetIdx) {
+  if (qseDragIdx === null || qseDragIdx === targetIdx) return;
+  const stations = qseSnapshot();
+  const [moved] = stations.splice(qseDragIdx, 1);
+  stations.splice(targetIdx, 0, moved);
+  saveQCStationOverrides(stations);
+  qseLastLocalEditAt = Date.now();
+  applyQCStationOverrides(true);
+  qseDragIdx = null;
+  renderQCStationEditor();
+  renderAll();
+}
+function renderQCStationEditor() {
+  const el = document.getElementById('qc-station-editor-body');
+  if (!el) return;
+  el.innerHTML = `
+    <div style="display:grid;grid-template-columns:24px 1fr 110px 110px 130px 32px;gap:8px;margin-bottom:6px;padding:0 4px;">
+      <span></span>
+      <span style="font-size:11px;color:#605e5c;font-weight:600;">Station name</span>
+      <span style="font-size:11px;color:#605e5c;font-weight:600;">Needs inspect</span>
+      <span style="font-size:11px;color:#605e5c;font-weight:600;">Can remediate</span>
+      <span style="font-size:11px;color:#605e5c;font-weight:600;">Remed. dest.</span>
+      <span></span>
+    </div>
+    ${STATIONS.map((label, idx) => `
+      <div draggable="true" ondragstart="qseDragStart(${idx})" ondragover="event.preventDefault()" ondrop="qseDrop(${idx})"
+        style="display:grid;grid-template-columns:24px 1fr 110px 110px 130px 32px;gap:8px;align-items:center;margin-bottom:6px;padding:6px 4px;border:1px solid var(--border,#edebe9);border-radius:6px;cursor:grab;">
+        <span style="color:#8a96a8;text-align:center;">&#10021;&#10021;</span>
+        <input type="text" value="${label}" onchange="qseEditStationLabel(${idx}, this.value)" style="font-size:12px;padding:5px 7px;" />
+        <input type="checkbox" ${CONFIG.needsInspectionStart.includes(label)?'checked':''} onchange="qseToggleFlag(${idx},'needsInspectionStart')" style="justify-self:center;" />
+        <input type="checkbox" ${CONFIG.canRemediate.includes(label)?'checked':''} onchange="qseToggleFlag(${idx},'canRemediate')" style="justify-self:center;" />
+        <input type="checkbox" ${CONFIG.remedDestinations.includes(label)?'checked':''} onchange="qseToggleFlag(${idx},'remedDest')" style="justify-self:center;" />
+        <button class="sm danger" onclick="qseRemoveStation(${idx})" title="Remove station">&times;</button>
+      </div>
+    `).join('')}
+    <button class="primary sm" onclick="qseAddStation()" style="margin-top:6px;">+ Add station</button>
+    <p style="font-size:11px;color:#605e5c;margin-top:10px;">
+      <strong>Needs inspect</strong>: unit must be started before it can move on. <strong>Can remediate</strong>: a "Send to Remediation" option appears at this station. <strong>Remed. dest.</strong>: this station appears as a valid destination when returning a unit from Remediation. Renaming a station automatically moves any units currently on it to the new name — nothing gets stranded.
+    </p>`;
+}
+
 /* ---- STATE ---- */
 let qcUnits      = [];   // QC tracker units
 let boardUnits   = [];   // Board tracker units (added live)
@@ -3995,6 +4280,19 @@ function requireName(callback, title) {
   const existing = document.getElementById('name-prompt-overlay');
   if (existing) existing.remove();
 
+  // Centralized lookup instead of a chain of ternaries — every sign-in
+  // title used by doBoardAction (and anything else that calls requireName
+  // with a title) gets its own description/button wording here, so a new
+  // action can't silently fall through to the generic "release" wording
+  // the way Start/Stop Inspection did before this existed.
+  const SIGN_COPY = {
+    'Sign to Begin Inspection': { desc: 'inspection', button: 'Confirm Inspection' },
+    'Sign to Hold':             { desc: 'hold',       button: 'Confirm Hold' },
+    'Sign to Start Inspection': { desc: 'inspection start', button: 'Confirm Start' },
+    'Sign to Stop Inspection':  { desc: 'inspection stop',  button: 'Confirm Stop' },
+  };
+  const copy = SIGN_COPY[title] || { desc: 'station release', button: 'Confirm Release' };
+
   const overlay = document.createElement('div');
   overlay.id = 'name-prompt-overlay';
   overlay.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.55);z-index:9999;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(2px);';
@@ -4003,7 +4301,7 @@ function requireName(callback, title) {
     <div style="background:#fff;border-radius:16px;padding:32px 36px;max-width:380px;width:92%;box-shadow:0 24px 64px rgba(0,0,0,.28);text-align:center;">
       <div style="width:52px;height:52px;border-radius:50%;background:#e8f1fd;display:flex;align-items:center;justify-content:center;margin:0 auto 14px;font-size:24px;">✍️</div>
       <h2 style="font-size:18px;font-weight:800;color:#0f1923;margin-bottom:6px;letter-spacing:-.3px;">${title || 'Sign to Release'}</h2>
-      <p style="font-size:13px;color:#4a5568;margin-bottom:20px;line-height:1.5;">Enter your name and employee number to confirm this ${title === 'Sign to Begin Inspection' ? 'inspection' : title === 'Sign to Hold' ? 'hold' : 'station release'}. This will be logged permanently.</p>
+      <p style="font-size:13px;color:#4a5568;margin-bottom:20px;line-height:1.5;">Enter your name and employee number to confirm this ${copy.desc}. This will be logged permanently.</p>
 
       <div style="text-align:left;margin-bottom:12px;">
         <label style="font-size:11px;font-weight:700;color:#4a5568;text-transform:uppercase;letter-spacing:.3px;display:block;margin-bottom:5px;">Full Name</label>
@@ -4026,7 +4324,7 @@ function requireName(callback, title) {
           Cancel
         </button>
         <button id="sign-confirm-btn" style="padding:10px;font-size:13px;font-weight:700;background:#892729;color:#fff;border:none;border-radius:8px;cursor:pointer;box-shadow:0 2px 8px rgba(26,111,212,.3);">
-          ✓ ${title === 'Sign to Begin Inspection' ? 'Confirm Inspection' : title === 'Sign to Hold' ? 'Confirm Hold' : 'Confirm Release'}
+          ✓ ${copy.button}
         </button>
       </div>
 
@@ -4776,7 +5074,7 @@ function _showPage(page) {
   if (page==='editunit') { renderEditUnitPage(); }
   if (page==='masterschedule') { renderMasterSchedulePage(); }
   if (page==='admin') {
-    renderAdminQC(); renderAdminBoard(); renderOperatorList(); renderChecklistEditor(); renderStationTrackerEditor(); renderAdminDashboardCardManager(); renderAdminSectionOrder(); renderLineEditor(); renderProjectEditor();
+    renderAdminQC(); renderAdminBoard(); renderOperatorList(); renderChecklistEditor(); renderStationTrackerEditor(); renderAdminDashboardCardManager(); renderAdminSectionOrder(); renderLineEditor(); renderQCStationEditor(); renderProjectEditor();
     document.getElementById('cfg-target').value = syncTarget;
     document.getElementById('cfg-url-sheets').value = sheetsUrl;
     document.getElementById('cfg-url-smartsheet').value = smartsheetUrl;
@@ -4940,6 +5238,7 @@ function renderAll() {
   applyChecklistOverrides();
   applyStationTrackerOverrides();
   applyLineOverrides();
+  applyQCStationOverrides();
   applyProjectOverrides();
   renderCatLegend(); initMatrixFilter();
   renderColCounts();
@@ -5216,6 +5515,10 @@ function renderUnifiedTabs() {
     const isActive=trackerMode==='qc'&&s===activeTab;
     return `<button class="tab-btn ${isActive?'active':''} ${isRemed?'remed-tab':''}" onclick="switchToQC('${s}')">${s}${count>0?`<span class="tab-count">${count}</span>`:''}</button>`;
   }).join('');
+  const unmatchedCount = getUnmatchedQCUnits().length;
+  if (unmatchedCount > 0) {
+    html+=`<button class="tab-btn remed-tab ${trackerMode==='qc-unmatched'?'active':''}" onclick="switchToUnmatched()" title="Units whose station name doesn't match any current tab">&#9888; Unmatched<span class="tab-count">${unmatchedCount}</span></button>`;
+  }
   bar.innerHTML=html;
 }
 
@@ -5231,8 +5534,30 @@ function switchToRemed() {
 function renderUnifiedContent() {
   const el=document.getElementById('unified-content'); if(!el) return;
   if (trackerMode==='qc') { renderQCContent(el); }
+  else if (trackerMode==='qc-unmatched') { renderUnmatchedQCContent(el); }
   else if (trackerMode==='remed') { renderRemedContent(el); }
   else { renderAllLinesContent(el); }
+}
+
+function renderUnmatchedQCContent(el) {
+  if (!el) return;
+  const units = getUnmatchedQCUnits();
+  if (!units.length) { el.innerHTML = '<p style="font-size:13px;color:#605e5c;padding:8px 0;">No unmatched units.</p>'; return; }
+  el.innerHTML = `<div style="font-size:12px;color:#605e5c;background:#fff4ce;border:1px solid #f0c95c;border-radius:6px;padding:10px 12px;margin-bottom:12px;">
+    These units have a station name on record that doesn't match any current tab — usually because a station was renamed after the unit was placed on it. Pick the correct current station for each and reassign it.
+  </div>` + units.map(u => {
+    const sid = safeId(u.serial);
+    const cs = getCatStyle(u.type);
+    return `<div class="unit-card"><div class="unit-header"><div><span class="unit-serial">${u.serial}</span> <span class="type-badge" style="margin-left:4px;background:${cs.bg};color:${cs.text};border:1px solid ${cs.border};">${u.type}</span></div><span class="badge badge-orange">Unmatched: "${u.station}"</span></div>
+      <div class="unit-actions" style="display:flex;gap:6px;align-items:center;margin-top:8px;">
+        <select id="unmatched-dest-${sid}" style="flex:1;max-width:220px;">
+          <option value="">Select current station...</option>
+          ${ALL_TABS.map(s => `<option value="${s}">${s}</option>`).join('')}
+        </select>
+        <button class="success sm" onclick="reassignQCStation('${u.serial}')">&#8594; Reassign</button>
+      </div>
+    </div>`;
+  }).join('');
 }
 
 function renderRemedContent(el) {
@@ -5320,9 +5645,58 @@ function tabDrop(lineId, targetLabel) {
   renderUnifiedContent();
 }
 
+let aggStationFilter = null;
+function getAllLineStationLabels() {
+  // Union of every distinct column label across every line, in first-seen
+  // order — different lines can have partially different station sets
+  // (e.g. Line 1 has "Station 5W" that Line 2 doesn't), so this merges
+  // them into one combined list rather than assuming they all match.
+  const labels = [];
+  CONFIG.lines.forEach(line => {
+    getOrderedColumns(line).forEach(col => { if (!labels.includes(col.label)) labels.push(col.label); });
+  });
+  return labels;
+}
+function setAggStationFilterByIndex(idx) {
+  const labels = getAllLineStationLabels();
+  const label = labels[idx];
+  aggStationFilter = (aggStationFilter === label) ? null : label;
+  renderUnifiedContent();
+}
+function clearAggStationFilter() {
+  aggStationFilter = null;
+  renderUnifiedContent();
+}
+
 function renderAllLinesContent(el) {
   if (!el) return;
-  el.innerHTML = CONFIG.lines.map(line => {
+  const allLabels = getAllLineStationLabels();
+  const allBoard = getAllBoardUnits().filter(u => !u.completed);
+
+  const aggBar = `<div style="margin-bottom:16px;">
+    <div style="font-size:11px;font-weight:700;color:#605e5c;text-transform:uppercase;letter-spacing:.3px;margin-bottom:6px;padding:0 2px;">All lines combined — click a station to see every matching unit across every line</div>
+    <div class="tab-bar" style="padding:0 4px;background:#fafafa;border:1px solid #edebe9;border-radius:6px;">
+      ${allLabels.map((label, idx) => {
+        const count = allBoard.filter(u => u.col === label).length;
+        const isActive = aggStationFilter === label;
+        return `<button class="tab-btn ${isActive?'active':''}" style="${isActive?'color:#4b3a9e;border-bottom-color:#4b3a9e;font-weight:700;':''}" onclick="setAggStationFilterByIndex(${idx})">${label}${count>0?`<span class="tab-count" style="background:#4b3a9e;">${count}</span>`:''}</button>`;
+      }).join('')}
+    </div>
+  </div>`;
+
+  if (aggStationFilter) {
+    const units = allBoard.filter(u => u.col === aggStationFilter);
+    el.innerHTML = aggBar + `
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+        <div style="font-size:13px;font-weight:700;">${aggStationFilter} — ${units.length} unit${units.length!==1?'s':''} across all lines</div>
+        <button class="subtle sm" onclick="clearAggStationFilter()">&times; Clear filter</button>
+      </div>
+      ${units.length ? units.map(u=>renderBoardUnitCard(u)).join('') : `<p style="font-size:13px;color:#605e5c;padding:6px 0;">No units currently at <strong>${aggStationFilter}</strong> on any line.</p>`}
+    `;
+    return;
+  }
+
+  el.innerHTML = aggBar + CONFIG.lines.map(line => {
     const orderedCols = getOrderedColumns(line);
     const stBar = orderedCols.map(col => {
       const cu = getColUnits(line.id, col.label).filter(u => !u.completed);
@@ -5409,17 +5783,30 @@ function renderBoardUnitCard(u) {
       actions+=`<button class="primary" onclick="togglePanel('bd-soldue-${sid}')">&#9998; Solutions ESO / Due Date / Location</button>`;
       panels+=`<div class="action-group" id="bd-soldue-${sid}"><div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:8px;"><div><label>Solutions ESO #</label><input id="bd-sol-eso-${sid}" type="text" placeholder="e.g. SOL-4521" value="${u.solutionsEso||''}" /></div><div><label>Due Date</label><input id="bd-due-date-${sid}" type="date" value="${u.dueDate||''}" /></div><div><label>Location</label><input id="bd-location-${sid}" type="text" placeholder="e.g. Bay 3" value="${u.location||''}" /></div></div><button class="primary sm" onclick="saveStation7Data('${u.id}')">&#10003; Save</button></div>`;
     }
-    // LEAD CHECK-IN — whoever's checking in enters their own name/email, logged per station
+    // LEAD CHECK-IN — multiple inspectors (and trainees) can check in at
+    // the same station; everyone currently checked in at this unit's
+    // current station shows as a roster, not just the most recent person.
     {
-      const lastCheckin = (u.leadCheckins||[]).length ? u.leadCheckins[u.leadCheckins.length-1] : null;
-      actions+=`<button class="primary" onclick="togglePanel('bd-leadcheckin-${sid}')">&#128100; Lead Check-In</button>`;
+      const currentCheckins = (u.leadCheckins||[]).map((c,i)=>({...c,idx:i})).filter(c => c.station === u.col);
+      actions+=`<button class="primary" onclick="togglePanel('bd-leadcheckin-${sid}')">&#128100; Inspectors${currentCheckins.length?` (${currentCheckins.length})`:''}</button>`;
       panels+=`<div class="action-group" id="bd-leadcheckin-${sid}">
-        ${lastCheckin?`<div style="font-size:12px;color:var(--text-2,#605e5c);margin-bottom:8px;">Last check-in: <strong>${lastCheckin.name}</strong> at ${lastCheckin.station} — ${lastCheckin.ts}${lastCheckin.email?` — <a href="https://teams.microsoft.com/l/chat/0/0?users=${encodeURIComponent(lastCheckin.email)}" target="_blank" rel="noopener" style="color:#006A8E;">&#128172; Chat in Teams</a>`:''}</div>`:''}
+        ${currentCheckins.length?`<div style="margin-bottom:10px;">
+          <label>Checked in at ${u.col}</label>
+          <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:4px;">
+            ${currentCheckins.map(c => `<span style="display:inline-flex;align-items:center;gap:5px;font-size:11px;background:${c.training?'#fff4ce':'#f0eeff'};color:${c.training?'#7a5d00':'#4b3a9e'};border:1px solid ${c.training?'#7a5d00':'#4b3a9e'};border-radius:20px;padding:3px 6px 3px 10px;">
+              ${c.name}${c.training?' &#127891; Trainee':''}
+              <button onclick="leadCheckOut('${u.id}',${c.idx})" title="Remove" style="border:none;background:transparent;color:inherit;font-weight:900;cursor:pointer;padding:0 2px;font-size:12px;line-height:1;">&times;</button>
+            </span>`).join('')}
+          </div>
+        </div>`:''}
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:8px;">
-          <div><label>Name</label><input id="bd-lead-name-${sid}" type="text" placeholder="Your name" /></div>
-          <div><label>Email</label><input id="bd-lead-email-${sid}" type="email" placeholder="you@company.com" /></div>
+          <div><label>Name</label><input id="bd-lead-name-${sid}" type="text" placeholder="Their name" /></div>
+          <div><label>Email</label><input id="bd-lead-email-${sid}" type="email" placeholder="them@company.com" /></div>
         </div>
-        <button class="primary sm" onclick="leadCheckIn('${u.id}')">&#10003; Check In at ${u.col}</button>
+        <label style="display:flex;align-items:center;gap:6px;font-size:12px;font-weight:400;margin-bottom:8px;">
+          <input id="bd-lead-training-${sid}" type="checkbox" style="width:auto;" /> This person is in training
+        </label>
+        <button class="primary sm" onclick="leadCheckIn('${u.id}')">&#10003; Add to ${u.col}</button>
       </div>`;
     }
     // REMEDIATION column — Started + Return to options
@@ -5448,7 +5835,32 @@ function renderBoardUnitCard(u) {
     else if (isInspectionCol) {
       if (!u.readyForInspection&&!u.inspectionStarted) { actions+=`<button class="warn-btn" onclick="togglePanel('bd-rfi-${sid}')">&#9873; Ready for Inspection</button>`; panels+=`<div class="action-group" id="bd-rfi-${sid}"><label>Notes</label><textarea id="bd-notes-rfi-${sid}" rows="2" placeholder="Notes..."></textarea><button class="warn-btn sm" onclick="doBoardAction('${u.id}','readyForInspection')">&#9873; Confirm Ready</button></div>`; }
       else if (u.readyForInspection&&!u.inspectionStarted) {
-        actions+=`<button class="inspect-btn" onclick="doBoardAction('${u.id}','inspectionStarted')">&#9654; Inspection</button>`;
+        actions+=`<button class="inspect-btn" onclick="togglePanel('bd-startinsp-${sid}')">&#9654; Inspection</button>`;
+        panels+=`<div class="action-group" id="bd-startinsp-${sid}">
+          <label>Who's starting this inspection?</label>
+          <div id="bd-startinsp-rows-${sid}">
+            <div style="display:flex;gap:8px;align-items:center;margin-bottom:6px;">
+              <input type="text" class="startinsp-name" placeholder="Inspector name" style="flex:1;" />
+              <label style="display:flex;align-items:center;gap:4px;font-size:11px;font-weight:400;white-space:nowrap;"><input type="checkbox" class="startinsp-training" style="width:auto;" /> Trainee</label>
+            </div>
+          </div>
+          <button class="subtle sm" onclick="siAddRow('${sid}')" style="margin-bottom:8px;">+ Add another person</button>
+          <label>Notes</label>
+          <textarea id="bd-notes-startinsp-${sid}" rows="2" placeholder="Notes..."></textarea>
+          <button class="inspect-btn sm" onclick="doBoardAction('${u.id}','inspectionStarted')">&#9654; Confirm Start</button>
+        </div>`;
+      }
+      // STOP INSPECTION — for when it's end of day and the unit isn't
+      // finished; pauses the "Inspecting" state without moving the unit or
+      // touching its checklist progress, so it's clear nobody's actively
+      // working it right now. It can be started again like normal later.
+      if (u.inspectionStarted) {
+        actions+=`<button class="warn-btn" onclick="togglePanel('bd-stopinsp-${sid}')">&#9208; Stop Inspection</button>`;
+        panels+=`<div class="action-group" id="bd-stopinsp-${sid}">
+          <label>Reason (e.g. end of day, not yet complete)</label>
+          <textarea id="bd-notes-stopinsp-${sid}" rows="2" placeholder="Notes..."></textarea>
+          <button class="warn-btn sm" onclick="doBoardAction('${u.id}','stopInspection')">&#9208; Confirm Stop</button>
+        </div>`;
       }
       // Move to Remediation
       if (canSendToRemed) {
@@ -5460,24 +5872,24 @@ function renderBoardUnitCard(u) {
     if (!isRemedCol && (!isInspectionCol || u.inspectionStarted)) {
       const lockAttr = checklistOK ? '' : 'disabled title="Complete the station checklist first"';
       if (isLast) { actions+=`<button class="success" onclick="togglePanel('bd-done-${sid}')">&#10003; Mark complete</button>`; panels+=`<div class="action-group" id="bd-done-${sid}"><label>Notes</label><textarea id="bd-notes-done-${sid}" rows="2" placeholder="Notes..."></textarea>${!checklistOK?`<div style="font-size:11px;color:#A03033;margin-bottom:6px;">&#9888; Complete the station checklist below before confirming.</div>`:''}<button class="success sm" ${lockAttr} onclick="doBoardAction('${u.id}','complete')">&#10003; Confirm</button></div>`; }
-      // A "release to a chosen station" option is always offered too — even
-      // from the line's last column — so a unit can be routed to an
-      // overflow/alternate station instead of strictly following the line's
-      // column order, and can be released right back out of that overflow
-      // station to any other station just as freely.
+      // A "release to a chosen station" dropdown is always visible directly
+      // on the card (not hidden behind a click) — so a unit can be routed
+      // to an overflow/alternate station instead of strictly following the
+      // line's column order, and can be released right back out of that
+      // overflow station to any other station just as freely.
       const otherCols = cols.filter(c => c.label !== u.col && c.label !== 'Remediation');
       if (otherCols.length) {
         const defaultDest = (nextCol && nextCol !== 'Remediation') ? nextCol : otherCols[0].label;
         const destOpts = otherCols.map(c => `<option value="${c.label}" ${c.label===defaultDest?'selected':''}>${c.label}</option>`).join('');
-        const fwdLabel = (nextCol && nextCol !== 'Remediation') ? 'Move to '+nextCol : 'Move to...';
-        actions+=`<button class="success" onclick="togglePanel('bd-fwd-${sid}')">&#8594; ${fwdLabel}</button>`;
+        actions+=`<div style="display:flex;gap:6px;align-items:center;">
+          <select id="bd-fwd-dest-${sid}" style="font-size:12px;padding:6px 8px;max-width:160px;" onchange="const l=document.getElementById('bd-fwd-destlabel-${sid}'); if(l) l.textContent=this.value;">${destOpts}</select>
+          <button class="success sm" onclick="togglePanel('bd-fwd-${sid}')">&#8594; Release</button>
+        </div>`;
         panels+=`<div class="action-group" id="bd-fwd-${sid}">
-          <label>Release to</label>
-          <select id="bd-fwd-dest-${sid}" style="margin-bottom:8px;">${destOpts}</select>
           <label>Notes</label>
           <textarea id="bd-notes-fwd-${sid}" rows="2" placeholder="Notes..."></textarea>
           ${!checklistOK?`<div style="font-size:11px;color:#A03033;margin-bottom:6px;">&#9888; Complete the station checklist below before confirming.</div>`:''}
-          <button class="success sm" ${lockAttr} onclick="doBoardAction('${u.id}','forward')">&#8594; Confirm move</button>
+          <button class="success sm" ${lockAttr} onclick="doBoardAction('${u.id}','forward')">&#8594; Confirm move to <span id="bd-fwd-destlabel-${sid}">${defaultDest}</span></button>
         </div>`;
       }
     }
@@ -5566,6 +5978,35 @@ function switchToQC(s) {
   trackerMode='qc'; activeTab=s;
   renderUnifiedTabs(); renderUnifiedContent(); updateAddBtns();
 }
+function switchToUnmatched() {
+  trackerMode='qc-unmatched';
+  renderUnifiedTabs(); renderUnifiedContent(); updateAddBtns();
+}
+// Units whose stored .station no longer matches any current QC station tab —
+// this happens if a station was ever renamed/removed while units were
+// sitting on it. Without this, those units become invisible: they don't
+// show under any tab (their old name doesn't exist anymore) and their
+// count never appears anywhere, even though the unit is very much still
+// active in qcUnits.
+function getUnmatchedQCUnits() {
+  return qcUnits.filter(u => !u.completed && !ALL_TABS.includes(u.station));
+}
+function reassignQCStation(serial) {
+  requireName(() => _reassignQCStation(serial));
+}
+function _reassignQCStation(serial) {
+  const u = qcUnits.find(x => x.serial === serial);
+  if (!u) return;
+  const destEl = document.getElementById('unmatched-dest-' + safeId(serial));
+  const dest = destEl ? destEl.value : '';
+  if (!dest) { alert('Select a station.'); return; }
+  const oldStation = u.station;
+  u.history.push({action:'Reassigned from unmatched station "'+oldStation+'" to '+dest, station:oldStation, inspector:getOperator().name, emp:getOperator().emp, ts:now(), notes:''});
+  u.station = dest;
+  u.remediation = dest === 'Remediation';
+  pushQC();
+  renderAll();
+}
 function switchCol(label) {
   activeCol=label; renderUnifiedTabs(); renderUnifiedContent();
 }
@@ -5638,20 +6079,45 @@ function leadCheckIn(unitId) {
   const u = ensureBoardTracked(unitId); const sid = safeId(unitId);
   const nameEl = document.getElementById('bd-lead-name-'+sid);
   const emailEl = document.getElementById('bd-lead-email-'+sid);
+  const trainingEl = document.getElementById('bd-lead-training-'+sid);
   const name = nameEl ? nameEl.value.trim() : '';
   const email = emailEl ? emailEl.value.trim() : '';
+  const training = trainingEl ? trainingEl.checked : false;
   if (!name) { alert('Enter a name to check in.'); return; }
   if (!u.leadCheckins) u.leadCheckins = [];
-  u.leadCheckins.push({ station: u.col, name, email, ts: now() });
-  u.history.push({ action: 'Lead check-in at '+u.col+' — '+name+(email?' ('+email+')':''), ts: now(), notes: '' });
-  togglePanel('bd-leadcheckin-'+sid);
+  u.leadCheckins.push({ station: u.col, name, email, training, ts: now() });
+  u.history.push({ action: (training?'Trainee':'Inspector')+' check-in at '+u.col+' — '+name+(email?' ('+email+')':''), ts: now(), notes: '' });
+  if (nameEl) nameEl.value = ''; if (emailEl) emailEl.value = ''; if (trainingEl) trainingEl.checked = false;
+  pushBoard(); renderAll();
+}
+function leadCheckOut(unitId, checkinIdx) {
+  const u = ensureBoardTracked(unitId);
+  if (!u.leadCheckins || !u.leadCheckins[checkinIdx]) return;
+  const person = u.leadCheckins[checkinIdx];
+  if (!confirm('Remove '+person.name+' from the check-in list at '+u.col+'?')) return;
+  u.leadCheckins.splice(checkinIdx, 1);
+  u.history.push({ action: 'Removed check-in at '+u.col+' — '+person.name, ts: now(), notes: '' });
   pushBoard(); renderAll();
 }
 
+function siAddRow(sid) {
+  const container = document.getElementById('bd-startinsp-rows-'+sid);
+  if (!container) return;
+  const row = document.createElement('div');
+  row.style.cssText = 'display:flex;gap:8px;align-items:center;margin-bottom:6px;';
+  row.innerHTML = `
+    <input type="text" class="startinsp-name" placeholder="Inspector name" style="flex:1;" />
+    <label style="display:flex;align-items:center;gap:4px;font-size:11px;font-weight:400;white-space:nowrap;"><input type="checkbox" class="startinsp-training" style="width:auto;" /> Trainee</label>
+    <button onclick="this.parentElement.remove()" style="border:none;background:transparent;color:#A03033;font-weight:900;cursor:pointer;font-size:14px;padding:0 4px;" title="Remove">&times;</button>
+  `;
+  container.appendChild(row);
+}
 function doBoardAction(unitId, action) {
   const u = ensureBoardTracked(unitId);
   const title = action === 'readyForInspection' ? 'Sign to Begin Inspection'
               : (action === 'hold' && !u.held) ? 'Sign to Hold'
+              : (action === 'inspectionStarted') ? 'Sign to Start Inspection'
+              : (action === 'stopInspection') ? 'Sign to Stop Inspection'
               : undefined;
   requireName(() => _doBoardAction(unitId, action), title);
 }
@@ -5691,7 +6157,7 @@ function _doBoardAction(unitId, action) {
 
 function _executeBoardAction(unitId, action) {
   const u=ensureBoardTracked(unitId); const ts=now();
-  const key=action==='forward'?'fwd':action==='complete'?'done':'hold';
+  const key=action==='forward'?'fwd':action==='complete'?'done':action==='inspectionStarted'?'startinsp':action==='stopInspection'?'stopinsp':'hold';
   const notesEl=document.getElementById('bd-notes-'+key+'-'+safeId(unitId));
   const notes=notesEl?notesEl.value.trim():'';
   const lc=CONFIG.lines.find(l=>l.id===u.line);
@@ -5711,7 +6177,31 @@ function _executeBoardAction(unitId, action) {
   else if (action==='complete') { u.history.push({action:'Marked complete',ts,notes}); u.completed=true; }
   else if (action==='hold') { u.held=!u.held; u.history.push({action:u.held?'Placed on hold':'Hold removed',ts,notes}); }
   else if (action==='readyForInspection') { u.readyForInspection=true; u.history.push({action:'Marked ready for inspection at '+u.col,ts,notes}); }
-  else if (action==='inspectionStarted') { u.inspectionStarted=true; u.history.push({action:'Inspection started at '+u.col,ts,notes}); }
+  else if (action==='inspectionStarted') {
+    // Multiple people can start an inspection together — everyone listed
+    // in the "Who's starting this inspection?" rows gets added to the
+    // check-in roster for this station (visible in the Inspectors panel),
+    // not just a single operator name.
+    const sid = safeId(unitId);
+    const rowsContainer = document.getElementById('bd-startinsp-rows-'+sid);
+    const names = rowsContainer ? Array.from(rowsContainer.querySelectorAll('.startinsp-name')) : [];
+    const trainingBoxes = rowsContainer ? Array.from(rowsContainer.querySelectorAll('.startinsp-training')) : [];
+    if (!u.leadCheckins) u.leadCheckins = [];
+    const added = [];
+    names.forEach((nameEl, i) => {
+      const name = nameEl.value.trim();
+      if (!name) return;
+      const training = trainingBoxes[i] ? trainingBoxes[i].checked : false;
+      u.leadCheckins.push({ station: u.col, name, email: '', training, ts });
+      added.push(training ? name+' (trainee)' : name);
+    });
+    u.inspectionStarted = true;
+    u.history.push({action:'Inspection started at '+u.col+(added.length?' — '+added.join(', '):''),ts,notes});
+  }
+  else if (action==='stopInspection') {
+    u.inspectionStarted = false;
+    u.history.push({action:'Inspection stopped at '+u.col+' (not complete)'+(notes?' — '+notes:''),ts,notes});
+  }
   else if (action==='sendToRemed') { u.remediationOrigin=u.col; u.history.push({action:'Sent to Remediation from '+u.col,ts,notes}); u.col='Remediation'; u.readyForInspection=false; u.inspectionStarted=false; }
   else if (action==='returnFromRemed') { const destEl=document.getElementById('bd-ret-dest-'+safeId(unitId)) || document.getElementById('floor-remed-dest-'+safeId(unitId)); let dest=destEl?destEl.value:''; if(!dest){alert('Select a destination.');return;} if(dest==='I4s') dest="I4's"; u.history.push({action:'Returned from Remediation to '+dest,ts,notes}); u.col=dest; u.readyForInspection=false; u.inspectionStarted=false; }
   pushBoard(); renderAll();
@@ -5829,8 +6319,14 @@ function renderMatrix() {
   const tf=document.getElementById('matrix-filter-type').value;
   const sf=document.getElementById('matrix-filter-status').value;
   const ms=[...STATIONS,'Remediation'];
-  const sn=Object.fromEntries(STATIONS.map(s=>[s,s.replace('Milestone ','M').replace('Station ','Stn ').replace('Shipping/Packing','Ship.')]));
-  sn['Remediation']='Remed.';
+  // Use the exact same label text as the Tracker's top tab row (no
+  // abbreviating) — this table used to shorten "Milestone 1" to "M1" and
+  // "Station 4" to "Stn 4" to save space, but Board also has real columns
+  // literally named "M1"/"M2", so the abbreviation looked like it was
+  // referring to those instead of being short for "Milestone 1". The wrap
+  // below already scrolls horizontally, so there's no need to abbreviate.
+  const sn=Object.fromEntries(STATIONS.map(s=>[s,s]));
+  sn['Remediation']='Remediation';
   const types=tf==='All'?PRODUCTS:[tf];
   let filtered=qcUnits; if(sf!=='All') filtered=filtered.filter(u=>unitStatus(u)===sf);
   let html=`<table class="matrix-table"><thead><tr><th>Product</th>`;
@@ -5926,8 +6422,10 @@ function renderAdminQC() {
   const el=document.getElementById('admin-unit-list'); if(!el) return;
   if(!qcUnits.length){el.innerHTML='<p style="font-size:13px;color:#605e5c;">No QC units yet.</p>';return;}
   el.innerHTML=`<table class="user-table"><thead><tr><th>Unit</th><th>Type</th><th>Station</th><th>Status</th><th>Move to</th><th>Actions</th></tr></thead><tbody>
-    ${qcUnits.filter(u=>!u.completed).map(u=>`<tr>
-      <td><strong>${u.serial}</strong></td><td>${typeBadge(u.type)}</td><td>${u.station}</td><td>${unitStatus(u)}</td>
+    ${qcUnits.filter(u=>!u.completed).map(u=>{
+      const isUnmatched = !ALL_TABS.includes(u.station);
+      return `<tr>
+      <td><strong>${u.serial}</strong></td><td>${typeBadge(u.type)}</td><td>${isUnmatched?`<span style="color:#A03033;font-weight:700;" title="This station name doesn't match any current tab">&#9888; ${u.station}</span>`:u.station}</td><td>${unitStatus(u)}</td>
       <td><select id="override-${safeId(u.serial)}" style="width:130px;font-size:12px;">${ALL_TABS.map(s=>`<option ${s===u.station?'selected':''}>${s}</option>`).join('')}</select></td>
       <td style="display:flex;gap:4px;flex-wrap:wrap;">
         <button class="sm primary" onclick="adminMoveQC('${u.serial}')">Move</button>
@@ -5935,7 +6433,8 @@ function renderAdminQC() {
         ${u.remediation?`<button class="sm success" onclick="adminClearRemed('${u.serial}')">Clear remed.</button>`:''}
         <button class="sm danger" onclick="adminDeleteQC('${u.serial}')">Delete</button>
       </td>
-    </tr>`).join('')}
+    </tr>`;
+    }).join('')}
   </tbody></table>`;
 }
 function adminMoveQC(serial){const u=qcUnits.find(x=>x.serial===serial);if(!u)return;const dest=document.getElementById('override-'+safeId(serial)).value;u.history.push({action:'Admin moved to '+dest,station:u.station,inspector:getOperator().name,emp:getOperator().emp,ts:now(),notes:''});u.station=dest;u.remediation=dest==='Remediation';u.held=false;u.inspectionStarted=false;pushQC();renderAll();renderAdminQC();}
@@ -7179,12 +7678,12 @@ function renderPMLeadCheckins() {
 
   const rows = recent.map(c => `<tr>
     <td style="padding:6px 10px;font-size:12px;">${c.station}</td>
-    <td style="padding:6px 10px;font-size:12px;">${c.name}</td>
+    <td style="padding:6px 10px;font-size:12px;">${c.name}${c.training?' <span style="font-size:10px;background:#fff4ce;color:#7a5d00;border:1px solid #7a5d00;border-radius:20px;padding:1px 7px;margin-left:4px;">&#127891; Trainee</span>':''}</td>
     <td style="padding:6px 10px;font-size:12px;">${c.email?`<a href="https://teams.microsoft.com/l/chat/0/0?users=${encodeURIComponent(c.email)}" target="_blank" rel="noopener" style="color:#006A8E;">&#128172; Chat in Teams</a>`:'—'}</td>
     <td style="padding:6px 10px;font-size:11px;color:var(--text-3,#8a96a8);">${c.ts}</td>
   </tr>`).join('');
 
-  el.innerHTML = `<div class="chart-title">Lead Check-Ins <span class="chart-subtitle">${allCheckins.length} total${allCheckins.length>25?' · showing 25 most recent':''}</span></div>
+  el.innerHTML = `<div class="chart-title">Inspector Check-Ins <span class="chart-subtitle">${allCheckins.length} total${allCheckins.length>25?' · showing 25 most recent':''}</span></div>
     <div style="overflow-x:auto;">
       <table style="width:100%;border-collapse:collapse;">
         <thead><tr style="border-bottom:2px solid #edebe9;text-align:left;">
@@ -9490,6 +9989,7 @@ function init() {
   applyChecklistOverrides();
   applyStationTrackerOverrides();
   applyLineOverrides();
+  applyQCStationOverrides();
   applyProjectOverrides();
   applyNavOrder();
   initOperatorSelect();

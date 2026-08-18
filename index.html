@@ -982,6 +982,7 @@ label { font-size: 11px; font-weight: 600; color: var(--text-2); display: block;
       <span style="font-size:14px;font-weight:600;color:rgba(255,255,255,.85);letter-spacing:.3px;">Production System</span>
       <span style="font-size:11px;font-weight:700;color:rgba(255,255,255,.6);letter-spacing:.5px;text-transform:uppercase;">Beta Testing</span>
     </div>
+    <div style="margin-left:auto;font-size:10px;color:rgba(255,255,255,.5);white-space:nowrap;align-self:flex-start;padding-top:2px;" title="If this looks out of date after an update was announced, hard-refresh with Ctrl+Shift+R (Cmd+Shift+R on Mac) to clear your browser's cached copy.">Build: 2026-08-18</div>
 
   </div>
   <div class="header-nav">
@@ -3769,7 +3770,7 @@ function renderChecklistEditor() {
   </div>`;
 
   const stationTabs = `<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:16px;">
-    ${stations.map(s => `<button onclick="ceSwitchStation('${s}')" style="font-size:12px;font-weight:600;padding:5px 12px;border-radius:20px;border:1px solid ${s===ceActiveStation?'#006A8E':'#c8d0dc'};background:${s===ceActiveStation?'#006A8E':'#fff'};color:${s===ceActiveStation?'#fff':'#605e5c'};cursor:pointer;">${s}</button>`).join('')}
+    ${stations.map(s => `<button onclick="ceSwitchStation('${jsq(s)}')" style="font-size:12px;font-weight:600;padding:5px 12px;border-radius:20px;border:1px solid ${s===ceActiveStation?'#006A8E':'#c8d0dc'};background:${s===ceActiveStation?'#006A8E':'#fff'};color:${s===ceActiveStation?'#fff':'#605e5c'};cursor:pointer;">${s}</button>`).join('')}
   </div>`;
 
   const items = ceGetList(ceActiveType, ceActiveStation);
@@ -4395,6 +4396,14 @@ function applyOperator()       {}
 function togglePanel(id) { const el=document.getElementById(id); if(el) el.style.display=el.style.display==='none'?'block':'none'; }
 function now() { return new Date().toLocaleString('en-US',{month:'short',day:'numeric',year:'numeric',hour:'2-digit',minute:'2-digit'}); }
 function safeId(s) { return (s||'').replace(/[^a-z0-9]/gi,'_'); }
+// Safely embed a string inside a single-quoted JS string literal used in
+// an inline onclick="" (or similar) HTML attribute. Station/column/line
+// labels are admin-editable free text and can contain apostrophes (the
+// stock config even ships with a column literally named "I4's") — without
+// this, such a label prematurely closes the quoted argument and corrupts
+// the HTML parse of every element that follows it in that same block,
+// which is what made whole rows of tabs stop responding to clicks.
+function jsq(s) { return String(s==null?'':s).replace(/\\/g,'\\\\').replace(/'/g,"\\'"); }
 
 /* ---- QC CATEGORY ---- */
 function getCatStyle(productName) {
@@ -5423,7 +5432,7 @@ function renderLineSummary() {
         const locTag = u.location ? `<div style="font-size:9px;color:#006A8E;font-weight:600;">&#128205; ${u.location}</div>` : '';
         return `<div style="color:${color};font-weight:${weight};">${u.id}${dueTag}${locTag}</div>`;
       }).join('');
-      return `<div class="station-chip ${cls}" onclick="event.stopPropagation();jumpToLine('${line.id}');setTimeout(()=>switchCol('${col.label}'),50)">
+      return `<div class="station-chip ${cls}" onclick="event.stopPropagation();jumpToLine('${jsq(line.id)}');setTimeout(()=>switchCol('${jsq(col.label)}'),50)">
         <div class="station-chip-header">${shortLabel}</div>
         <div class="station-chip-body">
           <div class="station-chip-count" style="color:${count>0?'#006A8E':'#c8c6c4'}">${count||'—'}</div>
@@ -5431,7 +5440,7 @@ function renderLineSummary() {
         </div>
       </div>`;
     }).join('');
-    return `<div class="line-summary-card" onclick="jumpToLine('${line.id}')">
+    return `<div class="line-summary-card" onclick="jumpToLine('${jsq(line.id)}')">
       <div class="line-summary-header" style="background:${line.bgColor};border-left:4px solid ${line.headerColor};">
         <div>
           <span style="font-size:14px;font-weight:700;color:#fff;">${line.name}</span>
@@ -5508,12 +5517,18 @@ function renderUnifiedTabs() {
   const remedCount = getAllBoardUnits().filter(u=>u.col==='Remediation'&&!u.completed).length;
   html+=`<button class="tab-btn ${trackerMode==='remed'?'active':''}" style="${trackerMode==='remed'?'color:#A03033;border-bottom-color:#A03033;font-weight:600;':''}" onclick="switchToRemed()">&#9888; Remediation${remedCount>0?'<span class="tab-count">'+remedCount+'</span>':''}</button>`;
   html+='<span style="display:inline-block;width:1px;height:20px;background:#edebe9;margin:0 8px;vertical-align:middle;"></span>';
-  html+='<span style="font-size:10px;font-weight:700;color:#605e5c;text-transform:uppercase;padding:8px 6px 0;letter-spacing:0.5px;display:inline-block;">QC</span>';
+  {
+    const activeQC = qcUnits.filter(u => !u.completed);
+    const readyCount = activeQC.filter(u => !u.remediation && !u.held && !u.inspectionStarted && CONFIG.needsInspectionStart.includes(u.station)).length;
+    const inspectingCount = activeQC.filter(u => u.inspectionStarted).length;
+    html+=`<span style="font-size:10px;font-weight:700;color:#7a5d00;text-transform:uppercase;padding:8px 6px 0;letter-spacing:0.5px;display:inline-flex;align-items:center;gap:4px;white-space:nowrap;" title="Units at an inspection station that haven't been started yet">&#9203; Ready: ${readyCount}</span>`;
+    html+=`<span style="font-size:10px;font-weight:700;color:#4b3a9e;text-transform:uppercase;padding:8px 6px 0;letter-spacing:0.5px;display:inline-flex;align-items:center;gap:4px;white-space:nowrap;" title="Units currently being inspected">&#128270; Inspecting: ${inspectingCount}</span>`;
+  }
   html+=ALL_TABS.map(s => {
     const isRemed=s==='Remediation';
     const count=qcUnits.filter(u=>u.station===s&&!u.completed).length;
     const isActive=trackerMode==='qc'&&s===activeTab;
-    return `<button class="tab-btn ${isActive?'active':''} ${isRemed?'remed-tab':''}" onclick="switchToQC('${s}')">${s}${count>0?`<span class="tab-count">${count}</span>`:''}</button>`;
+    return `<button class="tab-btn ${isActive?'active':''} ${isRemed?'remed-tab':''}" onclick="switchToQC('${jsq(s)}')">${s}${count>0?`<span class="tab-count">${count}</span>`:''}</button>`;
   }).join('');
   const unmatchedCount = getUnmatchedQCUnits().length;
   if (unmatchedCount > 0) {
@@ -5521,6 +5536,11 @@ function renderUnifiedTabs() {
   }
   bar.innerHTML=html;
 }
+
+// QC-only summary: how many units are waiting to have an inspection
+// started vs. actively being inspected right now — shown inline in the
+// top tab bar (replacing the old plain "QC" label) rather than as a
+// separate block, so it's visible at a glance without extra scrolling.
 
 function switchToBoard() {
   trackerMode='board';
@@ -5702,8 +5722,8 @@ function renderAllLinesContent(el) {
       const cu = getColUnits(line.id, col.label).filter(u => !u.completed);
       const count = cu.length;
       const isActive = activeLine===line.id && activeCol===col.label;
-      return `<button draggable="true" ondragstart="tabDragStart('${line.id}','${col.label}')" ondragover="event.preventDefault()" ondrop="tabDrop('${line.id}','${col.label}')"
-        class="tab-btn ${isActive?'active':''}" style="cursor:grab;${isActive?'color:'+line.headerColor+';border-bottom-color:'+line.headerColor:''}" onclick="setActiveCol('${line.id}','${col.label}')">${col.label}${count>0?`<span class="tab-count" style="background:${line.headerColor};">${count}</span>`:''}</button>`;
+      return `<button draggable="true" ondragstart="tabDragStart('${jsq(line.id)}','${jsq(col.label)}')" ondragover="event.preventDefault()" ondrop="tabDrop('${jsq(line.id)}','${jsq(col.label)}')"
+        class="tab-btn ${isActive?'active':''}" style="cursor:grab;${isActive?'color:'+line.headerColor+';border-bottom-color:'+line.headerColor:''}" onclick="setActiveCol('${jsq(line.id)}','${jsq(col.label)}')">${col.label}${count>0?`<span class="tab-count" style="background:${line.headerColor};">${count}</span>`:''}</button>`;
     }).join('');
 
     // Show units for this line's active column
@@ -6339,7 +6359,7 @@ function renderMatrix() {
     ms.forEach(s=>{
       const su=tu.filter(u=>u.station===s&&!u.completed); if(!su.length){html+=`<td class="station-cell"><span class="cell-empty">—</span></td>`;return;}
       const dc=su.some(u=>u.remediation)?'red':su.some(u=>u.held)?'orange':su.some(u=>u.inspectionStarted)?'purple':'blue';
-      html+=`<td class="station-cell" title="${su.map(u=>u.serial).join(', ')}"><span class="cell-dot ${dc}" onclick="jumpToQCStation('${s}')">${su.length}</span></td>`;
+      html+=`<td class="station-cell" title="${su.map(u=>u.serial).join(', ')}"><span class="cell-dot ${dc}" onclick="jumpToQCStation('${jsq(s)}')">${su.length}</span></td>`;
     });
     const done=tu.filter(u=>u.completed).length;
     html+=`<td class="station-cell"><span class="cell-dot green">${done||'—'}</span></td><td style="font-weight:600;">${tu.length}</td></tr>`;
@@ -8118,7 +8138,7 @@ function renderPMLineCards() {
           ${remed>0?`<span class="badge badge-red">${remed} remed</span>`:''}
           ${held>0?`<span class="badge badge-orange">${held} held</span>`:''}
           <span style="font-size:11px;color:#605e5c;">${pct}% done</span>
-          <button class="subtle sm" onclick="jumpToLine('${line.id}')">Open ›</button>
+          <button class="subtle sm" onclick="jumpToLine('${jsq(line.id)}')">Open ›</button>
         </div>
       </div>
       <div style="margin-bottom:10px;">
@@ -9574,7 +9594,7 @@ function renderFloorStationStrip() {
   line.columns.forEach(col => {
     const cnt = stationCounts[col.label] || 0;
     const isActive = floorActiveStation === col.label;
-    html += `<button class="floor-station-btn ${isActive?'active':''}" onclick="floorSelectStation('${col.label.replace(/'/g,"\'")}')">
+    html += `<button class="floor-station-btn ${isActive?'active':''}" onclick="floorSelectStation('${jsq(col.label)}')">
       ${col.label.replace('Station ','Stn ').replace('In the Hole','Hole').replace('Load Bank','LB').replace('Ready to Ship','RTS')}
       ${cnt > 0 ? `<span class="station-count">${cnt}</span>` : ''}
     </button>`;

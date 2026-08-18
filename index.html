@@ -5391,7 +5391,7 @@ function renderBoardUnitCard(u) {
   const isInspectionCol = CONFIG.boardInspectionCols.includes(u.col);
   const canSendToRemed  = CONFIG.boardInspectionCols.includes(u.col);
   const isRemedCol      = u.col === 'Remediation';
-  const remedReturnCols = ['I2C','I3A','I3B',"I4's"];
+  const remedReturnCols = cols.filter(c => c.label !== 'Remediation').map(c => c.label);
   const stationChecklistItems = STATION_CHECKLISTS[u.col] || null;
   const stationChecklistState = stationChecklistItems ? getChecklistState(u) : null;
   const stationQCChecklistItems = STATION_QC_CHECKLISTS[u.col] || null;
@@ -5435,10 +5435,7 @@ function renderBoardUnitCard(u) {
         <label>Send back to</label>
         <select id="bd-ret-dest-${sid}" style="margin-bottom:8px;">
           <option value="">Select station...</option>
-          <option value="I2C">I2C</option>
-          <option value="I3A">I3A</option>
-          <option value="I3B">I3B</option>
-          <option value="I4s">I4&#39;s</option>
+          ${remedReturnCols.map(label => `<option value="${label}">${label}</option>`).join('')}
         </select>
         <label>Notes</label>
         <textarea id="bd-notes-ret-${sid}" rows="2" placeholder="Describe resolution..."></textarea>
@@ -5463,7 +5460,26 @@ function renderBoardUnitCard(u) {
     if (!isRemedCol && (!isInspectionCol || u.inspectionStarted)) {
       const lockAttr = checklistOK ? '' : 'disabled title="Complete the station checklist first"';
       if (isLast) { actions+=`<button class="success" onclick="togglePanel('bd-done-${sid}')">&#10003; Mark complete</button>`; panels+=`<div class="action-group" id="bd-done-${sid}"><label>Notes</label><textarea id="bd-notes-done-${sid}" rows="2" placeholder="Notes..."></textarea>${!checklistOK?`<div style="font-size:11px;color:#A03033;margin-bottom:6px;">&#9888; Complete the station checklist below before confirming.</div>`:''}<button class="success sm" ${lockAttr} onclick="doBoardAction('${u.id}','complete')">&#10003; Confirm</button></div>`; }
-      else if (nextCol && nextCol !== 'Remediation') { actions+=`<button class="success" onclick="togglePanel('bd-fwd-${sid}')">&#8594; Move to ${nextCol}</button>`; panels+=`<div class="action-group" id="bd-fwd-${sid}"><label>Notes</label><textarea id="bd-notes-fwd-${sid}" rows="2" placeholder="Notes..."></textarea>${!checklistOK?`<div style="font-size:11px;color:#A03033;margin-bottom:6px;">&#9888; Complete the station checklist below before confirming.</div>`:''}<button class="success sm" ${lockAttr} onclick="doBoardAction('${u.id}','forward')">&#8594; Confirm move</button></div>`; }
+      // A "release to a chosen station" option is always offered too — even
+      // from the line's last column — so a unit can be routed to an
+      // overflow/alternate station instead of strictly following the line's
+      // column order, and can be released right back out of that overflow
+      // station to any other station just as freely.
+      const otherCols = cols.filter(c => c.label !== u.col && c.label !== 'Remediation');
+      if (otherCols.length) {
+        const defaultDest = (nextCol && nextCol !== 'Remediation') ? nextCol : otherCols[0].label;
+        const destOpts = otherCols.map(c => `<option value="${c.label}" ${c.label===defaultDest?'selected':''}>${c.label}</option>`).join('');
+        const fwdLabel = (nextCol && nextCol !== 'Remediation') ? 'Move to '+nextCol : 'Move to...';
+        actions+=`<button class="success" onclick="togglePanel('bd-fwd-${sid}')">&#8594; ${fwdLabel}</button>`;
+        panels+=`<div class="action-group" id="bd-fwd-${sid}">
+          <label>Release to</label>
+          <select id="bd-fwd-dest-${sid}" style="margin-bottom:8px;">${destOpts}</select>
+          <label>Notes</label>
+          <textarea id="bd-notes-fwd-${sid}" rows="2" placeholder="Notes..."></textarea>
+          ${!checklistOK?`<div style="font-size:11px;color:#A03033;margin-bottom:6px;">&#9888; Complete the station checklist below before confirming.</div>`:''}
+          <button class="success sm" ${lockAttr} onclick="doBoardAction('${u.id}','forward')">&#8594; Confirm move</button>
+        </div>`;
+      }
     }
     actions+=`<button class="${u.held?'warn-btn':''}" onclick="togglePanel('bd-hold-${sid}')">${u.held?'&#8634; Remove hold':'&#9646; Hold'}</button>`;
     panels+=`<div class="action-group" id="bd-hold-${sid}"><label>Notes</label><textarea id="bd-notes-hold-${sid}" rows="2" placeholder="Reason..."></textarea><button class="${u.held?'warn-btn':''} sm" onclick="doBoardAction('${u.id}','hold')">${u.held?'&#8634; Confirm remove hold':'&#9646; Confirm hold'}</button></div>`;
@@ -5680,13 +5696,24 @@ function _executeBoardAction(unitId, action) {
   const notes=notesEl?notesEl.value.trim():'';
   const lc=CONFIG.lines.find(l=>l.id===u.line);
   const cols=lc?lc.columns:[]; const colIdx=cols.findIndex(c=>c.label===u.col);
-  if (action==='forward') { const next=cols[colIdx+1]; if(!next) return; u.history.push({action:'Moved to '+next.label,ts,notes,operator:getOperator().name}); u.col=next.label; u.readyForInspection=false; u.inspectionStarted=false; }
+  if (action==='forward') {
+    const next=cols[colIdx+1];
+    // Prefer an explicitly chosen destination (from the Tracker card's or
+    // Floor Mode's "Release to" picker) over the fixed next-in-line column
+    // — lets a unit skip ahead to an overflow/alternate station instead of
+    // always following the line's strict column order.
+    const destEl = document.getElementById('bd-fwd-dest-'+safeId(unitId)) || document.getElementById('floor-dest-'+safeId(unitId));
+    const destLabel = destEl && destEl.value ? destEl.value : (next ? next.label : null);
+    if (!destLabel) return;
+    u.history.push({action:'Moved to '+destLabel,ts,notes,operator:getOperator().name});
+    u.col=destLabel; u.readyForInspection=false; u.inspectionStarted=false;
+  }
   else if (action==='complete') { u.history.push({action:'Marked complete',ts,notes}); u.completed=true; }
   else if (action==='hold') { u.held=!u.held; u.history.push({action:u.held?'Placed on hold':'Hold removed',ts,notes}); }
   else if (action==='readyForInspection') { u.readyForInspection=true; u.history.push({action:'Marked ready for inspection at '+u.col,ts,notes}); }
   else if (action==='inspectionStarted') { u.inspectionStarted=true; u.history.push({action:'Inspection started at '+u.col,ts,notes}); }
   else if (action==='sendToRemed') { u.remediationOrigin=u.col; u.history.push({action:'Sent to Remediation from '+u.col,ts,notes}); u.col='Remediation'; u.readyForInspection=false; u.inspectionStarted=false; }
-  else if (action==='returnFromRemed') { const destEl=document.getElementById('bd-ret-dest-'+safeId(unitId)); let dest=destEl?destEl.value:''; if(!dest){alert('Select a destination.');return;} if(dest==='I4s') dest="I4's"; u.history.push({action:'Returned from Remediation to '+dest,ts,notes}); u.col=dest; u.readyForInspection=false; u.inspectionStarted=false; }
+  else if (action==='returnFromRemed') { const destEl=document.getElementById('bd-ret-dest-'+safeId(unitId)) || document.getElementById('floor-remed-dest-'+safeId(unitId)); let dest=destEl?destEl.value:''; if(!dest){alert('Select a destination.');return;} if(dest==='I4s') dest="I4's"; u.history.push({action:'Returned from Remediation to '+dest,ts,notes}); u.col=dest; u.readyForInspection=false; u.inspectionStarted=false; }
   pushBoard(); renderAll();
 }
 
@@ -9137,13 +9164,29 @@ function renderFloorCard(u, line) {
   // Release button
   let releaseBtn = '';
   if (isRemed) {
-    releaseBtn = `<button class="floor-release-btn" style="background:linear-gradient(135deg,#A03033,#e74c3c);" onclick="floorDoAction('${u.id}','returnFromRemed')">&#8592; Return from Remediation</button>`;
+    const remedDestCols = cols.filter(c => c.label !== 'Remediation');
+    const remedDestOpts = remedDestCols.map(c => {
+      const label = c.label.replace('Station ','Stn ').replace('In the Hole','Hole').replace('Ready to Ship','RTS').replace('Load Bank','LB');
+      return `<option value="${c.label}">${label}</option>`;
+    }).join('');
+    releaseBtn = `<div style="display:flex;gap:6px;align-items:center;flex:1;">
+      <select id="floor-remed-dest-${sid}" style="flex:1;min-width:0;">${remedDestOpts}</select>
+      <button class="floor-release-btn" style="flex:0 0 auto;padding-left:16px;padding-right:16px;background:linear-gradient(135deg,#A03033,#e74c3c);" onclick="floorDoAction('${u.id}','returnFromRemed')">&#8592; Return</button>
+    </div>`;
   } else if (isRTS) {
     const lockAttr = floorChecklistOK ? '' : 'disabled title="Complete the station checklist first"';
     releaseBtn = `<button class="floor-release-btn rts" ${lockAttr} onclick="floorDoAction('${u.id}','complete')">&#10003; Mark Complete</button>`;
   } else if (!u.readyForInspection && !isInsp) {
     const lockAttr = floorChecklistOK ? '' : 'disabled title="Complete the station checklist first"';
-    releaseBtn = `<button class="floor-release-btn" ${lockAttr} onclick="floorDoAction('${u.id}','advance')">&#9654; Release to ${nextLabel}</button>`;
+    const otherCols = cols.filter(c => c.label !== u.col && c.label !== 'Remediation');
+    const destOpts = otherCols.map(c => {
+      const label = c.label.replace('Station ','Stn ').replace('In the Hole','Hole').replace('Ready to Ship','RTS').replace('Load Bank','LB');
+      return `<option value="${c.label}" ${c.label===nextCol?'selected':''}>${label}</option>`;
+    }).join('');
+    releaseBtn = `<div style="display:flex;gap:6px;align-items:center;flex:1;">
+      <select id="floor-dest-${sid}" style="flex:1;min-width:0;" ${lockAttr}>${destOpts}</select>
+      <button class="floor-release-btn" style="flex:0 0 auto;padding-left:16px;padding-right:16px;" ${lockAttr} onclick="floorDoAction('${u.id}','advance')">&#9654; Release</button>
+    </div>`;
   } else if (u.readyForInspection && !isInsp) {
     releaseBtn = `<button class="floor-release-btn rts" onclick="floorDoAction('${u.id}','inspectionStarted')">&#128270; Inspection</button>`;
   } else if (isInsp) {

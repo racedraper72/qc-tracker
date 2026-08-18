@@ -5141,6 +5141,17 @@ function getQCReadyUnits() {
 function getQCInspectingUnits() {
   return qcUnits.filter(u => !u.completed && u.inspectionStarted);
 }
+// Board also has its own inspection stations (M1, M2, I3A, I3B, I4's, etc.
+// — whatever's listed in CONFIG.boardInspectionCols) with the exact same
+// "ready, then start, then inspecting" workflow as QC. "Ready for
+// Inspection" / "Inspecting" in the Tracker's QC tab combines both pools
+// so nothing at those Board stations goes missing from this view.
+function getBoardReadyForInspectionUnits() {
+  return getAllBoardUnits().filter(u => !u.completed && !u.held && u.readyForInspection && !u.inspectionStarted && CONFIG.boardInspectionCols.includes(u.col));
+}
+function getBoardInspectingUnits() {
+  return getAllBoardUnits().filter(u => !u.completed && u.inspectionStarted);
+}
 function switchToQCReady() {
   trackerMode='qc-ready';
   renderUnifiedTabs(); renderUnifiedContent(); updateAddBtns();
@@ -5150,14 +5161,22 @@ function switchToQCInspecting() {
   renderUnifiedTabs(); renderUnifiedContent(); updateAddBtns();
 }
 function renderQCReadyContent(el) {
-  const su = getQCReadyUnits();
-  if (!su.length) { el.innerHTML = '<p style="font-size:13px;color:#605e5c;padding:8px 0;">No units are currently ready for inspection.</p>'; return; }
-  el.innerHTML = renderQCUnitCards(su);
+  const qcSu = getQCReadyUnits();
+  const boardSu = getBoardReadyForInspectionUnits();
+  if (!qcSu.length && !boardSu.length) { el.innerHTML = '<p style="font-size:13px;color:#605e5c;padding:8px 0;">No units are currently ready for inspection.</p>'; return; }
+  let html = '';
+  if (boardSu.length) html += `<div style="font-size:11px;font-weight:700;color:#605e5c;text-transform:uppercase;letter-spacing:.3px;margin:4px 0 8px;">Board stations (${boardSu.length})</div>` + boardSu.map(u=>renderBoardUnitCard(u)).join('');
+  if (qcSu.length) html += `<div style="font-size:11px;font-weight:700;color:#605e5c;text-transform:uppercase;letter-spacing:.3px;margin:${boardSu.length?'18px':'4px'} 0 8px;">QC stations (${qcSu.length})</div>` + renderQCUnitCards(qcSu);
+  el.innerHTML = html;
 }
 function renderQCInspectingContent(el) {
-  const su = getQCInspectingUnits();
-  if (!su.length) { el.innerHTML = '<p style="font-size:13px;color:#605e5c;padding:8px 0;">No units are currently being inspected.</p>'; return; }
-  el.innerHTML = renderQCUnitCards(su);
+  const qcSu = getQCInspectingUnits();
+  const boardSu = getBoardInspectingUnits();
+  if (!qcSu.length && !boardSu.length) { el.innerHTML = '<p style="font-size:13px;color:#605e5c;padding:8px 0;">No units are currently being inspected.</p>'; return; }
+  let html = '';
+  if (boardSu.length) html += `<div style="font-size:11px;font-weight:700;color:#605e5c;text-transform:uppercase;letter-spacing:.3px;margin:4px 0 8px;">Board stations (${boardSu.length})</div>` + boardSu.map(u=>renderBoardUnitCard(u)).join('');
+  if (qcSu.length) html += `<div style="font-size:11px;font-weight:700;color:#605e5c;text-transform:uppercase;letter-spacing:.3px;margin:${boardSu.length?'18px':'4px'} 0 8px;">QC stations (${qcSu.length})</div>` + renderQCUnitCards(qcSu);
+  el.innerHTML = html;
 }
 
 /* ---- Dashboard card reordering ---- */
@@ -5548,8 +5567,8 @@ function renderUnifiedTabs() {
   html+=`<button class="tab-btn ${trackerMode==='remed'?'active':''}" style="${trackerMode==='remed'?'color:#A03033;border-bottom-color:#A03033;font-weight:600;':''}" onclick="switchToRemed()">&#9888; Remediation${remedCount>0?'<span class="tab-count">'+remedCount+'</span>':''}</button>`;
   html+='<span style="display:inline-block;width:1px;height:20px;background:#edebe9;margin:0 8px;vertical-align:middle;"></span>';
   {
-    const readyCount = getQCReadyUnits().length;
-    const inspectingCount = getQCInspectingUnits().length;
+    const readyCount = getQCReadyUnits().length + getBoardReadyForInspectionUnits().length;
+    const inspectingCount = getQCInspectingUnits().length + getBoardInspectingUnits().length;
     const readyActive = trackerMode==='qc-ready';
     const inspectingActive = trackerMode==='qc-inspecting';
     html+=`<button class="tab-btn ${readyActive?'active':''}" style="${readyActive?'color:#7a5d00;border-bottom-color:#7a5d00;font-weight:700;':''}" onclick="switchToQCReady()" title="Units at an inspection station that haven't been started yet">&#9203; Ready for Inspection${readyCount>0?`<span class="tab-count" style="background:#7a5d00;">${readyCount}</span>`:''}</button>`;

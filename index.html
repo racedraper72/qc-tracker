@@ -5101,10 +5101,11 @@ function jumpToLine(lineId) {
 }
 
 /* ---- UNIFIED TABS ---- */
-function renderQCContent(el) {
-  const su=qcUnits.filter(u=>u.station===activeTab&&!u.completed);
-  if(!su.length){el.innerHTML=`<p style="font-size:13px;color:#605e5c;padding:8px 0;">No units at <strong>${activeTab}</strong>.</p>`;return;}
-  el.innerHTML=su.map(u=>{
+// Builds the unit-card HTML for a given list of QC units — factored out
+// of renderQCContent so both the per-station view and the simplified
+// Ready/Inspecting views can share the exact same card markup and actions.
+function renderQCUnitCards(su) {
+  return su.map(u=>{
     const next=NEXT_MAP[u.station]; const isRemed=u.station==='Remediation';
     const isShipping=u.station===STATIONS[STATIONS.length-1];
     const needsInspect=CONFIG.needsInspectionStart.includes(u.station);
@@ -5128,6 +5129,35 @@ function renderQCContent(el) {
     const cs=getCatStyle(u.type);
     return `<div class="${cc}"><div class="unit-header"><div><span class="unit-serial">${u.serial}</span> <span class="type-badge" style="margin-left:4px;background:${cs.bg};color:${cs.text};border:1px solid ${cs.border};">${u.type}</span></div><span class="badge ${bc}">${bl}</span></div>${last?`<div class="unit-meta">Last: <strong>${last.action}</strong>${last.notes?' — '+last.notes:''} &mdash; ${last.inspector} (${last.emp}) &mdash; ${last.ts}</div>`:''}<div class="unit-actions">${br}</div>${ap}${histPanel}</div>`;
   }).join('');
+}
+function renderQCContent(el) {
+  const su=qcUnits.filter(u=>u.station===activeTab&&!u.completed);
+  if(!su.length){el.innerHTML=`<p style="font-size:13px;color:#605e5c;padding:8px 0;">No units at <strong>${activeTab}</strong>.</p>`;return;}
+  el.innerHTML=renderQCUnitCards(su);
+}
+function getQCReadyUnits() {
+  return qcUnits.filter(u => !u.completed && !u.remediation && !u.held && !u.inspectionStarted && CONFIG.needsInspectionStart.includes(u.station));
+}
+function getQCInspectingUnits() {
+  return qcUnits.filter(u => !u.completed && u.inspectionStarted);
+}
+function switchToQCReady() {
+  trackerMode='qc-ready';
+  renderUnifiedTabs(); renderUnifiedContent(); updateAddBtns();
+}
+function switchToQCInspecting() {
+  trackerMode='qc-inspecting';
+  renderUnifiedTabs(); renderUnifiedContent(); updateAddBtns();
+}
+function renderQCReadyContent(el) {
+  const su = getQCReadyUnits();
+  if (!su.length) { el.innerHTML = '<p style="font-size:13px;color:#605e5c;padding:8px 0;">No units are currently ready for inspection.</p>'; return; }
+  el.innerHTML = renderQCUnitCards(su);
+}
+function renderQCInspectingContent(el) {
+  const su = getQCInspectingUnits();
+  if (!su.length) { el.innerHTML = '<p style="font-size:13px;color:#605e5c;padding:8px 0;">No units are currently being inspected.</p>'; return; }
+  el.innerHTML = renderQCUnitCards(su);
 }
 
 /* ---- Dashboard card reordering ---- */
@@ -5518,21 +5548,12 @@ function renderUnifiedTabs() {
   html+=`<button class="tab-btn ${trackerMode==='remed'?'active':''}" style="${trackerMode==='remed'?'color:#A03033;border-bottom-color:#A03033;font-weight:600;':''}" onclick="switchToRemed()">&#9888; Remediation${remedCount>0?'<span class="tab-count">'+remedCount+'</span>':''}</button>`;
   html+='<span style="display:inline-block;width:1px;height:20px;background:#edebe9;margin:0 8px;vertical-align:middle;"></span>';
   {
-    const activeQC = qcUnits.filter(u => !u.completed);
-    const readyCount = activeQC.filter(u => !u.remediation && !u.held && !u.inspectionStarted && CONFIG.needsInspectionStart.includes(u.station)).length;
-    const inspectingCount = activeQC.filter(u => u.inspectionStarted).length;
-    html+=`<span style="font-size:10px;font-weight:700;color:#7a5d00;text-transform:uppercase;padding:8px 6px 0;letter-spacing:0.5px;display:inline-flex;align-items:center;gap:4px;white-space:nowrap;" title="Units at an inspection station that haven't been started yet">&#9203; Ready: ${readyCount}</span>`;
-    html+=`<span style="font-size:10px;font-weight:700;color:#4b3a9e;text-transform:uppercase;padding:8px 6px 0;letter-spacing:0.5px;display:inline-flex;align-items:center;gap:4px;white-space:nowrap;" title="Units currently being inspected">&#128270; Inspecting: ${inspectingCount}</span>`;
-  }
-  html+=ALL_TABS.map(s => {
-    const isRemed=s==='Remediation';
-    const count=qcUnits.filter(u=>u.station===s&&!u.completed).length;
-    const isActive=trackerMode==='qc'&&s===activeTab;
-    return `<button class="tab-btn ${isActive?'active':''} ${isRemed?'remed-tab':''}" onclick="switchToQC('${jsq(s)}')">${s}${count>0?`<span class="tab-count">${count}</span>`:''}</button>`;
-  }).join('');
-  const unmatchedCount = getUnmatchedQCUnits().length;
-  if (unmatchedCount > 0) {
-    html+=`<button class="tab-btn remed-tab ${trackerMode==='qc-unmatched'?'active':''}" onclick="switchToUnmatched()" title="Units whose station name doesn't match any current tab">&#9888; Unmatched<span class="tab-count">${unmatchedCount}</span></button>`;
+    const readyCount = getQCReadyUnits().length;
+    const inspectingCount = getQCInspectingUnits().length;
+    const readyActive = trackerMode==='qc-ready';
+    const inspectingActive = trackerMode==='qc-inspecting';
+    html+=`<button class="tab-btn ${readyActive?'active':''}" style="${readyActive?'color:#7a5d00;border-bottom-color:#7a5d00;font-weight:700;':''}" onclick="switchToQCReady()" title="Units at an inspection station that haven't been started yet">&#9203; Ready for Inspection${readyCount>0?`<span class="tab-count" style="background:#7a5d00;">${readyCount}</span>`:''}</button>`;
+    html+=`<button class="tab-btn ${inspectingActive?'active':''}" style="${inspectingActive?'color:#4b3a9e;border-bottom-color:#4b3a9e;font-weight:700;':''}" onclick="switchToQCInspecting()" title="Units currently being inspected">&#128270; Inspecting${inspectingCount>0?`<span class="tab-count" style="background:#4b3a9e;">${inspectingCount}</span>`:''}</button>`;
   }
   bar.innerHTML=html;
 }
@@ -5554,6 +5575,8 @@ function switchToRemed() {
 function renderUnifiedContent() {
   const el=document.getElementById('unified-content'); if(!el) return;
   if (trackerMode==='qc') { renderQCContent(el); }
+  else if (trackerMode==='qc-ready') { renderQCReadyContent(el); }
+  else if (trackerMode==='qc-inspecting') { renderQCInspectingContent(el); }
   else if (trackerMode==='qc-unmatched') { renderUnmatchedQCContent(el); }
   else if (trackerMode==='remed') { renderRemedContent(el); }
   else { renderAllLinesContent(el); }
@@ -6034,10 +6057,14 @@ function updateAddBtns() {
   const qcBtn=document.getElementById('add-unit-btn');
   const boardBtn=document.getElementById('add-board-btn');
   const lbl=document.getElementById('tracker-context-label');
-  if (trackerMode==='qc') {
-    if(qcBtn) qcBtn.style.display=activeTab===STATIONS[0]?'inline-block':'none';
+  const isQCMode = trackerMode==='qc' || trackerMode==='qc-ready' || trackerMode==='qc-inspecting' || trackerMode==='qc-unmatched';
+  if (isQCMode) {
+    if(qcBtn) qcBtn.style.display = (trackerMode!=='qc' || activeTab===STATIONS[0]) ? 'inline-block' : 'none';
     if(boardBtn) boardBtn.style.display='none';
-    if(lbl) lbl.textContent='QC — '+activeTab;
+    if(lbl) lbl.textContent = trackerMode==='qc' ? 'QC — '+activeTab
+                             : trackerMode==='qc-ready' ? 'QC — Ready for Inspection'
+                             : trackerMode==='qc-inspecting' ? 'QC — Inspecting'
+                             : 'QC — Unmatched';
   } else {
     if(qcBtn) qcBtn.style.display='none';
     if(boardBtn) boardBtn.style.display='inline-block';

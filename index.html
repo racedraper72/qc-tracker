@@ -1465,6 +1465,7 @@ label { font-size: 11px; font-weight: 600; color: var(--text-2); display: block;
   </div>
   <div class="card">
     <div class="section-title">Board unit overrides</div>
+    <div id="admin-deleted-units-note" style="margin-bottom:10px;"></div>
     <div id="admin-board-list"></div>
   </div>
   <div class="card" id="setup-guide">
@@ -5042,6 +5043,7 @@ function _addAllBoardUnits() {
   });
   if (hasError) return;
   toAdd.forEach(u => {
+    removeDeletedUnitId(u.id);
     boardUnits.push({id:u.id,line:u.line,col:u.col,held:false,completed:false,notes:u.notes,esoNumber:'',gensetSerial:'',fuelTankSerial:'',location:'',mapX:null,mapY:null,solutionsEso:u.solEso||'',dueDate:u.dueDate||'',leadCheckins:[],readyForInspection:false,inspectionStarted:false,supervisorReleased:false,supervisorReleaseTs:'',deviationNeeded:false,deviationNote:'',deviationTs:'',checklist:{},qcChecklist:{},failOverrides:[],station2Tasks:{},stationTrackerTasks:{},history:[{action:'Added to '+u.col,ts:now(),notes:u.notes}]});
   });
   err.textContent=''; document.getElementById('board-add-form').style.display='none';
@@ -5915,6 +5917,16 @@ function adminClearRemed(serial){const u=qcUnits.find(x=>x.serial===serial);if(!
 function adminDeleteQC(serial){if(!confirm('Delete '+serial+'?'))return;qcUnits=qcUnits.filter(u=>u.serial!==serial);pushQC();renderAll();renderAdminQC();}
 
 function renderAdminBoard() {
+  const noteEl = document.getElementById('admin-deleted-units-note');
+  if (noteEl) {
+    const deletedCount = getDeletedUnitIds().length;
+    noteEl.innerHTML = deletedCount
+      ? `<p style="font-size:12px;color:#605e5c;background:#fff4ce;border:1px solid #f0c95c;border-radius:6px;padding:8px 10px;">
+          <strong>${deletedCount} deleted unit ID${deletedCount!==1?'s are':' is'}</strong> on record. Re-adding a unit with the same ID (via Add/Edit Unit) automatically clears it from this list.
+          <button class="subtle sm" onclick="adminClearDeletedUnitIds()" style="margin-left:8px;">Clear entire list</button>
+        </p>`
+      : '';
+  }
   const el=document.getElementById('admin-board-list'); if(!el) return;
   const all=getAllBoardUnits().filter(u=>!u.completed);
   if(!all.length){el.innerHTML='<p style="font-size:13px;color:#605e5c;">No active board units.</p>';return;}
@@ -5934,6 +5946,16 @@ function renderAdminBoard() {
 function adminMoveBoard(uid){const u=ensureBoardTracked(uid);const sid=safeId(uid);const dest=document.getElementById('badm-col-'+sid).value;u.history.push({action:'Admin moved to '+dest,ts:now(),notes:''});u.col=dest;pushBoard();renderAll();renderAdminBoard();}
 function adminToggleHoldBoard(uid){const u=ensureBoardTracked(uid);u.held=!u.held;u.history.push({action:u.held?'Admin placed on hold':'Admin removed hold',ts:now(),notes:''});pushBoard();renderAll();renderAdminBoard();}
 function adminDeleteBoard(uid){if(!confirm('Delete '+uid+'?'))return;boardUnits=boardUnits.filter(u=>u.id!==uid);CONFIG.lines.forEach(l=>l.columns.forEach(c=>{c.units=c.units.filter(u=>u!==uid);}));addDeletedUnitId(uid);pushBoard();renderAll();renderAdminBoard();}
+function adminClearDeletedUnitIds() {
+  const count = getDeletedUnitIds().length;
+  if (!count) return;
+  if (!confirm(`Clear all ${count} deleted-unit ID${count!==1?'s':''} from the tombstone list? This just clears the "don't resurrect this ID" memory — it does not add any units back.`)) return;
+  const json = JSON.stringify([]);
+  unitIssues['__config__deleted_units'] = { url: json, updatedAt: new Date().toISOString() };
+  localStorage.setItem('deleted_units_local', json);
+  saveIssues();
+  renderAll(); renderAdminBoard();
+}
 
 /* ---- EDIT UNIT ----
    Covers everything Move/Hold/Delete don't: renaming the Unit ID itself,
@@ -6093,6 +6115,7 @@ function eauAddAllUnits() {
   });
   if (hasError) return;
   toAdd.forEach(u => {
+    removeDeletedUnitId(u.id);
     boardUnits.push({id:u.id,line:u.line,col:u.col,held:false,completed:false,notes:u.notes,esoNumber:'',gensetSerial:'',fuelTankSerial:'',location:'',mapX:null,mapY:null,solutionsEso:u.solEso,dueDate:u.dueDate,leadCheckins:[],readyForInspection:false,inspectionStarted:false,supervisorReleased:false,supervisorReleaseTs:'',deviationNeeded:false,deviationNote:'',deviationTs:'',checklist:{},qcChecklist:{},failOverrides:[],station2Tasks:{},stationTrackerTasks:{},history:[{action:'Added to '+u.col,ts:now(),notes:u.notes}]});
   });
   err.textContent = '';
@@ -9248,6 +9271,21 @@ function getDeletedUnitIds() {
 function addDeletedUnitId(uid) {
   const ids = getDeletedUnitIds();
   if (!ids.includes(uid)) ids.push(uid);
+  const json = JSON.stringify(ids);
+  unitIssues['__config__deleted_units'] = { url: json, updatedAt: new Date().toISOString() };
+  localStorage.setItem('deleted_units_local', json);
+  saveIssues();
+}
+function removeDeletedUnitId(uid) {
+  // "Un-tombstones" a unit id — used when a unit is deliberately re-added
+  // after having been deleted. Without this, getAllBoardUnits() would keep
+  // silently filtering out any newly-added unit that happens to reuse an
+  // id that was previously deleted, making the add look like it did
+  // nothing even though the unit was actually saved.
+  const ids = getDeletedUnitIds();
+  const idx = ids.indexOf(uid);
+  if (idx === -1) return;
+  ids.splice(idx, 1);
   const json = JSON.stringify(ids);
   unitIssues['__config__deleted_units'] = { url: json, updatedAt: new Date().toISOString() };
   localStorage.setItem('deleted_units_local', json);

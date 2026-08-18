@@ -4172,7 +4172,7 @@ function jsonpSave(tab, rows) {
   const header = tab==='QC'
     ? ['Serial','Type','Station','InspectionStarted','Held','Remediation','RemediationOrigin','Completed','Status','HistoryJSON']
     : tab==='Board'
-    ? ['UnitID','Line','Column','Held','Completed','Notes','ESONumber','GensetSerial','ReadyForInspection','InspectionStarted','HistoryJSON','SupervisorReleased','SupervisorReleaseTs','DeviationNeeded','DeviationNote','DeviationTs','ChecklistJSON','QCChecklistJSON','FailOverridesJSON','Station2TasksJSON','SolutionsESO','DueDate','LeadCheckinsJSON','StationTrackerTasksJSON','FuelTankSerial','Location','MapX','MapY']
+    ? ['UnitID','Line','Column','Held','Completed','Notes','ESONumber','GensetSerial','ReadyForInspection','InspectionStarted','HistoryJSON','SupervisorReleased','SupervisorReleaseTs','DeviationNeeded','DeviationNote','DeviationTs','ChecklistJSON','QCChecklistJSON','FailOverridesJSON','Station2TasksJSON','SolutionsESO','DueDate','LeadCheckinsJSON','StationTrackerTasksJSON','FuelTankSerial','Location','MapX','MapY','MapRotation']
     : ['UnitID','Link','UpdatedAt'];
   const payload = JSON.stringify({action:'save', rows:[header,...rows]});
 
@@ -4206,7 +4206,14 @@ function jsonpSave(tab, rows) {
 }
 function syncFromSheetsViaGAS(onDone) {
   jsonpCall(sheetsUrl+'?tab=QC', function(err, rows) {
-    if (!err && rows && rows.length>1) {
+    // Recency guard — same reasoning used for checklists/overrides elsewhere
+    // in this file: a remote pull can easily race ahead of a save that was
+    // just made locally (Apps Script write lag, or the POST simply hasn't
+    // landed yet). Without this, adding/editing a unit and then hitting an
+    // auto-sync tick a few seconds later would silently overwrite the local
+    // change with the still-stale remote copy — making it look like the
+    // change (e.g. a newly added unit) never happened.
+    if (!err && rows && rows.length>1 && Date.now() - qcLastLocalEditAt > 20000) {
       qcUnits = rows.slice(1).filter(r=>r[0]).map(r => {
         let history=[]; try{history=JSON.parse(r[9]||'[]');}catch(e){}
         return {serial:r[0],type:r[1],station:r[2],inspectionStarted:r[3]==='TRUE'||r[3]===true,
@@ -4215,7 +4222,7 @@ function syncFromSheetsViaGAS(onDone) {
       });
     }
     jsonpCall(sheetsUrl+'?tab=Board', function(err2, rows2) {
-      if (!err2 && rows2 && rows2.length>1) {
+      if (!err2 && rows2 && rows2.length>1 && Date.now() - boardLastLocalEditAt > 20000) {
         boardUnits = rows2.slice(1).filter(r=>r[0]).map(r => {
           let history=[]; try{history=JSON.parse(r[10]||'[]');}catch(e){}
           let checklist={}; try{checklist=JSON.parse(r[16]||'{}');}catch(e){}
@@ -4226,7 +4233,7 @@ function syncFromSheetsViaGAS(onDone) {
           let stationTrackerTasks={}; try{stationTrackerTasks=JSON.parse(r[23]||'{}');}catch(e){}
           return {id:r[0],line:r[1],col:r[2],held:r[3]==='TRUE'||r[3]===true,completed:r[4]==='TRUE'||r[4]===true,notes:r[5]||'',esoNumber:r[6]||'',gensetSerial:r[7]||'',readyForInspection:r[8]==='TRUE'||r[8]===true,inspectionStarted:r[9]==='TRUE'||r[9]===true,history,
             supervisorReleased:r[11]==='TRUE'||r[11]===true,supervisorReleaseTs:r[12]||'',
-            deviationNeeded:r[13]==='TRUE'||r[13]===true,deviationNote:r[14]||'',deviationTs:r[15]||'',checklist,qcChecklist,failOverrides,station2Tasks,solutionsEso:r[20]||'',dueDate:r[21]||'',leadCheckins,stationTrackerTasks,fuelTankSerial:r[24]||'',location:r[25]||'',mapX:r[26]!==undefined&&r[26]!==''?parseFloat(r[26]):null,mapY:r[27]!==undefined&&r[27]!==''?parseFloat(r[27]):null};
+            deviationNeeded:r[13]==='TRUE'||r[13]===true,deviationNote:r[14]||'',deviationTs:r[15]||'',checklist,qcChecklist,failOverrides,station2Tasks,solutionsEso:r[20]||'',dueDate:r[21]||'',leadCheckins,stationTrackerTasks,fuelTankSerial:r[24]||'',location:r[25]||'',mapX:r[26]!==undefined&&r[26]!==''?parseFloat(r[26]):null,mapY:r[27]!==undefined&&r[27]!==''?parseFloat(r[27]):null,mapRotation:r[28]!==undefined&&r[28]!==''?parseFloat(r[28]):0};
         });
       }
       jsonpCall(sheetsUrl+'?tab=Issues', function(err3, rows3) {
@@ -4267,7 +4274,7 @@ function proxySave(tab, rows) {
   const header = tab==='QC'
     ? ['Serial','Type','Station','InspectionStarted','Held','Remediation','RemediationOrigin','Completed','Status','HistoryJSON']
     : tab==='Board'
-    ? ['UnitID','Line','Column','Held','Completed','Notes','ESONumber','GensetSerial','ReadyForInspection','InspectionStarted','HistoryJSON','SupervisorReleased','SupervisorReleaseTs','DeviationNeeded','DeviationNote','DeviationTs','ChecklistJSON','QCChecklistJSON','FailOverridesJSON','Station2TasksJSON','SolutionsESO','DueDate','LeadCheckinsJSON','StationTrackerTasksJSON','FuelTankSerial','Location','MapX','MapY']
+    ? ['UnitID','Line','Column','Held','Completed','Notes','ESONumber','GensetSerial','ReadyForInspection','InspectionStarted','HistoryJSON','SupervisorReleased','SupervisorReleaseTs','DeviationNeeded','DeviationNote','DeviationTs','ChecklistJSON','QCChecklistJSON','FailOverridesJSON','Station2TasksJSON','SolutionsESO','DueDate','LeadCheckinsJSON','StationTrackerTasksJSON','FuelTankSerial','Location','MapX','MapY','MapRotation']
     : ['UnitID','Link','UpdatedAt'];
   return proxyFetch('?action=save&tab='+tab, {
     method: 'POST',
@@ -4637,7 +4644,8 @@ function syncFromSheetsViaSmartsheet(onDone) {
     proxyFetch('?action=sync&tab=Board').catch(()=>null),
     proxyFetch('?action=sync&tab=Issues').catch(()=>null),
   ]).then(([rows, rows2, rows3]) => {
-    if (rows && rows.length>1) {
+    // Same recency guard as the Apps Script path — see syncFromSheetsViaGAS.
+    if (rows && rows.length>1 && Date.now() - qcLastLocalEditAt > 20000) {
       qcUnits = rows.slice(1).filter(r=>r[0]).map(r => {
         let history=[]; try{history=JSON.parse(r[9]||'[]');}catch(e){}
         return {serial:r[0],type:r[1],station:r[2],inspectionStarted:r[3]==='TRUE'||r[3]===true,
@@ -4645,7 +4653,7 @@ function syncFromSheetsViaSmartsheet(onDone) {
           remediationOrigin:r[6]||null,completed:r[7]==='TRUE'||r[7]===true,history};
       });
     }
-    if (rows2 && rows2.length>1) {
+    if (rows2 && rows2.length>1 && Date.now() - boardLastLocalEditAt > 20000) {
       boardUnits = rows2.slice(1).filter(r=>r[0]).map(r => {
         let history=[]; try{history=JSON.parse(r[10]||'[]');}catch(e){}
         let checklist={}; try{checklist=JSON.parse(r[16]||'{}');}catch(e){}
@@ -4656,7 +4664,7 @@ function syncFromSheetsViaSmartsheet(onDone) {
         let stationTrackerTasks={}; try{stationTrackerTasks=JSON.parse(r[23]||'{}');}catch(e){}
         return {id:r[0],line:r[1],col:r[2],held:r[3]==='TRUE'||r[3]===true,completed:r[4]==='TRUE'||r[4]===true,notes:r[5]||'',esoNumber:r[6]||'',gensetSerial:r[7]||'',readyForInspection:r[8]==='TRUE'||r[8]===true,inspectionStarted:r[9]==='TRUE'||r[9]===true,history,
           supervisorReleased:r[11]==='TRUE'||r[11]===true,supervisorReleaseTs:r[12]||'',
-          deviationNeeded:r[13]==='TRUE'||r[13]===true,deviationNote:r[14]||'',deviationTs:r[15]||'',checklist,qcChecklist,failOverrides,station2Tasks,solutionsEso:r[20]||'',dueDate:r[21]||'',leadCheckins,stationTrackerTasks,fuelTankSerial:r[24]||'',location:r[25]||'',mapX:r[26]!==undefined&&r[26]!==''?parseFloat(r[26]):null,mapY:r[27]!==undefined&&r[27]!==''?parseFloat(r[27]):null};
+          deviationNeeded:r[13]==='TRUE'||r[13]===true,deviationNote:r[14]||'',deviationTs:r[15]||'',checklist,qcChecklist,failOverrides,station2Tasks,solutionsEso:r[20]||'',dueDate:r[21]||'',leadCheckins,stationTrackerTasks,fuelTankSerial:r[24]||'',location:r[25]||'',mapX:r[26]!==undefined&&r[26]!==''?parseFloat(r[26]):null,mapY:r[27]!==undefined&&r[27]!==''?parseFloat(r[27]):null,mapRotation:r[28]!==undefined&&r[28]!==''?parseFloat(r[28]):0};
       });
     }
     if (rows3 && rows3.length>1) {
@@ -4701,6 +4709,8 @@ function syncFromSheets() {
 }
 
 /* ---- LOCAL CACHE — safety net so data survives a refresh even if remote sync fails ---- */
+let boardLastLocalEditAt = 0;
+let qcLastLocalEditAt = 0;
 function saveLocalCache() {
   try { localStorage.setItem('qc_units_cache', JSON.stringify(qcUnits)); } catch(e) { console.error('Local QC cache save failed:', e); }
   try { localStorage.setItem('board_units_cache', JSON.stringify(boardUnits)); } catch(e) { console.error('Local Board cache save failed:', e); }
@@ -4710,13 +4720,15 @@ function loadLocalCache() {
   try { const c = localStorage.getItem('board_units_cache'); if (c) boardUnits = JSON.parse(c); } catch(e) { console.error('Local Board cache load failed:', e); }
 }
 function pushQC() {
+  qcLastLocalEditAt = Date.now();
   saveLocalCache();
   const rows = qcUnits.map(u=>[u.serial,u.type,u.station,u.inspectionStarted,u.held,u.remediation,u.remediationOrigin||'',u.completed,unitStatus(u),JSON.stringify(u.history)]);
   if (syncTarget === 'smartsheet') proxySave('QC', rows); else jsonpSave('QC', rows);
 }
 function pushBoard() {
+  boardLastLocalEditAt = Date.now();
   saveLocalCache();
-  const rows = boardUnits.map(u=>[u.id,u.line,u.col,u.held,u.completed,u.notes,u.esoNumber||'',u.gensetSerial||'',u.readyForInspection||false,u.inspectionStarted||false,JSON.stringify(u.history),u.supervisorReleased||false,u.supervisorReleaseTs||'',u.deviationNeeded||false,u.deviationNote||'',u.deviationTs||'',JSON.stringify(u.checklist||{}),JSON.stringify(u.qcChecklist||{}),JSON.stringify(u.failOverrides||[]),JSON.stringify(u.station2Tasks||{}),u.solutionsEso||'',u.dueDate||'',JSON.stringify(u.leadCheckins||[]),JSON.stringify(u.stationTrackerTasks||{}),u.fuelTankSerial||'',u.location||'',u.mapX==null?'':u.mapX,u.mapY==null?'':u.mapY]);
+  const rows = boardUnits.map(u=>[u.id,u.line,u.col,u.held,u.completed,u.notes,u.esoNumber||'',u.gensetSerial||'',u.readyForInspection||false,u.inspectionStarted||false,JSON.stringify(u.history),u.supervisorReleased||false,u.supervisorReleaseTs||'',u.deviationNeeded||false,u.deviationNote||'',u.deviationTs||'',JSON.stringify(u.checklist||{}),JSON.stringify(u.qcChecklist||{}),JSON.stringify(u.failOverrides||[]),JSON.stringify(u.station2Tasks||{}),u.solutionsEso||'',u.dueDate||'',JSON.stringify(u.leadCheckins||[]),JSON.stringify(u.stationTrackerTasks||{}),u.fuelTankSerial||'',u.location||'',u.mapX==null?'':u.mapX,u.mapY==null?'':u.mapY,u.mapRotation==null?'':u.mapRotation]);
   if (syncTarget === 'smartsheet') proxySave('Board', rows); else jsonpSave('Board', rows);
 }
 function pushIssues() {

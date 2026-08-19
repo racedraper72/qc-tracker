@@ -3,6 +3,9 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+<meta http-equiv="Pragma" content="no-cache" />
+<meta http-equiv="Expires" content="0" />
 <title>Cadence — Excellerate Production System</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -982,7 +985,7 @@ label { font-size: 11px; font-weight: 600; color: var(--text-2); display: block;
       <span style="font-size:14px;font-weight:600;color:rgba(255,255,255,.85);letter-spacing:.3px;">Production System</span>
       <span style="font-size:11px;font-weight:700;color:rgba(255,255,255,.6);letter-spacing:.5px;text-transform:uppercase;">Beta Testing</span>
     </div>
-    <div style="margin-left:auto;font-size:10px;color:rgba(255,255,255,.5);white-space:nowrap;align-self:flex-start;padding-top:2px;" title="If this looks out of date after an update was announced, hard-refresh with Ctrl+Shift+R (Cmd+Shift+R on Mac) to clear your browser's cached copy.">Build: 2026-08-18</div>
+    <div style="margin-left:auto;font-size:10px;color:rgba(255,255,255,.5);white-space:nowrap;align-self:flex-start;padding-top:2px;" title="If this looks out of date after an update was announced, hard-refresh with Ctrl+Shift+R (Cmd+Shift+R on Mac) to clear your browser's cached copy.">Build: <span id="build-stamp-text">2026-08-19</span></div>
 
   </div>
   <div class="header-nav">
@@ -10360,6 +10363,50 @@ function openDeviationNoteModal(unitId) {
 }
 
 /* ---- INIT ---- */
+/* ============================================================
+   VERSION CHECK — actively detects when a newer copy of this
+   file has been deployed (rather than relying on people noticing
+   a build-date text and knowing to hard-refresh). GitHub Pages
+   doesn't give us control over real Cache-Control response
+   headers, so a stale HTML document sitting in someone's browser
+   cache — or even just an already-open tab — has no way to know
+   an update exists on its own. This polls the page's own URL with
+   cache-busting, and if the fetched copy's build date differs from
+   what's currently running, shows a banner nobody can miss, with a
+   one-click reload. BUILD_DATE must be bumped here to match the
+   visible stamp every time a change is made, or version checks
+   against a stale reference and never fires.
+   ============================================================ */
+const BUILD_DATE = '2026-08-19';
+let updateBannerShown = false;
+function checkForNewVersion() {
+  if (updateBannerShown) return;
+  fetch(window.location.pathname + '?_cb=' + Date.now(), { cache: 'no-store' })
+    .then(r => r.ok ? r.text() : null)
+    .then(html => {
+      if (!html) return;
+      const m = html.match(/Build:\s*<span[^>]*>\s*([\d-]+)\s*<\/span>/) || html.match(/Build:\s*([\d-]+)/);
+      if (m && m[1] && m[1] !== BUILD_DATE) showUpdateBanner(m[1]);
+    })
+    .catch(() => {}); // offline or blocked — silently skip, try again next interval
+}
+function showUpdateBanner(newDate) {
+  if (updateBannerShown) return;
+  updateBannerShown = true;
+  const bar = document.createElement('div');
+  bar.id = 'update-available-banner';
+  bar.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:99999;background:#0e7c3a;color:#fff;text-align:center;padding:10px 14px;font-size:13px;font-weight:600;box-shadow:0 2px 10px rgba(0,0,0,.35);display:flex;align-items:center;justify-content:center;gap:12px;flex-wrap:wrap;';
+  bar.innerHTML = `<span>&#128260; A newer version of this app is available (Build: ${newDate}). Reload to get the latest changes.</span>
+    <button onclick="location.reload()" style="background:#fff;color:#0e7c3a;border:none;border-radius:5px;padding:6px 14px;font-weight:800;cursor:pointer;font-size:12px;">Reload Now</button>`;
+  document.body.prepend(bar);
+}
+function initVersionCheck() {
+  const stampEl = document.getElementById('build-stamp-text');
+  if (stampEl) stampEl.textContent = BUILD_DATE;
+  setInterval(checkForNewVersion, 3 * 60 * 1000); // every 3 minutes
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) checkForNewVersion(); }); // also on tab refocus
+}
+
 function init() {
   loadLocalCache();   // restore units saved in THIS browser first — never lose data even if remote sync fails
   loadIssues();
@@ -10399,6 +10446,7 @@ function init() {
     document.getElementById('sync-bar').style.display='flex';
     syncFromSheets();
   }
+  initVersionCheck();
 }
 if (document.readyState==='loading') { document.addEventListener('DOMContentLoaded',init); } else { init(); }
 </script>

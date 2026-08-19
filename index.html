@@ -995,6 +995,7 @@ label { font-size: 11px; font-weight: 600; color: var(--text-2); display: block;
     <button class="nav-btn" draggable="true" ondragstart="navDragStart('nav-tracker')" ondragover="event.preventDefault()" ondrop="navDrop('nav-tracker')" id="nav-tracker" onclick="showPage('tracker')">&#9776; Tracker</button>
     <button class="nav-btn" draggable="true" ondragstart="navDragStart('nav-floor')" ondragover="event.preventDefault()" ondrop="navDrop('nav-floor')" id="nav-floor" onclick="showPage('floor')" style="background:rgba(14,124,58,.25);color:#4ade80;font-weight:700;">&#9654; Floor Mode</button>
     <button class="nav-btn" draggable="true" ondragstart="navDragStart('nav-history')" ondragover="event.preventDefault()" ondrop="navDrop('nav-history')" id="nav-history" onclick="showPage('history')">&#9719; History</button>
+    <button class="nav-btn" draggable="true" ondragstart="navDragStart('nav-timeclock')" ondragover="event.preventDefault()" ondrop="navDrop('nav-timeclock')" id="nav-timeclock" onclick="showPage('timeclock')">&#128337; Time Clock</button>
     <div class="nav-divider"></div>
     <button class="nav-btn" draggable="true" ondragstart="navDragStart('nav-admin')" ondragover="event.preventDefault()" ondrop="navDrop('nav-admin')" id="nav-admin" onclick="showPage('admin')">&#9881; Admin</button>
     <button class="nav-btn" draggable="true" ondragstart="navDragStart('nav-tv')" ondragover="event.preventDefault()" ondrop="navDrop('nav-tv')" id="nav-tv" onclick="showPage('tv')">&#128250; TV Mode</button>
@@ -1354,6 +1355,42 @@ label { font-size: 11px; font-weight: 600; color: var(--text-2); display: block;
     </div>
   </div>
   <div id="history-content"></div>
+</div>
+
+<!-- ============================================================ TIME CLOCK -->
+<div id="page-timeclock" class="app-body" style="display:none;">
+  <div class="card" style="max-width:520px;margin:0 auto 20px;">
+    <div class="section-title" style="text-align:center;">&#128337; Clock In / Out</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;">
+      <div><label>Name</label><input id="tc-name" type="text" placeholder="e.g. John Smith" list="tc-name-list" oninput="tcRefreshButton()" /></div>
+      <div><label>Employee #</label><input id="tc-emp" type="text" placeholder="e.g. EMP-001" oninput="tcRefreshButton()" /></div>
+    </div>
+    <datalist id="tc-name-list"></datalist>
+    <div id="tc-status" style="font-size:12px;color:#605e5c;min-height:18px;margin-bottom:8px;text-align:center;"></div>
+    <button id="tc-action-btn" class="primary" style="width:100%;padding:12px;font-size:15px;" onclick="tcHandleClick()">Clock In</button>
+  </div>
+
+  <div class="card" style="margin-bottom:16px;">
+    <div class="section-title">&#128100; Currently Clocked In</div>
+    <div id="tc-active-list"></div>
+  </div>
+
+  <div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:12px;">
+      <div class="section-title" style="margin-bottom:0;border:none;padding:0;">Hours Log</div>
+      <div class="filter-bar">
+        <label>Range:</label>
+        <select id="tc-range-filter" onchange="renderTimeClockPage()">
+          <option value="today">Today</option>
+          <option value="week">Last 7 days</option>
+          <option value="all">All time</option>
+        </select>
+        <button class="sm" onclick="exportTimeClockCSV()">&#8595; Export CSV</button>
+      </div>
+    </div>
+    <div id="tc-totals" style="margin-bottom:14px;"></div>
+    <div id="tc-log-table"></div>
+  </div>
 </div>
 
 <!-- ============================================================ ADMIN -->
@@ -5051,6 +5088,7 @@ function pushIssues() {
 let trackerMode = 'board'; // 'board' or 'qc'
 
 /* ---- PAGE NAV ---- */
+let tcTickTimer = null;
 function showPage(page) {
   if (page === 'admin' && currentPage !== 'admin') {
     requireSupervisorPassword(() => _showPage(page));
@@ -5061,7 +5099,7 @@ function showPage(page) {
 function _showPage(page) {
   currentPage=page;
   const STATION_TRACKER_PAGE_IDS = STATION_TRACKER_STATIONS.map(s => 'stationtracker_' + s.replace(/\s+/g,''));
-  ['dashboard','floor','pm','tracker','history','admin','tv','station2','cat','editunit','masterschedule','floormap', ...STATION_TRACKER_PAGE_IDS].forEach(p => {
+  ['dashboard','floor','pm','tracker','history','admin','tv','station2','cat','editunit','masterschedule','floormap','timeclock', ...STATION_TRACKER_PAGE_IDS].forEach(p => {
     const el=document.getElementById('page-'+p); if(el) el.style.display=p===page?'block':'none';
     const btn=document.getElementById('nav-'+p); if(btn) btn.classList.toggle('active',p===page);
   });
@@ -5070,6 +5108,8 @@ function _showPage(page) {
   if (page==='pm')      { renderPMPage(); }
   if (page==='tracker') { renderUnifiedTabs(); renderUnifiedContent(); updateAddBtns(); }
   if (page==='history') { renderHistoryPage(); }
+  if (page==='timeclock') { renderTimeClockPage(); if (tcTickTimer) clearInterval(tcTickTimer); tcTickTimer = setInterval(renderTimeClockPage, 30000); }
+  else if (tcTickTimer) { clearInterval(tcTickTimer); tcTickTimer = null; }
   if (page==='tv')      { renderTVMode(); startTVClock(); }
   else                  { stopTVClock(); }
   if (page==='station2') { renderStation2Tracker(); startS2Ticker('Station 2'); }
@@ -6164,6 +6204,194 @@ function leadCheckOut(unitId, checkinIdx) {
   u.leadCheckins.splice(checkinIdx, 1);
   u.history.push({ action: 'Removed check-in at '+u.col+' — '+person.name, ts: now(), notes: '' });
   pushBoard(); renderAll();
+}
+
+function leadCheckOut(unitId, checkinIdx) {
+  const u = ensureBoardTracked(unitId);
+  if (!u.leadCheckins || !u.leadCheckins[checkinIdx]) return;
+  const person = u.leadCheckins[checkinIdx];
+  if (!confirm('Remove '+person.name+' from the check-in list at '+u.col+'?')) return;
+  u.leadCheckins.splice(checkinIdx, 1);
+  u.history.push({ action: 'Removed check-in at '+u.col+' — '+person.name, ts: now(), notes: '' });
+  pushBoard(); renderAll();
+}
+
+/* ============================================================
+   TIME CLOCK — inspectors (or anyone) clock in/out to track hours
+   worked. Stored the same way as every other cross-device config in
+   this file (unitIssues['__config__...'] + saveIssues()), which
+   already does a proper per-key, timestamp-based merge on every sync
+   rather than a blind overwrite — see the "Merge, don't overwrite"
+   comment in syncFromSheetsViaGAS. Two people clocking in within the
+   same sync window on different devices is still a narrow edge case
+   this can't fully rule out (the merge is per-key, not per-entry), but
+   that's the same limitation every other override list in this file
+   already accepts, not something unique to time clock data.
+   ============================================================ */
+function getTimeClockEntries() {
+  const synced = unitIssues['__config__time_clock'] && unitIssues['__config__time_clock'].url;
+  if (synced) { try { return JSON.parse(synced); } catch(e) {} }
+  try { return JSON.parse(localStorage.getItem('time_clock_local') || '[]'); } catch(e) { return []; }
+}
+function saveTimeClockEntries(entries) {
+  const json = JSON.stringify(entries);
+  unitIssues['__config__time_clock'] = { url: json, updatedAt: new Date().toISOString() };
+  localStorage.setItem('time_clock_local', json);
+  saveIssues();
+}
+function tcFindOpenEntry(name) {
+  const n = name.trim().toLowerCase();
+  return getTimeClockEntries().find(e => e.name.trim().toLowerCase() === n && !e.clockOutTs);
+}
+function tcRefreshButton() {
+  const nameEl = document.getElementById('tc-name');
+  const btn = document.getElementById('tc-action-btn');
+  const statusEl = document.getElementById('tc-status');
+  if (!nameEl || !btn || !statusEl) return;
+  const name = nameEl.value.trim();
+  if (!name) { btn.textContent = 'Clock In'; btn.className = 'primary'; statusEl.textContent = ''; return; }
+  const open = tcFindOpenEntry(name);
+  if (open) {
+    btn.textContent = '⏹ Clock Out';
+    btn.className = 'warn-btn';
+    statusEl.textContent = 'Clocked in since ' + open.clockInDisplay;
+  } else {
+    btn.textContent = '▶ Clock In';
+    btn.className = 'primary';
+    statusEl.textContent = '';
+  }
+}
+function tcHandleClick() {
+  const nameEl = document.getElementById('tc-name');
+  const empEl = document.getElementById('tc-emp');
+  const name = nameEl.value.trim();
+  const emp = empEl.value.trim();
+  if (!name) { alert('Enter your name.'); return; }
+  const entries = getTimeClockEntries();
+  const n = name.toLowerCase();
+  const openIdx = entries.findIndex(e => e.name.trim().toLowerCase() === n && !e.clockOutTs);
+  if (openIdx !== -1) {
+    entries[openIdx].clockOutTs = Date.now();
+    entries[openIdx].clockOutDisplay = now();
+    if (emp) entries[openIdx].emp = emp;
+  } else {
+    entries.push({
+      id: 'tc_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7),
+      name, emp,
+      clockInTs: Date.now(), clockInDisplay: now(),
+      clockOutTs: null, clockOutDisplay: null,
+    });
+  }
+  saveTimeClockEntries(entries);
+  nameEl.value = ''; empEl.value = '';
+  renderTimeClockPage();
+}
+function tcFormatDuration(ms) {
+  if (ms < 0) ms = 0;
+  const totalMin = Math.round(ms / 60000);
+  const h = Math.floor(totalMin / 60);
+  const m = totalMin % 60;
+  return h > 0 ? `${h}h ${m}m` : `${m}m`;
+}
+function tcClockOutById(id) {
+  const entries = getTimeClockEntries();
+  const e = entries.find(x => x.id === id);
+  if (!e || e.clockOutTs) return;
+  if (!confirm('Clock out ' + e.name + '?')) return;
+  e.clockOutTs = Date.now();
+  e.clockOutDisplay = now();
+  saveTimeClockEntries(entries);
+  renderTimeClockPage();
+}
+function tcDeleteEntry(id) {
+  const entries = getTimeClockEntries();
+  const e = entries.find(x => x.id === id);
+  if (!e) return;
+  if (!confirm('Delete this time entry for ' + e.name + '? This cannot be undone.')) return;
+  saveTimeClockEntries(entries.filter(x => x.id !== id));
+  renderTimeClockPage();
+}
+function renderTimeClockPage() {
+  tcRefreshButton();
+  const entries = getTimeClockEntries();
+
+  // Name autocomplete — built from names already seen in the log, since
+  // this app deliberately has no separate operator pre-registration step.
+  const dl = document.getElementById('tc-name-list');
+  if (dl) {
+    const names = Array.from(new Set(entries.map(e => e.name))).sort();
+    dl.innerHTML = names.map(n => `<option value="${n}"></option>`).join('');
+  }
+
+  const activeEl = document.getElementById('tc-active-list');
+  if (activeEl) {
+    const open = entries.filter(e => !e.clockOutTs).sort((a,b) => a.clockInTs - b.clockInTs);
+    activeEl.innerHTML = open.length
+      ? open.map(e => `<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 10px;border:1px solid var(--border,#edebe9);border-radius:6px;margin-bottom:6px;">
+          <div>
+            <strong>${e.name}</strong>${e.emp?' <span style="font-size:11px;color:#605e5c;">('+e.emp+')</span>':''}
+            <div style="font-size:11px;color:#605e5c;">Since ${e.clockInDisplay} &middot; ${tcFormatDuration(Date.now()-e.clockInTs)} so far</div>
+          </div>
+          <button class="warn-btn sm" onclick="tcClockOutById('${e.id}')">Clock Out</button>
+        </div>`).join('')
+      : '<p style="font-size:13px;color:#605e5c;">No one is currently clocked in.</p>';
+  }
+
+  const rangeEl = document.getElementById('tc-range-filter');
+  const range = rangeEl ? rangeEl.value : 'today';
+  const nowMs = Date.now();
+  const startOfToday = new Date(); startOfToday.setHours(0,0,0,0);
+  const cutoff = range==='today' ? startOfToday.getTime() : range==='week' ? nowMs - 7*24*60*60*1000 : 0;
+  const filtered = entries.filter(e => e.clockInTs >= cutoff).sort((a,b) => b.clockInTs - a.clockInTs);
+
+  const totalsEl = document.getElementById('tc-totals');
+  if (totalsEl) {
+    const totals = {};
+    filtered.forEach(e => {
+      const dur = (e.clockOutTs || Date.now()) - e.clockInTs;
+      totals[e.name] = (totals[e.name] || 0) + dur;
+    });
+    const names = Object.keys(totals).sort();
+    totalsEl.innerHTML = names.length
+      ? `<div style="display:flex;flex-wrap:wrap;gap:8px;">${names.map(n => `<div style="background:#f0eeff;border:1px solid #4b3a9e;border-radius:8px;padding:6px 12px;font-size:12px;"><strong>${n}</strong>: ${tcFormatDuration(totals[n])}</div>`).join('')}</div>`
+      : '';
+  }
+
+  const logEl = document.getElementById('tc-log-table');
+  if (logEl) {
+    logEl.innerHTML = filtered.length
+      ? `<table style="width:100%;border-collapse:collapse;font-size:12px;">
+          <thead><tr style="border-bottom:2px solid #edebe9;text-align:left;">
+            <th style="padding:6px 10px;">Name</th><th style="padding:6px 10px;">Emp #</th>
+            <th style="padding:6px 10px;">Clock In</th><th style="padding:6px 10px;">Clock Out</th>
+            <th style="padding:6px 10px;">Duration</th><th style="padding:6px 10px;"></th>
+          </tr></thead>
+          <tbody>${filtered.map(e => `<tr style="border-bottom:1px solid #f3f2f1;">
+            <td style="padding:6px 10px;font-weight:600;">${e.name}</td>
+            <td style="padding:6px 10px;">${e.emp||'—'}</td>
+            <td style="padding:6px 10px;">${e.clockInDisplay}</td>
+            <td style="padding:6px 10px;">${e.clockOutDisplay || '<span style="color:#4b3a9e;font-weight:600;">Still clocked in</span>'}</td>
+            <td style="padding:6px 10px;">${tcFormatDuration((e.clockOutTs||Date.now())-e.clockInTs)}</td>
+            <td style="padding:6px 10px;"><button class="subtle sm" onclick="tcDeleteEntry('${e.id}')" title="Delete entry">&times;</button></td>
+          </tr>`).join('')}</tbody>
+        </table>`
+      : '<p style="font-size:13px;color:#605e5c;">No time entries in this range.</p>';
+  }
+}
+function exportTimeClockCSV() {
+  const entries = getTimeClockEntries().slice().sort((a,b) => a.clockInTs - b.clockInTs);
+  const rows = [['Name','Employee #','Clock In','Clock Out','Duration (minutes)']];
+  entries.forEach(e => {
+    const durMin = Math.round(((e.clockOutTs||Date.now()) - e.clockInTs) / 60000);
+    rows.push([e.name, e.emp||'', e.clockInDisplay, e.clockOutDisplay||'Still clocked in', String(durMin)]);
+  });
+  const csv = rows.map(r => r.map(c => `"${String(c).replace(/"/g,'""')}"`).join(',')).join('\n');
+  const blob = new Blob([csv], {type:'text/csv'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = 'time_clock_log.csv';
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  URL.revokeObjectURL(url);
 }
 
 function siAddRow(sid) {

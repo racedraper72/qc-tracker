@@ -5973,7 +5973,7 @@ function renderBoardUnitCard(u) {
     // Normal move forward
     if (!isRemedCol && (!isInspectionCol || u.inspectionStarted)) {
       const lockAttr = checklistOK ? '' : 'disabled title="Complete the station checklist first"';
-      if (isLast) { actions+=`<button class="success" onclick="togglePanel('bd-done-${sid}')">&#10003; Mark complete</button>`; panels+=`<div class="action-group" id="bd-done-${sid}"><label>Notes</label><textarea id="bd-notes-done-${sid}" rows="2" placeholder="Notes..."></textarea>${!checklistOK?`<div style="font-size:11px;color:#A03033;margin-bottom:6px;">&#9888; Complete the station checklist below before confirming.</div>`:''}<button class="success sm" ${lockAttr} onclick="doBoardAction('${u.id}','complete')">&#10003; Confirm</button></div>`; }
+      if (isLast) { actions+=`<button class="success" onclick="togglePanel('bd-done-${sid}')">&#10003; Mark complete</button>`; panels+=`<div class="action-group" id="bd-done-${sid}"><label>Notes</label><textarea id="bd-notes-done-${sid}" rows="2" placeholder="Notes..."></textarea>${checklistOK?`<div style="font-size:11px;color:#0e7c3a;margin-bottom:6px;">&#10003; Checklist is complete and ready for release.</div>`:`<div style="font-size:11px;color:#A03033;margin-bottom:6px;">&#9888; Complete the station checklist below before confirming.</div>`}<button class="success sm" ${lockAttr} onclick="doBoardAction('${u.id}','complete')">&#10003; Confirm</button></div>`; }
       // A "release to a chosen station" dropdown is always visible directly
       // on the card (not hidden behind a click) — so a unit can be routed
       // to an overflow/alternate station instead of strictly following the
@@ -5990,7 +5990,7 @@ function renderBoardUnitCard(u) {
         panels+=`<div class="action-group" id="bd-fwd-${sid}">
           <label>Notes</label>
           <textarea id="bd-notes-fwd-${sid}" rows="2" placeholder="Notes..."></textarea>
-          ${!checklistOK?`<div style="font-size:11px;color:#A03033;margin-bottom:6px;">&#9888; Complete the station checklist below before confirming.</div>`:''}
+          ${checklistOK?`<div style="font-size:11px;color:#0e7c3a;margin-bottom:6px;">&#10003; Checklist is complete and ready for release.</div>`:`<div style="font-size:11px;color:#A03033;margin-bottom:6px;">&#9888; Complete the station checklist below before confirming.</div>`}
           <button class="success sm" ${lockAttr} onclick="doBoardAction('${u.id}','forward')">&#8594; Confirm move to <span id="bd-fwd-destlabel-${sid}">${defaultDest}</span></button>
         </div>`;
       }
@@ -6049,6 +6049,15 @@ function renderBoardUnitCard(u) {
   const checklistsRow = (stationChecklistSect || stationQCChecklistSect)
     ? `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:10px;margin-top:8px;">${stationChecklistSect}${stationQCChecklistSect}</div>`
     : '';
+  // A single, prominent status line above the checklist boxes — so it's
+  // obvious at a glance whether this unit can move on, without needing to
+  // open the Release panel first to see the same message buried inside it.
+  const checklistBannerNeeded = !!(stationChecklistItems || stationQCChecklistItems);
+  const checklistBanner = checklistBannerNeeded
+    ? (checklistOK
+        ? `<div style="margin-top:8px;font-size:12px;font-weight:700;color:#0e7c3a;background:#e6f7ed;border:1px solid #0e7c3a;border-radius:6px;padding:7px 12px;display:flex;align-items:center;gap:6px;">&#10003; Checklist is complete and ready for release.</div>`
+        : `<div style="margin-top:8px;font-size:12px;font-weight:700;color:#A03033;background:#fdecea;border:1px solid #A03033;border-radius:6px;padding:7px 12px;display:flex;align-items:center;gap:6px;">&#9888; Checklist not yet complete.</div>`)
+    : '';
   return `<div class="unit-card ${u.held?'held':''} ${u.completed?'completed':''}" style="${remedBorder}${u.deviationNeeded||openFailOverrides.length?'border:2px solid #A03033;':''}">
     <div class="unit-header"><div>${boardPill(u.id)}</div><div style="display:flex;gap:6px;align-items:center;">${deviationBadge}${failOverrideBadge}${statusBadge}</div></div>
     ${remedOrigin}
@@ -6056,6 +6065,7 @@ function renderBoardUnitCard(u) {
     <div style="margin-top:4px;">${timeAtStationBadge}</div>
     ${last?`<div class="unit-meta">Last: <strong>${last.action}</strong>${last.notes?' — '+last.notes:''} — ${last.ts}</div>`:''}
     <div class="unit-actions">${actions}</div>${panels}
+    ${checklistBanner}
     ${checklistsRow}
     ${checklistSect}
     ${u.history.length?`<div id="bd-hist-${sid}" style="display:none;margin-top:10px;border-top:1px solid #edebe9;padding-top:8px;">${histHtml}</div>`:''}

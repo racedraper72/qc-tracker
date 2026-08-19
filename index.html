@@ -1503,6 +1503,11 @@ label { font-size: 11px; font-weight: 600; color: var(--text-2); display: block;
     <div id="qc-station-editor-body"></div>
   </div>
   <div class="card">
+    <div class="section-title">&#128269; Board Inspection Stations</div>
+    <p style="font-size:12px;color:#605e5c;margin-bottom:12px;">Check which Board stations (across every line) require an inspection — this controls where "Ready for Inspection", Start/Stop Inspection, and "Send to Remediation" appear, and which units count toward the Tracker's Ready/Inspecting totals. Renaming a station in the Line Editor below keeps this in sync automatically.</p>
+    <div id="board-inspection-col-editor-body" style="max-height:280px;overflow-y:auto;"></div>
+  </div>
+  <div class="card">
     <div class="section-title">QC unit overrides</div>
     <div id="admin-unit-list"></div>
   </div>
@@ -2937,6 +2942,61 @@ function lineEditorSnapshot() {
   // then saved back as the new override.
   return JSON.parse(JSON.stringify(CONFIG.lines));
 }
+
+/* ============================================================
+   BOARD INSPECTION STATIONS — which column labels count as an
+   "inspection" station (Ready for Inspection / Start / Stop
+   Inspection / send to Remediation all gate on this). This used
+   to be a plain hardcoded array with no editor and no connection
+   to the Line Editor's renaming — so renaming a station that was
+   in this list (e.g. "I2C" -> "M3 EOL") silently dropped it out,
+   and every inspection-related feature for that station vanished
+   along with it, including it no longer counting in the QC tab's
+   Ready/Inspecting totals. leEditStationLabel now keeps this list
+   in sync automatically; this override system also lets Admin
+   add/remove which stations require inspection directly.
+   ============================================================ */
+function getBoardInspectionColOverrides() {
+  const synced = unitIssues['__config__board_inspection_cols'] && unitIssues['__config__board_inspection_cols'].url;
+  if (synced) { try { return JSON.parse(synced); } catch(e) {} }
+  try { return JSON.parse(localStorage.getItem('board_inspection_cols_local') || 'null'); } catch(e) { return null; }
+}
+function saveBoardInspectionColOverrides(cols) {
+  const json = JSON.stringify(cols);
+  unitIssues['__config__board_inspection_cols'] = { url: json, updatedAt: new Date().toISOString() };
+  localStorage.setItem('board_inspection_cols_local', json);
+  saveIssues();
+}
+let bicLastLocalEditAt = 0;
+function applyBoardInspectionColOverrides(force) {
+  if (!force && Date.now() - bicLastLocalEditAt < 15000) return;
+  const overrides = getBoardInspectionColOverrides();
+  if (!overrides) return;
+  CONFIG.boardInspectionCols.length = 0;
+  overrides.forEach(l => CONFIG.boardInspectionCols.push(l));
+}
+function bicToggle(label) {
+  const current = CONFIG.boardInspectionCols.slice();
+  const idx = current.indexOf(label);
+  if (idx === -1) current.push(label); else current.splice(idx, 1);
+  saveBoardInspectionColOverrides(current);
+  bicLastLocalEditAt = Date.now();
+  applyBoardInspectionColOverrides(true);
+  renderBoardInspectionColEditor();
+  renderAll();
+}
+function renderBoardInspectionColEditor() {
+  const el = document.getElementById('board-inspection-col-editor-body');
+  if (!el) return;
+  const allLabels = getAllLineStationLabels();
+  el.innerHTML = allLabels.map(label => {
+    const checked = CONFIG.boardInspectionCols.includes(label);
+    return `<label style="display:flex;align-items:center;gap:8px;font-size:12px;font-weight:400;padding:6px 4px;border-bottom:1px solid #f3f2f1;">
+      <input type="checkbox" ${checked?'checked':''} onchange="bicToggle('${jsq(label)}')" style="width:auto;" />
+      ${label}
+    </label>`;
+  }).join('');
+}
 function leAddLine() {
   const lines = lineEditorSnapshot();
   let n = 1; while (lines.some(l => l.id === 'line_custom_'+n)) n++;
@@ -3004,6 +3064,18 @@ function leEditStationLabel(lineId, idx, newLabel) {
   saveLineOverrides(lines);
   leLastLocalEditAt = Date.now();
   applyLineOverrides(true);
+  // Keep the inspection-stations list in sync too — this is the fix for a
+  // renamed station silently losing its "requires inspection" status (and
+  // every Start/Stop Inspection button, Remediation option, and Ready/
+  // Inspecting count that depends on it) the moment it's renamed.
+  const inspCols = CONFIG.boardInspectionCols.slice();
+  const bicIdx = inspCols.indexOf(oldLabel);
+  if (bicIdx !== -1) {
+    inspCols[bicIdx] = newLabel;
+    saveBoardInspectionColOverrides(inspCols);
+    bicLastLocalEditAt = Date.now();
+    applyBoardInspectionColOverrides(true);
+  }
   renderLineEditor();
 }
 let leDragLineId = null;
@@ -5123,7 +5195,7 @@ function _showPage(page) {
   if (page==='editunit') { renderEditUnitPage(); }
   if (page==='masterschedule') { renderMasterSchedulePage(); }
   if (page==='admin') {
-    renderAdminQC(); renderAdminBoard(); renderOperatorList(); renderChecklistEditor(); renderStationTrackerEditor(); renderAdminDashboardCardManager(); renderAdminSectionOrder(); renderLineEditor(); renderQCStationEditor(); renderProjectEditor();
+    renderAdminQC(); renderAdminBoard(); renderOperatorList(); renderChecklistEditor(); renderStationTrackerEditor(); renderAdminDashboardCardManager(); renderAdminSectionOrder(); renderLineEditor(); renderBoardInspectionColEditor(); renderQCStationEditor(); renderProjectEditor();
     document.getElementById('cfg-target').value = syncTarget;
     document.getElementById('cfg-url-sheets').value = sheetsUrl;
     document.getElementById('cfg-url-smartsheet').value = smartsheetUrl;
@@ -5336,6 +5408,7 @@ function renderAll() {
   applyChecklistOverrides();
   applyStationTrackerOverrides();
   applyLineOverrides();
+  applyBoardInspectionColOverrides();
   applyQCStationOverrides();
   applyProjectOverrides();
   renderCatLegend(); initMatrixFilter();
@@ -10293,6 +10366,7 @@ function init() {
   applyChecklistOverrides();
   applyStationTrackerOverrides();
   applyLineOverrides();
+  applyBoardInspectionColOverrides();
   applyQCStationOverrides();
   applyProjectOverrides();
   applyNavOrder();

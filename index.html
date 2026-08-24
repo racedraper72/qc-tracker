@@ -985,7 +985,7 @@ label { font-size: 11px; font-weight: 600; color: var(--text-2); display: block;
 
 <!-- ============================================================ HEADER -->
 <div class="app-header">
-  <div id="build-stamp" title="If this looks out of date after an update was announced, hard-refresh with Ctrl+Shift+R (Cmd+Shift+R on Mac) to clear your browser's cached copy.">Build: <span id="build-stamp-text">2026-08-20-30</span></div>
+  <div id="build-stamp" title="If this looks out of date after an update was announced, hard-refresh with Ctrl+Shift+R (Cmd+Shift+R on Mac) to clear your browser's cached copy.">Build: <span id="build-stamp-text">2026-08-20-32</span></div>
   <div id="header-signed-in" style="position:absolute;top:26px;right:16px;font-size:11px;color:rgba(255,255,255,.75);white-space:nowrap;z-index:101;"></div>
   <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;flex:1;">
     <div style="background:#fff;border-radius:8px;padding:8px 14px;display:flex;align-items:center;box-shadow:0 1px 3px rgba(0,0,0,.15);">
@@ -1259,6 +1259,7 @@ label { font-size: 11px; font-weight: 600; color: var(--text-2); display: block;
   <!-- Time in Process by Unit -->
   <div class="chart-card" id="pm-time-chart" style="margin-bottom:14px;"></div>
   <div class="chart-card" id="pm-duedate-chart" style="margin-bottom:14px;"></div>
+  <div class="chart-card" id="pm-inspector-summary" style="margin-bottom:14px;"></div>
   <div class="chart-card" id="pm-lead-checkins" style="margin-bottom:14px;"></div>
   <div class="chart-card" id="pm-fail-overrides" style="margin-bottom:14px;"></div>
   <div class="chart-card" id="pm-inspector-activity" style="margin-bottom:14px;"></div>
@@ -3488,6 +3489,28 @@ function fmRotateBg(degrees) {
     ctx.rotate(rad);
     ctx.drawImage(img, -img.width / 2, -img.height / 2);
     saveFloorMapBg(canvas.toDataURL('image/jpeg', 0.9));
+
+    // Every placed unit's stored X/Y (a percentage of the map's width and
+    // height) needs to be rotated the same way, or a unit that was
+    // correctly sitting on, say, the loading dock in the original image
+    // ends up pointing at a completely different spot once the image
+    // underneath it has turned — its percentage never changed to account
+    // for the image's new orientation and swapped dimensions. Each
+    // unit's own facing angle rotates along with it too, so it keeps
+    // pointing the same real-world direction relative to the map, not
+    // just staying in the same rotated screen position.
+    const activeUnits = getAllBoardUnits().filter(u => !u.completed && u.mapX != null && u.mapY != null);
+    activeUnits.forEach(u => {
+      const x = u.mapX / 100, y = u.mapY / 100;
+      let nx, ny;
+      if (degrees === 90) { nx = 1 - y; ny = x; }
+      else if (degrees === -90) { nx = y; ny = 1 - x; }
+      else { nx = 1 - x; ny = 1 - y; } // 180°, not reachable from the current buttons but kept correct
+      u.mapX = nx * 100;
+      u.mapY = ny * 100;
+      u.mapRotation = ((u.mapRotation || 0) + degrees + 360) % 360;
+    });
+    if (activeUnits.length) pushBoard();
     renderFloorMap();
   };
   img.src = bg;
@@ -7318,6 +7341,7 @@ function renderPMPage() {
   renderPMLineProgress();
   renderPMTimeChart();
   renderPMDueDateChart();
+  renderPMInspectorSummary();
   renderPMLeadCheckins();
   renderPMFailOverrides();
   renderPMInspectorActivity();
@@ -8061,6 +8085,78 @@ function renderPMInspectorActivity() {
     </div>`;
 }
 
+// Per-inspector totals, derived from each unit's permanent history log
+// rather than the live leadCheckins roster — leadCheckins only holds
+// people CURRENTLY inspecting (an entry is removed the moment someone
+// finishes or stops), so it can't answer "who's done the most
+// inspections overall." History entries persist forever, so parsing
+// those out gives real running totals per person instead.
+function pmGetInspectorStats() {
+  const stats = {};
+  const ensure = name => { if (!stats[name]) stats[name] = { name, started: 0, finished: 0, stopped: 0, traineeSessions: 0 }; return stats[name]; };
+  // Split on the FIRST " — " only (indexOf, not a greedy regex) — some of
+  // these history strings contain a SECOND " — " inside the optional
+  // "(last inspector — unit now Ready for Release)" suffix, which was
+  // tricking a naive regex into capturing everything after that second
+  // dash as the person's "name" instead of the actual name before it.
+  const parseEntry = (action, prefix) => {
+    if (!action.startsWith(prefix)) return null;
+    const rest = action.slice(prefix.length);
+    const sepIdx = rest.indexOf(' — ');
+    if (sepIdx === -1) return null;
+    return rest.slice(sepIdx + 3);
+  };
+  getAllBoardUnits().forEach(u => {
+    (u.history||[]).forEach(h => {
+      let nameAndSuffix;
+      if ((nameAndSuffix = parseEntry(h.action, 'Inspection started at '))) {
+        const isTrainee = / \(trainee\)$/.test(nameAndSuffix);
+        const name = isTrainee ? nameAndSuffix.replace(/ \(trainee\)$/, '') : nameAndSuffix;
+        const s = ensure(name);
+        s.started++;
+        if (isTrainee) s.traineeSessions++;
+      } else if ((nameAndSuffix = parseEntry(h.action, 'Inspection finished at '))) {
+        ensure(nameAndSuffix.replace(/ \(last inspector[^)]*\)$/, '')).finished++;
+      } else if ((nameAndSuffix = parseEntry(h.action, 'Inspection stopped at '))) {
+        ensure(nameAndSuffix.replace(/ \(last inspector[^)]*\)$/, '')).stopped++;
+      }
+    });
+  });
+  return Object.values(stats).sort((a,b) => b.started - a.started);
+}
+function renderPMInspectorSummary() {
+  const el = document.getElementById('pm-inspector-summary'); if (!el) return;
+  const stats = pmGetInspectorStats();
+  if (!stats.length) {
+    el.innerHTML = `<div class="chart-title">Inspector Summary <span class="chart-subtitle">Totals per person</span></div><p style="font-size:13px;color:#605e5c;">No inspections recorded yet.</p>`;
+    return;
+  }
+  const rows = stats.map(s => {
+    const finishRate = s.started ? Math.round(s.finished / s.started * 100) : 0;
+    return `<tr>
+      <td style="padding:6px 10px;font-size:12px;font-weight:600;">${s.name}</td>
+      <td style="padding:6px 10px;font-size:12px;text-align:center;">${s.started}</td>
+      <td style="padding:6px 10px;font-size:12px;text-align:center;color:#0e7c3a;">${s.finished}</td>
+      <td style="padding:6px 10px;font-size:12px;text-align:center;color:#7a5d00;">${s.stopped}</td>
+      <td style="padding:6px 10px;font-size:12px;text-align:center;">${s.traineeSessions || '—'}</td>
+      <td style="padding:6px 10px;font-size:12px;text-align:center;">${finishRate}%</td>
+    </tr>`;
+  }).join('');
+  el.innerHTML = `<div class="chart-title">Inspector Summary <span class="chart-subtitle">${stats.length} ${stats.length===1?'person':'people'} total</span></div>
+    <div style="overflow-x:auto;">
+      <table style="width:100%;border-collapse:collapse;">
+        <thead><tr style="border-bottom:2px solid #edebe9;text-align:left;">
+          <th style="padding:6px 10px;font-size:11px;color:var(--text-3,#8a96a8);text-transform:uppercase;">Name</th>
+          <th style="padding:6px 10px;font-size:11px;color:var(--text-3,#8a96a8);text-transform:uppercase;text-align:center;">Started</th>
+          <th style="padding:6px 10px;font-size:11px;color:var(--text-3,#8a96a8);text-transform:uppercase;text-align:center;">Finished</th>
+          <th style="padding:6px 10px;font-size:11px;color:var(--text-3,#8a96a8);text-transform:uppercase;text-align:center;">Stopped</th>
+          <th style="padding:6px 10px;font-size:11px;color:var(--text-3,#8a96a8);text-transform:uppercase;text-align:center;">As Trainee</th>
+          <th style="padding:6px 10px;font-size:11px;color:var(--text-3,#8a96a8);text-transform:uppercase;text-align:center;">Finish Rate</th>
+        </tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>`;
+}
 function renderPMLeadCheckins() {
   const el = document.getElementById('pm-lead-checkins'); if (!el) return;
   const allCheckins = [];
@@ -10558,7 +10654,7 @@ function openDeviationNoteModal(unitId) {
    visible stamp every time a change is made, or version checks
    against a stale reference and never fires.
    ============================================================ */
-const BUILD_DATE = '2026-08-20-30';
+const BUILD_DATE = '2026-08-20-32';
 let updateBannerShown = false;
 function checkForNewVersion() {
   if (updateBannerShown) return;

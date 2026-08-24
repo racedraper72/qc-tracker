@@ -985,7 +985,7 @@ label { font-size: 11px; font-weight: 600; color: var(--text-2); display: block;
 
 <!-- ============================================================ HEADER -->
 <div class="app-header">
-  <div id="build-stamp" title="If this looks out of date after an update was announced, hard-refresh with Ctrl+Shift+R (Cmd+Shift+R on Mac) to clear your browser's cached copy.">Build: <span id="build-stamp-text">2026-08-20-32</span></div>
+  <div id="build-stamp" title="If this looks out of date after an update was announced, hard-refresh with Ctrl+Shift+R (Cmd+Shift+R on Mac) to clear your browser's cached copy.">Build: <span id="build-stamp-text">2026-08-20-33</span></div>
   <div id="header-signed-in" style="position:absolute;top:26px;right:16px;font-size:11px;color:rgba(255,255,255,.75);white-space:nowrap;z-index:101;"></div>
   <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;flex:1;">
     <div style="background:#fff;border-radius:8px;padding:8px 14px;display:flex;align-items:center;box-shadow:0 1px 3px rgba(0,0,0,.15);">
@@ -8091,14 +8091,15 @@ function renderPMInspectorActivity() {
 // finishes or stops), so it can't answer "who's done the most
 // inspections overall." History entries persist forever, so parsing
 // those out gives real running totals per person instead.
-function pmGetInspectorStats() {
-  const stats = {};
-  const ensure = name => { if (!stats[name]) stats[name] = { name, started: 0, finished: 0, stopped: 0, traineeSessions: 0 }; return stats[name]; };
-  // Split on the FIRST " — " only (indexOf, not a greedy regex) — some of
-  // these history strings contain a SECOND " — " inside the optional
-  // "(last inspector — unit now Ready for Release)" suffix, which was
-  // tricking a naive regex into capturing everything after that second
-  // dash as the person's "name" instead of the actual name before it.
+// Pairs each person's "started" entry with their OWN later "finished" or
+// "stopped" entry for the same unit, in chronological order, to compute
+// how long each individual inspection session actually took. Multiple
+// people can be inspecting the same unit at once, so this tracks each
+// name's currently-open session separately rather than assuming only one
+// inspection is ever in progress per unit at a time. Same first-" — "
+// parsing approach as pmGetInspectorStats, for the same reason (a second
+// " — " can appear inside the optional "(last inspector — ...)" suffix).
+function pmGetInspectionSessions() {
   const parseEntry = (action, prefix) => {
     if (!action.startsWith(prefix)) return null;
     const rest = action.slice(prefix.length);
@@ -8106,52 +8107,85 @@ function pmGetInspectorStats() {
     if (sepIdx === -1) return null;
     return rest.slice(sepIdx + 3);
   };
+  const sessions = [];
   getAllBoardUnits().forEach(u => {
+    const open = {}; // name -> { ts, tsMs }
     (u.history||[]).forEach(h => {
       let nameAndSuffix;
+      const tsMs = new Date(h.ts).getTime();
       if ((nameAndSuffix = parseEntry(h.action, 'Inspection started at '))) {
-        const isTrainee = / \(trainee\)$/.test(nameAndSuffix);
-        const name = isTrainee ? nameAndSuffix.replace(/ \(trainee\)$/, '') : nameAndSuffix;
-        const s = ensure(name);
-        s.started++;
-        if (isTrainee) s.traineeSessions++;
-      } else if ((nameAndSuffix = parseEntry(h.action, 'Inspection finished at '))) {
-        ensure(nameAndSuffix.replace(/ \(last inspector[^)]*\)$/, '')).finished++;
-      } else if ((nameAndSuffix = parseEntry(h.action, 'Inspection stopped at '))) {
-        ensure(nameAndSuffix.replace(/ \(last inspector[^)]*\)$/, '')).stopped++;
+        const name = nameAndSuffix.replace(/ \(trainee\)$/, '');
+        open[name] = { ts: h.ts, tsMs };
+      } else if ((nameAndSuffix = parseEntry(h.action, 'Inspection finished at ')) || (nameAndSuffix = parseEntry(h.action, 'Inspection stopped at '))) {
+        const endType = h.action.startsWith('Inspection finished at ') ? 'finished' : 'stopped';
+        const name = nameAndSuffix.replace(/ \(last inspector[^)]*\)$/, '');
+        const start = open[name];
+        if (start && !isNaN(start.tsMs) && !isNaN(tsMs) && tsMs >= start.tsMs) {
+          sessions.push({ unitId: u.id, name, startTs: start.ts, endTs: h.ts, endType, durationMs: tsMs - start.tsMs });
+        }
+        delete open[name];
       }
     });
   });
-  return Object.values(stats).sort((a,b) => b.started - a.started);
+  return sessions.sort((a,b) => new Date(b.endTs) - new Date(a.endTs));
+}
+function pmFormatDuration(ms) {
+  const totalMin = Math.round(ms / 60000);
+  if (totalMin < 60) return totalMin + 'm';
+  const h = Math.floor(totalMin / 60), m = totalMin % 60;
+  return h + 'h' + (m ? ' ' + m + 'm' : '');
 }
 function renderPMInspectorSummary() {
   const el = document.getElementById('pm-inspector-summary'); if (!el) return;
-  const stats = pmGetInspectorStats();
-  if (!stats.length) {
-    el.innerHTML = `<div class="chart-title">Inspector Summary <span class="chart-subtitle">Totals per person</span></div><p style="font-size:13px;color:#605e5c;">No inspections recorded yet.</p>`;
+  const sessions = pmGetInspectionSessions();
+  if (!sessions.length) {
+    el.innerHTML = `<div class="chart-title">Inspection Duration <span class="chart-subtitle">How long inspections take, per unit</span></div><p style="font-size:13px;color:#605e5c;">No completed inspection sessions recorded yet.</p>`;
     return;
   }
-  const rows = stats.map(s => {
-    const finishRate = s.started ? Math.round(s.finished / s.started * 100) : 0;
-    return `<tr>
-      <td style="padding:6px 10px;font-size:12px;font-weight:600;">${s.name}</td>
-      <td style="padding:6px 10px;font-size:12px;text-align:center;">${s.started}</td>
-      <td style="padding:6px 10px;font-size:12px;text-align:center;color:#0e7c3a;">${s.finished}</td>
-      <td style="padding:6px 10px;font-size:12px;text-align:center;color:#7a5d00;">${s.stopped}</td>
-      <td style="padding:6px 10px;font-size:12px;text-align:center;">${s.traineeSessions || '—'}</td>
-      <td style="padding:6px 10px;font-size:12px;text-align:center;">${finishRate}%</td>
-    </tr>`;
-  }).join('');
-  el.innerHTML = `<div class="chart-title">Inspector Summary <span class="chart-subtitle">${stats.length} ${stats.length===1?'person':'people'} total</span></div>
+
+  const now = new Date();
+  const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const startOfWeek = new Date(startOfDay); startOfWeek.setDate(startOfWeek.getDate() - startOfWeek.getDay());
+  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+  const bucket = (since) => sessions.filter(s => new Date(s.endTs) >= since);
+  const summarize = (list) => {
+    if (!list.length) return { count: 0, avg: '—', total: '—' };
+    const totalMs = list.reduce((sum, s) => sum + s.durationMs, 0);
+    return { count: list.length, avg: pmFormatDuration(totalMs / list.length), total: pmFormatDuration(totalMs) };
+  };
+  const today = summarize(bucket(startOfDay));
+  const week = summarize(bucket(startOfWeek));
+  const month = summarize(bucket(startOfMonth));
+
+  const kpiCard = (label, s) => `<div style="border-top:3px solid #4b3a9e;background:var(--surface-2,#faf9f8);border-radius:8px;padding:10px 12px;">
+    <div style="font-size:10px;color:var(--text-3,#8a96a8);text-transform:uppercase;letter-spacing:.3px;margin-bottom:4px;">${label}</div>
+    <div style="font-size:18px;font-weight:800;color:#4b3a9e;">${s.count}</div>
+    <div style="font-size:11px;color:var(--text-2,#605e5c);margin-top:2px;">inspections · avg ${s.avg}${s.count?' · total '+s.total:''}</div>
+  </div>`;
+
+  const recent = sessions.slice(0, 25);
+  const rows = recent.map(s => `<tr>
+    <td style="padding:6px 10px;font-size:12px;font-weight:600;">${s.unitId}</td>
+    <td style="padding:6px 10px;font-size:12px;">${s.name}</td>
+    <td style="padding:6px 10px;font-size:12px;font-weight:600;">${pmFormatDuration(s.durationMs)}</td>
+    <td style="padding:6px 10px;">${s.endType==='finished'?`<span style="font-size:10px;background:#e6f7ed;color:#0e7c3a;border:1px solid #0e7c3a;border-radius:20px;padding:2px 8px;font-weight:700;">&#10003; Finished</span>`:`<span style="font-size:10px;background:#fff4ce;color:#7a5d00;border:1px solid #7a5d00;border-radius:20px;padding:2px 8px;font-weight:700;">&#9208; Stopped</span>`}</td>
+    <td style="padding:6px 10px;font-size:11px;color:var(--text-3,#8a96a8);">${s.endTs}</td>
+  </tr>`).join('');
+
+  el.innerHTML = `<div class="chart-title">Inspection Duration <span class="chart-subtitle">${sessions.length} completed session${sessions.length!==1?'s':''} total</span></div>
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:14px;">
+      ${kpiCard('Today', today)}
+      ${kpiCard('This Week', week)}
+      ${kpiCard('This Month', month)}
+    </div>
     <div style="overflow-x:auto;">
       <table style="width:100%;border-collapse:collapse;">
         <thead><tr style="border-bottom:2px solid #edebe9;text-align:left;">
-          <th style="padding:6px 10px;font-size:11px;color:var(--text-3,#8a96a8);text-transform:uppercase;">Name</th>
-          <th style="padding:6px 10px;font-size:11px;color:var(--text-3,#8a96a8);text-transform:uppercase;text-align:center;">Started</th>
-          <th style="padding:6px 10px;font-size:11px;color:var(--text-3,#8a96a8);text-transform:uppercase;text-align:center;">Finished</th>
-          <th style="padding:6px 10px;font-size:11px;color:var(--text-3,#8a96a8);text-transform:uppercase;text-align:center;">Stopped</th>
-          <th style="padding:6px 10px;font-size:11px;color:var(--text-3,#8a96a8);text-transform:uppercase;text-align:center;">As Trainee</th>
-          <th style="padding:6px 10px;font-size:11px;color:var(--text-3,#8a96a8);text-transform:uppercase;text-align:center;">Finish Rate</th>
+          <th style="padding:6px 10px;font-size:11px;color:var(--text-3,#8a96a8);text-transform:uppercase;">Unit</th>
+          <th style="padding:6px 10px;font-size:11px;color:var(--text-3,#8a96a8);text-transform:uppercase;">Inspector</th>
+          <th style="padding:6px 10px;font-size:11px;color:var(--text-3,#8a96a8);text-transform:uppercase;">Duration</th>
+          <th style="padding:6px 10px;font-size:11px;color:var(--text-3,#8a96a8);text-transform:uppercase;">Result</th>
+          <th style="padding:6px 10px;font-size:11px;color:var(--text-3,#8a96a8);text-transform:uppercase;">Ended</th>
         </tr></thead>
         <tbody>${rows}</tbody>
       </table>
@@ -10654,7 +10688,7 @@ function openDeviationNoteModal(unitId) {
    visible stamp every time a change is made, or version checks
    against a stale reference and never fires.
    ============================================================ */
-const BUILD_DATE = '2026-08-20-32';
+const BUILD_DATE = '2026-08-20-33';
 let updateBannerShown = false;
 function checkForNewVersion() {
   if (updateBannerShown) return;

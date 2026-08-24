@@ -985,7 +985,7 @@ label { font-size: 11px; font-weight: 600; color: var(--text-2); display: block;
 
 <!-- ============================================================ HEADER -->
 <div class="app-header">
-  <div id="build-stamp" title="If this looks out of date after an update was announced, hard-refresh with Ctrl+Shift+R (Cmd+Shift+R on Mac) to clear your browser's cached copy.">Build: <span id="build-stamp-text">2026-08-20-21</span></div>
+  <div id="build-stamp" title="If this looks out of date after an update was announced, hard-refresh with Ctrl+Shift+R (Cmd+Shift+R on Mac) to clear your browser's cached copy.">Build: <span id="build-stamp-text">2026-08-20-29</span></div>
   <div id="header-signed-in" style="position:absolute;top:26px;right:16px;font-size:11px;color:rgba(255,255,255,.75);white-space:nowrap;z-index:101;"></div>
   <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;flex:1;">
     <div style="background:#fff;border-radius:8px;padding:8px 14px;display:flex;align-items:center;box-shadow:0 1px 3px rgba(0,0,0,.15);">
@@ -4488,7 +4488,20 @@ function setOperator()         {}
 function applyOperator()       {}
 
 /* ---- HELPERS ---- */
-function togglePanel(id) { const el=document.getElementById(id); if(el) el.style.display=el.style.display==='none'?'block':'none'; }
+// A panel that's never been toggled before has NO inline style at all —
+// it's only hidden via the .action-group CSS class's default rule. Since
+// el.style.display only ever reflects an INLINE style (never a CSS class
+// rule), a fresh panel's style.display is an empty string, not literally
+// "none" — so the old check (=== 'none') treated a never-touched panel as
+// "not hidden," and the very first click set it to 'none' again instead
+// of revealing it. Only a second click worked correctly. This affected
+// every "click to reveal a form" button across the whole app.
+function togglePanel(id) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  const isCurrentlyHidden = el.style.display === 'none' || el.style.display === '';
+  el.style.display = isCurrentlyHidden ? 'block' : 'none';
+}
 function now() { return new Date().toLocaleString('en-US',{month:'short',day:'numeric',year:'numeric',hour:'2-digit',minute:'2-digit'}); }
 function safeId(s) { return (s||'').replace(/[^a-z0-9]/gi,'_'); }
 // Safely embed a string inside a single-quoted JS string literal used in
@@ -5756,12 +5769,16 @@ function renderUnifiedTabs() {
   html+=`<button class="tab-btn ${trackerMode==='remed'?'active':''}" style="${trackerMode==='remed'?'color:#A03033;border-bottom-color:#A03033;font-weight:600;':''}" onclick="switchToRemed()">&#9888; Remediation${remedCount>0?'<span class="tab-count">'+remedCount+'</span>':''}</button>`;
   html+='<span style="display:inline-block;width:1px;height:20px;background:#edebe9;margin:0 8px;vertical-align:middle;"></span>';
   {
-    const readyCount = getBoardReadyForInspectionUnits().length;
-    const inspectingCount = getBoardInspectingUnits().length;
-    const readyActive = trackerMode==='board-ready';
-    const inspectingActive = trackerMode==='board-inspecting';
-    html+=`<button class="tab-btn ${readyActive?'active':''}" style="${readyActive?'color:#7a5d00;border-bottom-color:#7a5d00;font-weight:700;':''}" onclick="switchToBoardReady()" title="Units at an inspection station that haven't been started yet">&#9203; Ready for Inspection${readyCount>0?`<span class="tab-count" style="background:#7a5d00;">${readyCount}</span>`:''}</button>`;
-    html+=`<button class="tab-btn ${inspectingActive?'active':''}" style="${inspectingActive?'color:#4b3a9e;border-bottom-color:#4b3a9e;font-weight:700;':''}" onclick="switchToBoardInspecting()" title="Units currently being inspected">&#128270; Inspecting${inspectingCount>0?`<span class="tab-count" style="background:#4b3a9e;">${inspectingCount}</span>`:''}</button>`;
+    // A single merged tab instead of two — a unit used to visibly vanish
+    // from "Ready for Inspection" the instant someone clicked Start
+    // Inspection (since it now counted as "Inspecting" instead, a
+    // separate tab), which looked and felt like being sent to a different
+    // page even though nothing had actually navigated. One combined list
+    // means a unit's card just updates in place as its status changes,
+    // and stays visible the whole time.
+    const inspectionCount = getBoardReadyForInspectionUnits().length + getBoardInspectingUnits().length + getBoardReadyForReleaseUnits().length;
+    const inspectionActive = trackerMode==='board-inspection';
+    html+=`<button class="tab-btn ${inspectionActive?'active':''}" style="${inspectionActive?'color:#4b3a9e;border-bottom-color:#4b3a9e;font-weight:700;':''}" onclick="switchToBoardInspection()" title="Units ready for inspection or currently being inspected">&#128270; Inspection${inspectionCount>0?`<span class="tab-count" style="background:#4b3a9e;">${inspectionCount}</span>`:''}</button>`;
   }
   bar.innerHTML=html;
 }
@@ -5774,30 +5791,32 @@ function switchToRemed() {
   trackerMode='remed';
   renderUnifiedTabs(); renderUnifiedContent(); updateAddBtns();
 }
-function switchToBoardReady() {
-  trackerMode='board-ready';
-  renderUnifiedTabs(); renderUnifiedContent(); updateAddBtns();
-}
-function switchToBoardInspecting() {
-  trackerMode='board-inspecting';
+function switchToBoardInspection() {
+  trackerMode='board-inspection';
   renderUnifiedTabs(); renderUnifiedContent(); updateAddBtns();
 }
 
 function renderUnifiedContent() {
   const el=document.getElementById('unified-content'); if(!el) return;
-  if (trackerMode==='board-ready') { renderBoardReadyContent(el); }
-  else if (trackerMode==='board-inspecting') { renderBoardInspectingContent(el); }
+  if (trackerMode==='board-inspection') { renderBoardInspectionContent(el); }
   else if (trackerMode==='remed') { renderRemedContent(el); }
   else { renderAllLinesContent(el); }
 }
-function renderBoardReadyContent(el) {
-  const units = getBoardReadyForInspectionUnits();
-  if (!units.length) { el.innerHTML = '<p style="font-size:13px;color:#605e5c;padding:8px 0;">No units are currently ready for inspection.</p>'; return; }
-  el.innerHTML = units.map(u=>renderBoardUnitCard(u)).join('');
-}
-function renderBoardInspectingContent(el) {
-  const units = getBoardInspectingUnits();
-  if (!units.length) { el.innerHTML = '<p style="font-size:13px;color:#605e5c;padding:8px 0;">No units are currently being inspected.</p>'; return; }
+function renderBoardInspectionContent(el) {
+  // Actively-inspecting units first (most time-sensitive), then units
+  // that have finished and are Ready for Release (these need someone to
+  // actually release them, so they matter too), then everything still
+  // waiting to be started — one continuous list, no separate tab to jump
+  // to as a unit's status changes. A unit that's finished used to
+  // disappear entirely here — it no longer matched "inspecting" (nobody's
+  // actively working it) or "ready to start" (it's already been through
+  // inspection), so it fell through both filters and vanished instead of
+  // showing its "Ready to Release" button.
+  const inspecting = getBoardInspectingUnits();
+  const readyForRelease = getBoardReadyForReleaseUnits();
+  const ready = getBoardReadyForInspectionUnits();
+  const units = [...inspecting, ...readyForRelease, ...ready];
+  if (!units.length) { el.innerHTML = '<p style="font-size:13px;color:#605e5c;padding:8px 0;">No units are currently ready for or undergoing inspection.</p>'; return; }
   el.innerHTML = units.map(u=>renderBoardUnitCard(u)).join('');
 }
 
@@ -6105,8 +6124,34 @@ function renderBoardUnitCard(u) {
           <button class="warn-btn sm" onclick="quickStopOneInspector('${u.id}',${c.idx})" title="Pausing — not done yet (e.g. end of day). Can resume later.">&#9208; Stop</button>
         </div>
       </div>`).join('');
-      actions += `<button class="inspect-btn" onclick="quickAddInspector('${u.id}')" title="Adds one more person as an inspector on this unit right now — click again for each additional person.">&#9654; Start Inspection${currentInspectors.length?' — add another':''}</button>`;
+      if (u.inspectionComplete && !currentInspectors.length) {
+        // A prominent, dedicated call-to-action right where the roster
+        // was — once the last person clicks Finish, this appears
+        // immediately in the same spot, rather than requiring a scroll
+        // down to the general Release control to notice the unit is
+        // actually done. Reuses quickRelease() directly — same
+        // destination dropdown further down the card, just a more
+        // visible, one-click way to trigger it from here.
+        actions += `<div style="display:flex;gap:6px;">
+          <button class="success" style="flex:1;" onclick="quickRelease('${u.id}')" title="Inspection is complete — releases this unit using the destination selected below.">&#10003; Ready to Release</button>
+          <button class="subtle sm" onclick="quickReopenInspection('${u.id}')" title="Finished by mistake? Undo it and bring back Start Inspection.">&#8634; Re-inspect</button>
+        </div>`;
+      } else {
+        // "Start Inspection" only makes sense before or during an
+        // inspection — once a unit is genuinely Ready for Release,
+        // showing it alongside "Ready to Release" looked contradictory
+        // (as if inspection both was and wasn't done at the same time).
+        actions += `<button class="inspect-btn" onclick="togglePanel('bd-addinsp-${sid}')" title="Adds one more person as an inspector on this unit right now — click again for each additional person.">&#9654; Start Inspection${currentInspectors.length?' — add another':''}</button>`;
+      }
       actions += `</div>`;
+      panels += `<div class="action-group" id="bd-addinsp-${sid}">
+        <label>Inspector's name</label>
+        <input id="bd-addinsp-name-${sid}" type="text" placeholder="Their name" />
+        <label style="display:flex;align-items:center;gap:6px;font-size:12px;font-weight:400;margin:8px 0;">
+          <input id="bd-addinsp-training-${sid}" type="checkbox" style="width:auto;" /> This person is in training
+        </label>
+        <button class="inspect-btn sm" onclick="quickAddInspector('${u.id}')">&#9654; Confirm Start</button>
+      </div>`;
       // Move to Remediation
       if (canSendToRemed) {
         actions+=`<button class="danger" onclick="togglePanel('bd-remed-${sid}')">&#9888; Remediation</button>`;
@@ -6126,14 +6171,23 @@ function renderBoardUnitCard(u) {
     // things shouldn't be tied together.
     if (!isRemedCol) {
       const lockAttr = hasUnansweredChecklistItems ? 'disabled title="Complete the station checklist first"' : '';
-      if (isLast) { actions+=`<button class="success" ${lockAttr} onclick="quickComplete('${u.id}')">&#10003; Mark complete</button>`; }
+      // For inspection stations specifically, Release/Mark complete stay
+      // fully hidden until the unit has actually reached "Ready for
+      // Release" (u.inspectionComplete) — before anyone's started, while
+      // actively inspecting, or after a Stop (a pause, not real
+      // completion), there's nothing to release yet. Non-inspection
+      // stations are unaffected — they keep the always-visible,
+      // checklist-gated behavior from before, since there's no
+      // Start/Finish/Stop concept there to gate on in the first place.
+      const showRelease = !isInspectionCol || u.inspectionComplete;
+      if (showRelease && isLast) { actions+=`<button class="success" ${lockAttr} onclick="quickComplete('${u.id}')">&#10003; Mark complete</button>`; }
       // A "release to a chosen station" dropdown is always visible directly
       // on the card (not hidden behind a click) — so a unit can be routed
       // to an overflow/alternate station instead of strictly following the
       // line's column order, and can be released right back out of that
       // overflow station to any other station just as freely.
       const otherCols = cols.filter(c => c.label !== u.col && c.label !== 'Remediation');
-      if (otherCols.length) {
+      if (showRelease && otherCols.length) {
         const defaultDest = (nextCol && nextCol !== 'Remediation') ? nextCol : otherCols[0].label;
         const destOpts = otherCols.map(c => `<option value="${c.label}" ${c.label===defaultDest?'selected':''}>${c.label}</option>`).join('');
         actions+=`<div style="display:flex;gap:6px;align-items:center;">
@@ -6242,8 +6296,7 @@ function switchCol(label) {
 }
 function updateAddBtns() {
   const lbl=document.getElementById('tracker-context-label');
-  if (trackerMode==='board-ready') { if(lbl) lbl.textContent='Board — Ready for Inspection'; return; }
-  if (trackerMode==='board-inspecting') { if(lbl) lbl.textContent='Board — Inspecting'; return; }
+  if (trackerMode==='board-inspection') { if(lbl) lbl.textContent='Board — Inspection'; return; }
   const line=CONFIG.lines.find(l=>l.id===activeLine);
   if(lbl) lbl.textContent=line?line.name+' — '+activeCol:'All Lines';
 }
@@ -6472,13 +6525,22 @@ function quickComplete(unitId) {
 // growing list) lets another person independently add themselves too.
 // Each person can later stop independently via quickStopOneInspector,
 // without affecting anyone else still actively inspecting the same unit.
+// Reads from a visible, always-on-page form (name field + trainee
+// checkbox, revealed by the "Start Inspection" button) instead of a
+// native browser prompt() popup — a plain on-page input is guaranteed to
+// behave identically in every browser and every environment, where a
+// native popup's behavior can vary or, in some setups, not appear as an
+// overlay the way it's supposed to at all.
 function quickAddInspector(unitId) {
-  const name = prompt('Name of person starting this inspection:');
-  if (!name || !name.trim()) return;
-  const training = confirm(name.trim() + ' is a trainee?');
+  const sid = safeId(unitId);
+  const nameEl = document.getElementById('bd-addinsp-name-'+sid);
+  const trainingEl = document.getElementById('bd-addinsp-training-'+sid);
+  const name = nameEl ? nameEl.value.trim() : '';
+  if (!name) { alert('Enter the inspector\'s name first.'); return; }
+  const training = trainingEl ? trainingEl.checked : false;
   const u = ensureBoardTracked(unitId);
   if (!u.leadCheckins) u.leadCheckins = [];
-  u.leadCheckins.push({ station: u.col, name: name.trim(), email: '', training, ts: now() });
+  u.leadCheckins.push({ station: u.col, name, email: '', training, ts: now() });
   // u.inspectionStarted stays a real, general-purpose flag (still read
   // elsewhere for badges/status) — true as long as at least one person is
   // checked in as inspecting at this station. Starting fresh work always
@@ -6487,7 +6549,7 @@ function quickAddInspector(unitId) {
   // "Ready for Release" until this new round is actually finished too.
   u.inspectionStarted = true;
   u.inspectionComplete = false;
-  u.history.push({ action: 'Inspection started at '+u.col+' — '+name.trim()+(training?' (trainee)':''), ts: now(), notes: '' });
+  u.history.push({ action: 'Inspection started at '+u.col+' — '+name+(training?' (trainee)':''), ts: now(), notes: '' });
   pushBoard(); renderAll();
 }
 // This person is DONE — successfully completed their part. If they're the
@@ -6495,12 +6557,13 @@ function quickAddInspector(unitId) {
 // distinct status from "Ready for Inspection" — it's now waiting to move
 // on, not waiting to be inspected). Distinct from Stop below, which is a
 // pause rather than genuine completion and does NOT trigger that status
-// change even if it's the last person.
+// change even if it's the last person. No confirmation dialog — this is
+// easily undone by starting inspection again if clicked by mistake, and
+// removing it means one less native popup to depend on.
 function quickFinishOneInspector(unitId, checkinIdx) {
   const u = ensureBoardTracked(unitId);
   if (!u.leadCheckins || !u.leadCheckins[checkinIdx]) return;
   const person = u.leadCheckins[checkinIdx];
-  if (!confirm('Mark '+person.name+'\'s inspection as finished on this unit?')) return;
   u.leadCheckins.splice(checkinIdx, 1);
   const stillInspecting = u.leadCheckins.some(c => c.station === u.col);
   u.inspectionStarted = stillInspecting;
@@ -6519,11 +6582,20 @@ function quickStopOneInspector(unitId, checkinIdx) {
   const u = ensureBoardTracked(unitId);
   if (!u.leadCheckins || !u.leadCheckins[checkinIdx]) return;
   const person = u.leadCheckins[checkinIdx];
-  if (!confirm('Stop '+person.name+'\'s inspection on this unit? (Anyone else still inspecting is unaffected.)')) return;
   u.leadCheckins.splice(checkinIdx, 1);
   const stillInspecting = u.leadCheckins.some(c => c.station === u.col);
   u.inspectionStarted = stillInspecting;
   u.history.push({ action: 'Inspection stopped at '+u.col+' — '+person.name+(stillInspecting?'':' (last inspector — paused, not yet complete)'), ts: now(), notes: '' });
+  pushBoard(); renderAll();
+}
+// Undoes a mistaken Finish — brings a unit back out of "Ready for
+// Release" so "Start Inspection" reappears. Doesn't touch the checklist
+// or anything else, purely reverses the completion status itself.
+function quickReopenInspection(unitId) {
+  const u = ensureBoardTracked(unitId);
+  if (!u.inspectionComplete) return;
+  u.inspectionComplete = false;
+  u.history.push({ action: 'Re-opened for inspection at '+u.col+' (Finish undone)', ts: now(), notes: '' });
   pushBoard(); renderAll();
 }
 
@@ -10476,7 +10548,7 @@ function openDeviationNoteModal(unitId) {
    visible stamp every time a change is made, or version checks
    against a stale reference and never fires.
    ============================================================ */
-const BUILD_DATE = '2026-08-20-21';
+const BUILD_DATE = '2026-08-20-29';
 let updateBannerShown = false;
 function checkForNewVersion() {
   if (updateBannerShown) return;

@@ -985,7 +985,7 @@ label { font-size: 11px; font-weight: 600; color: var(--text-2); display: block;
 
 <!-- ============================================================ HEADER -->
 <div class="app-header">
-  <div id="build-stamp" title="If this looks out of date after an update was announced, hard-refresh with Ctrl+Shift+R (Cmd+Shift+R on Mac) to clear your browser's cached copy.">Build: <span id="build-stamp-text">2026-08-20-29</span></div>
+  <div id="build-stamp" title="If this looks out of date after an update was announced, hard-refresh with Ctrl+Shift+R (Cmd+Shift+R on Mac) to clear your browser's cached copy.">Build: <span id="build-stamp-text">2026-08-20-30</span></div>
   <div id="header-signed-in" style="position:absolute;top:26px;right:16px;font-size:11px;color:rgba(255,255,255,.75);white-space:nowrap;z-index:101;"></div>
   <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;flex:1;">
     <div style="background:#fff;border-radius:8px;padding:8px 14px;display:flex;align-items:center;box-shadow:0 1px 3px rgba(0,0,0,.15);">
@@ -5293,7 +5293,17 @@ function pushIssues() {
 let trackerMode = 'board'; // 'board' or 'qc'
 
 /* ---- PAGE NAV ---- */
+/* Kiosk-style restricted view: when the page is loaded with ?view=cat in
+   the URL, the app locks to ONLY the Cat Dashboard — every other page
+   (including Admin) is forced back to it, and the nav bar hides
+   everything else. This is meant for a link given directly to an
+   external party (like Cat) who should only ever see unit locations and
+   Solutions ESO numbers, never the full production tracker or any admin
+   controls — without needing a real login system to enforce it. */
+const RESTRICTED_TO_CAT_VIEW = new URLSearchParams(window.location.search).get('view') === 'cat';
+
 function showPage(page) {
+  if (RESTRICTED_TO_CAT_VIEW) { _showPage('cat'); return; }
   if (page === 'admin' && currentPage !== 'admin') {
     requireSupervisorPassword(() => _showPage(page));
     return; // don't navigate until the password is confirmed
@@ -10548,7 +10558,7 @@ function openDeviationNoteModal(unitId) {
    visible stamp every time a change is made, or version checks
    against a stale reference and never fires.
    ============================================================ */
-const BUILD_DATE = '2026-08-20-29';
+const BUILD_DATE = '2026-08-20-30';
 let updateBannerShown = false;
 function checkForNewVersion() {
   if (updateBannerShown) return;
@@ -10592,8 +10602,15 @@ function init() {
   // Admin's password gate doesn't apply since this never routes through showPage('admin').
   // .../?dashboard=1 still opens the old landing page if someone specifically wants it.
   const params = new URLSearchParams(window.location.search);
-  const landingPage = params.get('tv') === '1' ? 'tv' : params.get('dashboard') === '1' ? 'dashboard' : 'station2';
+  const landingPage = RESTRICTED_TO_CAT_VIEW ? 'cat' : params.get('tv') === '1' ? 'tv' : params.get('dashboard') === '1' ? 'dashboard' : 'station2';
   showPage(landingPage);
+  if (RESTRICTED_TO_CAT_VIEW) {
+    // Nothing else to navigate to in this mode, so the rest of the nav
+    // bar (and the drag-to-reorder handles on it) just gets in the way —
+    // hide it entirely and leave a plain, uneditable label instead.
+    const navEl = document.querySelector('.header-nav');
+    if (navEl) navEl.innerHTML = '<span style="color:#fff;font-weight:700;font-size:14px;">&#128663; Cat Dashboard</span>';
+  }
   renderAll();
   const hintEl = document.getElementById('board-export-cols-hint');
   if (hintEl) hintEl.textContent = `Unit ID · Line · Station · Status · ${CONFIG.fieldLabels.field1} · ${CONFIG.fieldLabels.field2} · On Hold · Completed · Ready for Insp · Inspection Started · Last Action · Last Operator · Last Updated · History Count · Load Date · Ship Date`;

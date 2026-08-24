@@ -985,7 +985,7 @@ label { font-size: 11px; font-weight: 600; color: var(--text-2); display: block;
 
 <!-- ============================================================ HEADER -->
 <div class="app-header">
-  <div id="build-stamp" title="If this looks out of date after an update was announced, hard-refresh with Ctrl+Shift+R (Cmd+Shift+R on Mac) to clear your browser's cached copy.">Build: <span id="build-stamp-text">2026-08-20-33</span></div>
+  <div id="build-stamp" title="If this looks out of date after an update was announced, hard-refresh with Ctrl+Shift+R (Cmd+Shift+R on Mac) to clear your browser's cached copy.">Build: <span id="build-stamp-text">2026-08-20-34</span></div>
   <div id="header-signed-in" style="position:absolute;top:26px;right:16px;font-size:11px;color:rgba(255,255,255,.75);white-space:nowrap;z-index:101;"></div>
   <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;flex:1;">
     <div style="background:#fff;border-radius:8px;padding:8px 14px;display:flex;align-items:center;box-shadow:0 1px 3px rgba(0,0,0,.15);">
@@ -9161,8 +9161,17 @@ function parseGvizDate(val) {
   return val;
 }
 
-/*  fetchFTIData — tries JSONP first; falls back to static snapshot if blocked
-    (SharePoint CSP blocks external script tags loaded from iframes)         */
+/*  fetchFTIData — tries a real fetch() first; falls back to the static
+    snapshot if that fails (SharePoint's CSP may still block this, either
+    via script-src blocking the old script-tag approach or connect-src
+    blocking this fetch() — there's no way to know for certain without
+    trying it live, but a real fetch() is worth attempting since it's a
+    fundamentally different request type than the script tag was, and it
+    already fixed an equivalent blocked-request problem for the Board
+    sync earlier). Google's gviz endpoint doesn't return pure JSON even
+    when hit directly — it always wraps the payload in a JS function call
+    like callbackName({...});, so that wrapper still needs stripping
+    manually here instead of letting a <script> tag execute it as code. */
 function fetchFTIData(silent) {
   const statusEl = document.getElementById('fti-fetch-status');
 
@@ -9170,77 +9179,67 @@ function fetchFTIData(silent) {
   const _fb = ALL_PROJECT_FALLBACKS[getActiveTab().gid];
   if (!FTI_SHIP_DATA.length && _fb) {
     FTI_SHIP_DATA = _fb.map(r => ({...r}));
-    if (statusEl) { statusEl.textContent = '📋 Snapshot data (live fetch blocked by SharePoint)'; statusEl.style.color = '#b45309'; }
+    if (statusEl) { statusEl.textContent = '📋 Snapshot data (trying live fetch...)'; statusEl.style.color = '#b45309'; }
     if (currentPage === 'pm') { renderSheetTabs(); renderRTSPanel(); if (!Object.keys(allProjectsData).length) fetchAllProjects(); else renderCalendar(); renderFTISchedule(); }
   }
 
   if (statusEl && !silent) { statusEl.textContent = '↻ Trying live fetch...'; statusEl.style.color = '#605e5c'; }
 
-  return new Promise((resolve) => {
-    const cbName = '__ftiGviz_' + Date.now();
-    const script  = document.createElement('script');
-    let settled   = false;
+  const tab = getActiveTab();
+  const cbName = '__ftiGviz_' + Date.now();
+  const url = `https://docs.google.com/spreadsheets/d/${FTI_SHEET_ID}/gviz/tq?tqx=out:json&tq=select%20*&gid=${tab.gid}&callback=${cbName}&_=${Date.now()}`;
 
-    const cleanup = () => {
-      delete window[cbName];
-      if (document.body.contains(script)) document.body.removeChild(script);
-    };
-
-    const timer = setTimeout(() => {
-      if (settled) return;
-      settled = true;
-      cleanup();
-      // Timeout — keep using fallback, just update status
-      if (statusEl) { statusEl.textContent = '📋 Using snapshot — live blocked by SharePoint'; statusEl.style.color = '#b45309'; }
-      resolve();
-    }, 8000);
-
-    window[cbName] = function(raw) {
-      if (settled) return;
-      settled = true;
-      clearTimeout(timer);
-      cleanup();
-      try {
-        const rows = (raw && raw.table && raw.table.rows) ? raw.table.rows : [];
-        const activeTab = getActiveTab();
-        if (activeTab.type === 'calendar') {
-          FTI_SHIP_DATA = rows.map(row => {
-            const c = row.c || [];
-            const cell = (i) => (c[i] && c[i].v !== null && c[i].v !== undefined) ? c[i].v : '';
-            const dateVal = parseGvizDate(cell(2));
-            const name    = String(cell(3));
-            if (!dateVal || !name || name==='Name' || name==='null') return null;
-            return { ftiNum:name, project:activeTab.name, solEso:'', catEso:'', solutionsEso:'',dueDate:'', topLevel:'', gensetSerial:'', excSol:'', excRts:'', loadDate:dateVal, shipLooseDate:dateVal, bol:'', _calEntry:true };
-          }).filter(Boolean);
-        } else {
-          FTI_SHIP_DATA = rows.map(row => {
-            const c = row.c || [];
-            const cell = (i) => (c[i] && c[i].v !== null && c[i].v !== undefined) ? c[i].v : '';
-            return { finalized:String(cell(0)), project:String(cell(1)), ftiNum:String(cell(2)), solEso:String(cell(3)), catEso:String(cell(4)), solutionsEso:String(cell(5)), topLevel:String(cell(6)), gensetSerial:String(cell(7)), excSol:parseGvizDate(cell(8)), excRts:parseGvizDate(cell(9)), loadDate:parseGvizDate(cell(10)), shipLooseDate:parseGvizDate(cell(11)), bol:String(cell(12)) };
-          }).filter(r => r.ftiNum && r.ftiNum !== 'FTI #' && r.ftiNum !== 'null');
-        }
-        ftiLastFetched = new Date();
-        if (statusEl) { statusEl.textContent = '✓ Live — updated ' + ftiLastFetched.toLocaleTimeString(); statusEl.style.color = '#107c10'; }
-        if (currentPage === 'pm') { renderSheetTabs(); renderRTSPanel(); if(ftiActiveTab==='calendar') renderCalendar(); if(ftiActiveTab==='table') renderFTISchedule(); }
-      } catch(err) {
-        if (statusEl) { statusEl.textContent = '📋 Using snapshot data'; statusEl.style.color = '#b45309'; }
+  const processRaw = (raw) => {
+    try {
+      const rows = (raw && raw.table && raw.table.rows) ? raw.table.rows : [];
+      const activeTab = getActiveTab();
+      if (activeTab.type === 'calendar') {
+        FTI_SHIP_DATA = rows.map(row => {
+          const c = row.c || [];
+          const cell = (i) => (c[i] && c[i].v !== null && c[i].v !== undefined) ? c[i].v : '';
+          const dateVal = parseGvizDate(cell(2));
+          const name    = String(cell(3));
+          if (!dateVal || !name || name==='Name' || name==='null') return null;
+          return { ftiNum:name, project:activeTab.name, solEso:'', catEso:'', solutionsEso:'',dueDate:'', topLevel:'', gensetSerial:'', excSol:'', excRts:'', loadDate:dateVal, shipLooseDate:dateVal, bol:'', _calEntry:true };
+        }).filter(Boolean);
+      } else {
+        FTI_SHIP_DATA = rows.map(row => {
+          const c = row.c || [];
+          const cell = (i) => (c[i] && c[i].v !== null && c[i].v !== undefined) ? c[i].v : '';
+          return { finalized:String(cell(0)), project:String(cell(1)), ftiNum:String(cell(2)), solEso:String(cell(3)), catEso:String(cell(4)), solutionsEso:String(cell(5)), topLevel:String(cell(6)), gensetSerial:String(cell(7)), excSol:parseGvizDate(cell(8)), excRts:parseGvizDate(cell(9)), loadDate:parseGvizDate(cell(10)), shipLooseDate:parseGvizDate(cell(11)), bol:String(cell(12)) };
+        }).filter(r => r.ftiNum && r.ftiNum !== 'FTI #' && r.ftiNum !== 'null');
       }
-      resolve();
-    };
+      ftiLastFetched = new Date();
+      if (statusEl) { statusEl.textContent = '✓ Live — updated ' + ftiLastFetched.toLocaleTimeString(); statusEl.style.color = '#107c10'; }
+      if (currentPage === 'pm') { renderSheetTabs(); renderRTSPanel(); if(ftiActiveTab==='calendar') renderCalendar(); if(ftiActiveTab==='table') renderFTISchedule(); }
+      return true;
+    } catch(err) {
+      return false;
+    }
+  };
 
-    script.onerror = () => {
-      if (settled) return;
-      settled = true;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 8000);
+
+  return fetch(url, { signal: controller.signal })
+    .then(r => r.text())
+    .then(text => {
       clearTimeout(timer);
-      cleanup();
-      if (statusEl) { statusEl.textContent = '📋 Using snapshot — open sheet to see latest'; statusEl.style.color = '#b45309'; }
-      resolve();
-    };
-
-    const tab = getActiveTab();
-    script.src = `https://docs.google.com/spreadsheets/d/${FTI_SHEET_ID}/gviz/tq?tqx=out:json&tq=select%20*&gid=${tab.gid}&callback=${cbName}&_=${Date.now()}`;
-    document.body.appendChild(script);
-  });
+      const start = text.indexOf('(');
+      const end = text.lastIndexOf(')');
+      if (start === -1 || end === -1) throw new Error('Unexpected gviz response format');
+      const raw = JSON.parse(text.slice(start + 1, end));
+      const ok = processRaw(raw);
+      if (!ok && statusEl) { statusEl.textContent = '📋 Using snapshot data'; statusEl.style.color = '#b45309'; }
+    })
+    .catch(() => {
+      clearTimeout(timer);
+      // Same fallback message as before — this fires whether the block
+      // is a timeout, a CORS rejection, or SharePoint's CSP stopping the
+      // request outright; the snapshot loaded above stays in place
+      // either way, so nothing is actually broken by this failing.
+      if (statusEl) { statusEl.textContent = '📋 Using snapshot — live blocked by SharePoint'; statusEl.style.color = '#b45309'; }
+    });
 }
 
 /* Auto-refresh every 5 minutes */
@@ -10688,7 +10687,7 @@ function openDeviationNoteModal(unitId) {
    visible stamp every time a change is made, or version checks
    against a stale reference and never fires.
    ============================================================ */
-const BUILD_DATE = '2026-08-20-33';
+const BUILD_DATE = '2026-08-20-34';
 let updateBannerShown = false;
 function checkForNewVersion() {
   if (updateBannerShown) return;

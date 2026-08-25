@@ -985,7 +985,7 @@ label { font-size: 11px; font-weight: 600; color: var(--text-2); display: block;
 
 <!-- ============================================================ HEADER -->
 <div class="app-header">
-  <div id="build-stamp" title="If this looks out of date after an update was announced, hard-refresh with Ctrl+Shift+R (Cmd+Shift+R on Mac) to clear your browser's cached copy.">Build: <span id="build-stamp-text">2026-08-20-38</span></div>
+  <div id="build-stamp" title="If this looks out of date after an update was announced, hard-refresh with Ctrl+Shift+R (Cmd+Shift+R on Mac) to clear your browser's cached copy.">Build: <span id="build-stamp-text">2026-08-20-39</span></div>
   <div id="header-signed-in" style="position:absolute;top:26px;right:16px;font-size:11px;color:rgba(255,255,255,.75);white-space:nowrap;z-index:101;"></div>
   <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;flex:1;">
     <div style="background:#fff;border-radius:8px;padding:8px 14px;display:flex;align-items:center;box-shadow:0 1px 3px rgba(0,0,0,.15);">
@@ -3368,19 +3368,16 @@ function applyFloorMapBgGuard() {
 }
 
 function fmSaveResizedCanvas(sourceCanvasOrImg, sourceW, sourceH) {
-  // Shared by both the image path and the PDF path — resize down to a
-  // reasonable max width before storing, so an unresized phone photo or
-  // a high-DPI PDF render doesn't risk the same kind of oversized-payload
-  // problem this app's sync already had to get fixed once before.
+  // Start from a reasonable base size, then let fmCompressToSafeDataUrl
+  // iterate further if that's still not small enough to sync reliably.
   const maxW = 1600;
   const scale = Math.min(1, maxW / sourceW);
   const canvas = document.createElement('canvas');
-  canvas.width = sourceW * scale;
-  canvas.height = sourceH * scale;
+  canvas.width = Math.max(1, Math.round(sourceW * scale));
+  canvas.height = Math.max(1, Math.round(sourceH * scale));
   const ctx = canvas.getContext('2d');
   ctx.drawImage(sourceCanvasOrImg, 0, 0, canvas.width, canvas.height);
-  const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
-  saveFloorMapBg(dataUrl);
+  saveFloorMapBg(fmCompressToSafeDataUrl(canvas, true));
   renderFloorMap();
 }
 
@@ -3473,6 +3470,39 @@ document.addEventListener('fullscreenchange', () => {
    marker positions, which are percentages relative to the container,
    stay correctly aligned with the floor plan underneath them regardless
    of rotation, instead of drifting out of place. */
+// Compresses a canvas down to a data URL guaranteed to fit within
+// Google Sheets' hard 50,000-character-per-cell limit, iterating on
+// quality and then dimensions until it fits. Shared by the upload path
+// and the rotate path — rotating at a fixed high quality (0.9) could
+// otherwise push an image that originally fit right back over the limit,
+// the same corruption-on-sync problem this was built to prevent in the
+// first place, just via a different code path.
+function fmCompressToSafeDataUrl(canvas, warnIfTooLarge) {
+  const SAFE_LIMIT = 45000;
+  let quality = 0.9;
+  let w = canvas.width, h = canvas.height;
+  let dataUrl = canvas.toDataURL('image/jpeg', quality);
+  let attempts = 0;
+  let workingCanvas = canvas;
+  while (dataUrl.length > SAFE_LIMIT && attempts < 12 && w > 300) {
+    if (quality > 0.4) {
+      quality -= 0.15;
+    } else {
+      w = Math.round(w * 0.75);
+      h = Math.round(h * 0.75);
+      const smaller = document.createElement('canvas');
+      smaller.width = w; smaller.height = h;
+      smaller.getContext('2d').drawImage(workingCanvas, 0, 0, w, h);
+      workingCanvas = smaller;
+    }
+    dataUrl = workingCanvas.toDataURL('image/jpeg', quality);
+    attempts++;
+  }
+  if (dataUrl.length > SAFE_LIMIT && warnIfTooLarge) {
+    alert('This floor plan is too large/detailed to sync reliably even after heavy compression. It will still show correctly on this device, but other devices may not see it. Try a simpler image, or crop it to just the relevant area before uploading.');
+  }
+  return dataUrl;
+}
 function fmRotateBg(degrees) {
   const bg = getFloorMapBg();
   if (!bg) { alert('Upload a floor plan first.'); return; }
@@ -3488,7 +3518,7 @@ function fmRotateBg(degrees) {
     ctx.translate(canvas.width / 2, canvas.height / 2);
     ctx.rotate(rad);
     ctx.drawImage(img, -img.width / 2, -img.height / 2);
-    saveFloorMapBg(canvas.toDataURL('image/jpeg', 0.9));
+    saveFloorMapBg(fmCompressToSafeDataUrl(canvas, true));
 
     // Every placed unit's stored X/Y (a percentage of the map's width and
     // height) needs to be rotated the same way, or a unit that was
@@ -10750,7 +10780,7 @@ function openDeviationNoteModal(unitId) {
    visible stamp every time a change is made, or version checks
    against a stale reference and never fires.
    ============================================================ */
-const BUILD_DATE = '2026-08-20-38';
+const BUILD_DATE = '2026-08-20-39';
 let updateBannerShown = false;
 function checkForNewVersion() {
   if (updateBannerShown) return;

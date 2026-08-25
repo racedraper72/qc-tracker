@@ -985,7 +985,7 @@ label { font-size: 11px; font-weight: 600; color: var(--text-2); display: block;
 
 <!-- ============================================================ HEADER -->
 <div class="app-header">
-  <div id="build-stamp" title="If this looks out of date after an update was announced, hard-refresh with Ctrl+Shift+R (Cmd+Shift+R on Mac) to clear your browser's cached copy.">Build: <span id="build-stamp-text">2026-08-20-36</span></div>
+  <div id="build-stamp" title="If this looks out of date after an update was announced, hard-refresh with Ctrl+Shift+R (Cmd+Shift+R on Mac) to clear your browser's cached copy.">Build: <span id="build-stamp-text">2026-08-20-38</span></div>
   <div id="header-signed-in" style="position:absolute;top:26px;right:16px;font-size:11px;color:rgba(255,255,255,.75);white-space:nowrap;z-index:101;"></div>
   <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;flex:1;">
     <div style="background:#fff;border-radius:8px;padding:8px 14px;display:flex;align-items:center;box-shadow:0 1px 3px rgba(0,0,0,.15);">
@@ -5577,7 +5577,7 @@ function addBoardUnitRow() {
     <select id="butype-${id}" onchange="buTypeChanged(${id})"><option value="">Select type...</option>${typeOpts}<option value="__new__">+ Add new type...</option></select>
     <input id="bunum-${id}" type="number" min="1" placeholder="e.g. 27" />
     <select id="bucol-${id}">${colOpts}</select>
-    <input id="busoleso-${id}" type="text" placeholder="e.g. SOL-4521" />
+    <input id="busoleso-${id}" type="text" placeholder="e.g. SOL-4521" onblur="buAutoFillFromEso(${id})" />
     <input id="budue-${id}" type="date" />
     <input id="bunotes-${id}" type="text" placeholder="Notes..." />
     <button class="remove-row" onclick="removeBoardRow(${id})">&times;</button>`;
@@ -5608,6 +5608,21 @@ function buTypeChanged(id) {
   if (document.getElementById('station-tracker-editor-body')) renderStationTrackerEditor();
 }
 
+// Same auto-fill idea as eauAutoFillFromEso — see that function's comment
+// for the reasoning. Two separate Add Unit forms, both need it.
+function buAutoFillFromEso(id) {
+  const esoInput = document.getElementById('busoleso-'+id);
+  const row = document.getElementById('burow-'+id);
+  if (!esoInput || !row) return;
+  const match = lookupAcrossAllProjectsByEso(esoInput.value.trim());
+  if (!match) { delete row.dataset.matchedGenset; return; }
+  const dueDateInput = document.getElementById('budue-'+id);
+  if (dueDateInput && !dueDateInput.value && match.loadDate) {
+    const d = new Date(match.loadDate);
+    if (!isNaN(d)) dueDateInput.value = d.toISOString().slice(0, 10);
+  }
+  if (match.gensetSerial) row.dataset.matchedGenset = match.gensetSerial;
+}
 function removeBoardRow(id) { const el=document.getElementById('burow-'+id); if(el) el.remove(); }
 function addAllBoardUnits() {
   requireName(() => _addAllBoardUnits());
@@ -5628,15 +5643,16 @@ function _addAllBoardUnits() {
     const notes=document.getElementById('bunotes-'+id).value.trim();
     const type=typeEl?typeEl.value.trim():'';
     const num=numEl?parseInt(numEl.value)||0:0;
+    const gensetSerial = row.dataset.matchedGenset || '';
     if (!type||!num) { err.textContent='Select a product type and enter a unit number for every row.'; hasError=true; return; }
     const uid=type+'-'+num;
     if (getAllBoardUnits().find(u=>u.id===uid)||toAdd.find(u=>u.id===uid)) { err.textContent='Unit '+uid+' already exists.'; hasError=true; return; }
-    toAdd.push({id:uid,line,col,notes,solEso,dueDate});
+    toAdd.push({id:uid,line,col,notes,solEso,dueDate,gensetSerial});
   });
   if (hasError) return;
   toAdd.forEach(u => {
     removeDeletedUnitId(u.id);
-    boardUnits.push({id:u.id,line:u.line,col:u.col,held:false,completed:false,notes:u.notes,esoNumber:'',gensetSerial:'',fuelTankSerial:'',location:'',mapX:null,mapY:null,solutionsEso:u.solEso||'',dueDate:u.dueDate||'',leadCheckins:[],readyForInspection:false,inspectionStarted:false,inspectionComplete:false,supervisorReleased:false,supervisorReleaseTs:'',deviationNeeded:false,deviationNote:'',deviationTs:'',deviations:[],checklist:{},qcChecklist:{},failOverrides:[],station2Tasks:{},stationTrackerTasks:{},history:[{action:'Added to '+u.col,ts:now(),notes:u.notes}]});
+    boardUnits.push({id:u.id,line:u.line,col:u.col,held:false,completed:false,notes:u.notes,esoNumber:'',gensetSerial:u.gensetSerial||'',fuelTankSerial:'',location:'',mapX:null,mapY:null,solutionsEso:u.solEso||'',dueDate:u.dueDate||'',leadCheckins:[],readyForInspection:false,inspectionStarted:false,inspectionComplete:false,supervisorReleased:false,supervisorReleaseTs:'',deviationNeeded:false,deviationNote:'',deviationTs:'',deviations:[],checklist:{},qcChecklist:{},failOverrides:[],station2Tasks:{},stationTrackerTasks:{},history:[{action:'Added to '+u.col,ts:now(),notes:u.notes}]});
   });
   err.textContent=''; document.getElementById('board-add-form').style.display='none';
   pushBoard(); renderAll();
@@ -7007,7 +7023,7 @@ function eauAddRow() {
     <select id="eaurow-type-${id}" onchange="eauTypeChanged(${id})"><option value="">Select type...</option>${typeOpts}<option value="__new__">+ Add new type...</option></select>
     <input id="eaurow-num-${id}" type="number" min="1" placeholder="e.g. 27" />
     <select id="eaurow-col-${id}">${colOpts}</select>
-    <input id="eaurow-soleso-${id}" type="text" placeholder="e.g. SOL-4521" />
+    <input id="eaurow-soleso-${id}" type="text" placeholder="e.g. SOL-4521" onblur="eauAutoFillFromEso(${id})" />
     <input id="eaurow-duedate-${id}" type="date" />
     <input id="eaurow-notes-${id}" type="text" placeholder="Notes..." />
     <button class="remove-row" onclick="eauRemoveRow(${id})">&times;</button>`;
@@ -7047,6 +7063,26 @@ function eauTypeChanged(id) {
   if (document.getElementById('station-tracker-editor-body')) renderStationTrackerEditor();
 }
 function eauRemoveRow(id) { const el=document.getElementById('eaurow-'+id); if(el) el.remove(); }
+// Looks up the entered Solutions ESO across every project's schedule
+// data and, if a match is found, fills in Due Date (only if it's still
+// blank, so this never overwrites something already typed in) and
+// remembers the matching Genset Serial on the row itself for
+// eauAddAllUnits() to pick up when the unit actually gets created — there
+// isn't a visible Genset Serial field on this quick-add form, so it's
+// carried along this way instead of needing a new field just for it.
+function eauAutoFillFromEso(id) {
+  const esoInput = document.getElementById('eaurow-soleso-'+id);
+  const row = document.getElementById('eaurow-'+id);
+  if (!esoInput || !row) return;
+  const match = lookupAcrossAllProjectsByEso(esoInput.value.trim());
+  if (!match) { delete row.dataset.matchedGenset; return; }
+  const dueDateInput = document.getElementById('eaurow-duedate-'+id);
+  if (dueDateInput && !dueDateInput.value && match.loadDate) {
+    const d = new Date(match.loadDate);
+    if (!isNaN(d)) dueDateInput.value = d.toISOString().slice(0, 10);
+  }
+  if (match.gensetSerial) row.dataset.matchedGenset = match.gensetSerial;
+}
 function eauAddAllUnits() {
   const err = document.getElementById('eau-err');
   const rows = document.querySelectorAll('.eau-row');
@@ -7061,15 +7097,16 @@ function eauAddAllUnits() {
     const solEso = document.getElementById('eaurow-soleso-'+id).value.trim();
     const dueDate = document.getElementById('eaurow-duedate-'+id).value;
     const notes = document.getElementById('eaurow-notes-'+id).value.trim();
+    const gensetSerial = row.dataset.matchedGenset || '';
     if (!type || !num) { err.textContent = 'Select a product type and enter a unit number for every row.'; hasError = true; return; }
     const uid = type+'-'+num;
     if (getAllBoardUnits().find(u=>u.id===uid) || toAdd.find(u=>u.id===uid)) { err.textContent = 'Unit '+uid+' already exists.'; hasError = true; return; }
-    toAdd.push({id:uid,line,col,solEso,dueDate,notes});
+    toAdd.push({id:uid,line,col,solEso,dueDate,notes,gensetSerial});
   });
   if (hasError) return;
   toAdd.forEach(u => {
     removeDeletedUnitId(u.id);
-    boardUnits.push({id:u.id,line:u.line,col:u.col,held:false,completed:false,notes:u.notes,esoNumber:'',gensetSerial:'',fuelTankSerial:'',location:'',mapX:null,mapY:null,solutionsEso:u.solEso,dueDate:u.dueDate,leadCheckins:[],readyForInspection:false,inspectionStarted:false,inspectionComplete:false,supervisorReleased:false,supervisorReleaseTs:'',deviationNeeded:false,deviationNote:'',deviationTs:'',deviations:[],checklist:{},qcChecklist:{},failOverrides:[],station2Tasks:{},stationTrackerTasks:{},history:[{action:'Added to '+u.col,ts:now(),notes:u.notes}]});
+    boardUnits.push({id:u.id,line:u.line,col:u.col,held:false,completed:false,notes:u.notes,esoNumber:'',gensetSerial:u.gensetSerial||'',fuelTankSerial:'',location:'',mapX:null,mapY:null,solutionsEso:u.solEso,dueDate:u.dueDate,leadCheckins:[],readyForInspection:false,inspectionStarted:false,inspectionComplete:false,supervisorReleased:false,supervisorReleaseTs:'',deviationNeeded:false,deviationNote:'',deviationTs:'',deviations:[],checklist:{},qcChecklist:{},failOverrides:[],station2Tasks:{},stationTrackerTasks:{},history:[{action:'Added to '+u.col,ts:now(),notes:u.notes}]});
   });
   err.textContent = '';
   document.getElementById('eau-rows').innerHTML = ''; eauRowCtr = 0; eauAddRow();
@@ -9282,6 +9319,28 @@ function lookupFTIByEso(eso) {
   return FTI_SHIP_DATA.find(r => r.solEso.toUpperCase()===q || r.catEso.toUpperCase()===q) || null;
 }
 
+/* Same idea as lookupFTIByEso, but searches EVERY project tab's data
+   (allProjectsData, seeded from fallbacks on load and refreshed live
+   whenever PM View has been visited) rather than just whichever single
+   tab happens to be currently active in the RTS/Ship Schedule view —
+   the tab someone's ESO belongs to often isn't the one currently showing
+   there, since that's an unrelated navigation state. Used to auto-fill
+   Due Date and Genset Serial when adding a unit, straight from its
+   Solutions ESO number, without needing to know which tab it's on. */
+function lookupAcrossAllProjectsByEso(eso) {
+  if (!eso) return null;
+  const q = eso.trim().toUpperCase();
+  for (const gid in allProjectsData) {
+    const match = (allProjectsData[gid]||[]).find(r =>
+      (r.solEso && r.solEso.toUpperCase() === q) ||
+      (r.catEso && r.catEso.toUpperCase() === q) ||
+      (r.solutionsEso && r.solutionsEso.toUpperCase() === q)
+    );
+    if (match) return match;
+  }
+  return null;
+}
+
 /* Given a board unit, find its FTI row */
 function getFTIForBoardUnit(u) {
   if (u.gensetSerial) {
@@ -9770,27 +9829,26 @@ function fetchAllProjects() {
 
   if (pending === 0) { renderCalendar(); renderPMCustomDashboard(); return; }
 
-  scheduleTabs.forEach((tab, idx) => {
+  // Same fetch() conversion as fetchFTIData — this function was still
+  // using the old blocked script-tag approach even after that one was
+  // fixed, which meant the All-Projects Gantt view and the Solutions ESO
+  // auto-fill feature (both driven by allProjectsData, which only this
+  // function populates) kept silently falling back to snapshot dates
+  // even once the main schedule view was successfully pulling live data.
+  scheduleTabs.forEach((tab) => {
     const cbName = '__agviz_' + tab.gid + '_' + Date.now();
-    const script = document.createElement('script');
-    let done = false;
+    const url = `https://docs.google.com/spreadsheets/d/${FTI_SHEET_ID}/gviz/tq?tqx=out:json&tq=select%20*&gid=${tab.gid}&callback=${cbName}&_=${Date.now()}`;
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 10000);
 
-    const cleanup = () => {
-      delete window[cbName];
-      if (document.body.contains(script)) document.body.removeChild(script);
-    };
-
-    const timer = setTimeout(() => {
-      if (done) return; done = true; cleanup();
-      pending--;
-      if (statusEl) statusEl.textContent = `⚠ ${tab.name} timed out — loaded ${loaded}/${scheduleTabs.length}`;
-      if (pending === 0) { renderCalendar(); renderPMCustomDashboard(); }
-    }, 10000);
-
-    window[cbName] = function(raw) {
-      if (done) return; done = true;
-      clearTimeout(timer); cleanup();
-      try {
+    fetch(url, { signal: controller.signal })
+      .then(r => r.text())
+      .then(text => {
+        clearTimeout(timer);
+        const start = text.indexOf('(');
+        const end = text.lastIndexOf(')');
+        if (start === -1 || end === -1) throw new Error('Unexpected gviz response format');
+        const raw = JSON.parse(text.slice(start + 1, end));
         const rows = (raw && raw.table && raw.table.rows) ? raw.table.rows : [];
         allProjectsData[tab.gid] = rows.map(row => {
           const c    = row.c || [];
@@ -9800,6 +9858,9 @@ function fetchAllProjects() {
             project:       tab.name,
             gid:           tab.gid,
             colorIdx:      FTI_TABS.filter(t=>t.type==='schedule').indexOf(tab),
+            solEso:        String(cell(3)),
+            catEso:        String(cell(4)),
+            solutionsEso:  String(cell(5)),
             gensetSerial:  String(cell(7)),
             excRts:        parseGvizDate(cell(9)),
             loadDate:      parseGvizDate(cell(10)),
@@ -9808,24 +9869,16 @@ function fetchAllProjects() {
         }).filter(r => r.ftiNum && r.ftiNum !== 'FTI #' && r.ftiNum !== 'null');
         allProjectsFetched[tab.gid] = true;
         loaded++;
-      } catch(e) { console.warn('AllGantt parse error', tab.name, e); }
-      pending--;
-      if (statusEl) statusEl.textContent = `Loading ${loaded}/${scheduleTabs.length} projects...`;
-      if (pending === 0) {
-        if (statusEl) statusEl.textContent = `✓ All ${loaded} projects loaded`;
-        renderCalendar(); renderPMCustomDashboard();
-      }
-    };
-
-    script.onerror = () => {
-      if (done) return; done = true;
-      clearTimeout(timer); cleanup();
-      pending--;
-      if (pending === 0) { renderCalendar(); renderPMCustomDashboard(); }
-    };
-
-    script.src = `https://docs.google.com/spreadsheets/d/${FTI_SHEET_ID}/gviz/tq?tqx=out:json&tq=select%20*&gid=${tab.gid}&callback=${cbName}&_=${Date.now()}`;
-    document.body.appendChild(script);
+      })
+      .catch((e) => {
+        clearTimeout(timer);
+        console.warn('AllGantt fetch error', tab.name, e);
+      })
+      .finally(() => {
+        pending--;
+        if (statusEl) statusEl.textContent = pending > 0 ? `Loading ${loaded}/${scheduleTabs.length} projects...` : `✓ ${loaded}/${scheduleTabs.length} projects loaded`;
+        if (pending === 0) { renderCalendar(); renderPMCustomDashboard(); }
+      });
   });
 
   // Seed all projects from fallbacks so chart isn't empty while fetching
@@ -10697,7 +10750,7 @@ function openDeviationNoteModal(unitId) {
    visible stamp every time a change is made, or version checks
    against a stale reference and never fires.
    ============================================================ */
-const BUILD_DATE = '2026-08-20-36';
+const BUILD_DATE = '2026-08-20-38';
 let updateBannerShown = false;
 function checkForNewVersion() {
   if (updateBannerShown) return;
@@ -10755,6 +10808,7 @@ function init() {
   if (hintEl) hintEl.textContent = `Unit ID · Line · Station · Status · ${CONFIG.fieldLabels.field1} · ${CONFIG.fieldLabels.field2} · On Hold · Completed · Ready for Insp · Inspection Started · Last Action · Last Operator · Last Updated · History Count · Load Date · Ship Date`;
   seedAllProjectFallbacks();
   fetchFTIData(false).then(() => { if(currentPage==='pm') renderPMPage(); });
+  fetchAllProjects(); // keeps allProjectsData (Gantt view + ESO auto-fill) fresh from the start too, not just after a PM View visit
   startFTIAutoRefresh();
   /* Built-in defaults — used only if this browser has never saved its own config.
      This makes the app "just work" for new users without requiring them to
@@ -10838,6 +10892,10 @@ function init() {
       syncTimer = setInterval(syncFromSheets, intervalSec * 1000);
     }
   }
+  // Seed FTI/RTS schedule fallback data immediately on load, not just
+  // when PM View happens to be visited — this is what lets Solutions ESO
+  // auto-fill work for anyone adding a unit before ever opening PM View.
+  seedAllProjectFallbacks();
   initVersionCheck();
 }
 if (document.readyState==='loading') { document.addEventListener('DOMContentLoaded',init); } else { init(); }

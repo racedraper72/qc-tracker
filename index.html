@@ -985,7 +985,7 @@ label { font-size: 11px; font-weight: 600; color: var(--text-2); display: block;
 
 <!-- ============================================================ HEADER -->
 <div class="app-header">
-  <div id="build-stamp" title="If this looks out of date after an update was announced, hard-refresh with Ctrl+Shift+R (Cmd+Shift+R on Mac) to clear your browser's cached copy.">Build: <span id="build-stamp-text">2026-08-20-35</span></div>
+  <div id="build-stamp" title="If this looks out of date after an update was announced, hard-refresh with Ctrl+Shift+R (Cmd+Shift+R on Mac) to clear your browser's cached copy.">Build: <span id="build-stamp-text">2026-08-20-36</span></div>
   <div id="header-signed-in" style="position:absolute;top:26px;right:16px;font-size:11px;color:rgba(255,255,255,.75);white-space:nowrap;z-index:101;"></div>
   <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;flex:1;">
     <div style="background:#fff;border-radius:8px;padding:8px 14px;display:flex;align-items:center;box-shadow:0 1px 3px rgba(0,0,0,.15);">
@@ -9172,8 +9172,16 @@ function parseGvizDate(val) {
     when hit directly — it always wraps the payload in a JS function call
     like callbackName({...});, so that wrapper still needs stripping
     manually here instead of letting a <script> tag execute it as code. */
+/* Guards against a slow response from a PREVIOUS tab selection arriving
+   after a newer one has already loaded and silently overwriting it with
+   stale data — the old script-tag version had this built in naturally
+   (each request's own uniquely-named callback only ever fired once), but
+   a plain fetch() needs it done explicitly instead. */
+let ftiFetchToken = 0;
+
 function fetchFTIData(silent) {
   const statusEl = document.getElementById('fti-fetch-status');
+  const myToken = ++ftiFetchToken;
 
   // Always load static fallback immediately so charts work right away
   const _fb = ALL_PROJECT_FALLBACKS[getActiveTab().gid];
@@ -9225,6 +9233,7 @@ function fetchFTIData(silent) {
     .then(r => r.text())
     .then(text => {
       clearTimeout(timer);
+      if (myToken !== ftiFetchToken) return; // a newer tab switch has since started; this response is stale — discard it
       const start = text.indexOf('(');
       const end = text.lastIndexOf(')');
       if (start === -1 || end === -1) throw new Error('Unexpected gviz response format');
@@ -9234,6 +9243,7 @@ function fetchFTIData(silent) {
     })
     .catch(() => {
       clearTimeout(timer);
+      if (myToken !== ftiFetchToken) return; // same staleness guard for the failure path
       // Same fallback message as before — this fires whether the block
       // is a timeout, a CORS rejection, or SharePoint's CSP stopping the
       // request outright; the snapshot loaded above stays in place
@@ -10687,7 +10697,7 @@ function openDeviationNoteModal(unitId) {
    visible stamp every time a change is made, or version checks
    against a stale reference and never fires.
    ============================================================ */
-const BUILD_DATE = '2026-08-20-35';
+const BUILD_DATE = '2026-08-20-36';
 let updateBannerShown = false;
 function checkForNewVersion() {
   if (updateBannerShown) return;

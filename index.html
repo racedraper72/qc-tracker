@@ -985,7 +985,7 @@ label { font-size: 11px; font-weight: 600; color: var(--text-2); display: block;
 
 <!-- ============================================================ HEADER -->
 <div class="app-header">
-  <div id="build-stamp" title="If this looks out of date after an update was announced, hard-refresh with Ctrl+Shift+R (Cmd+Shift+R on Mac) to clear your browser's cached copy.">Build: <span id="build-stamp-text">2026-08-20-39</span></div>
+  <div id="build-stamp" title="If this looks out of date after an update was announced, hard-refresh with Ctrl+Shift+R (Cmd+Shift+R on Mac) to clear your browser's cached copy.">Build: <span id="build-stamp-text">2026-08-20-40</span></div>
   <div id="header-signed-in" style="position:absolute;top:26px;right:16px;font-size:11px;color:rgba(255,255,255,.75);white-space:nowrap;z-index:101;"></div>
   <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;flex:1;">
     <div style="background:#fff;border-radius:8px;padding:8px 14px;display:flex;align-items:center;box-shadow:0 1px 3px rgba(0,0,0,.15);">
@@ -1930,7 +1930,7 @@ const CONFIG = {
         {label:"I2C",           units:['SAT93-10','SAT93-4','SAT93-9','SAT93-6','SAT93-7','SAT93-8']},
         {label:'I3A',          units:['SAT82-24','SAT93-5','SAT93-12','SAT82-26']},
         {label:'I3B',          units:[]},
-        {label:'Load Bank',    units:[]},
+        {label:'Weather Ready', units:[]},{label:'Load Bank',    units:[]},
         {label:"I4's",         units:[]},
         {label:'Remediation',  units:[]},
         {label:'Outside',      units:[]},
@@ -1956,7 +1956,7 @@ const CONFIG = {
         {label:"I2C",             units:['EQ10-16','EQ10-18']},
         {label:'I3A',            units:['EQ10-15']},
         {label:'I3B',            units:[]},
-        {label:'Load Bank',      units:[]},
+        {label:'Weather Ready', units:[]},{label:'Load Bank',      units:[]},
         {label:"I4's",          units:[]},
         {label:'Remediation',    units:[]},
         {label:'Holding EQUINIX',units:['EQ10-17']},
@@ -1980,7 +1980,7 @@ const CONFIG = {
         {label:"I2C",             units:['COMP-17','COMP-18']},
         {label:'I3A',            units:[]},
         {label:'I3B',            units:[]},
-        {label:'Load Bank',      units:[]},
+        {label:'Weather Ready', units:[]},{label:'Load Bank',      units:[]},
         {label:"I4's",           units:['COMP-16','COMP-19','COMP-20','COMP-21']},
         {label:'Remediation',     units:[]},
         {label:'Holding COMPASS',units:[]},
@@ -1995,7 +1995,7 @@ const CONFIG = {
         {label:'M2',         units:[]},{label:'Station 7',units:[]},
         {label:'Station 8',  units:[]},{label:'Station 9',units:['TITUS(L)-FOK']},
         {label:"I2C",        units:[]},{label:'I3A',units:[]},{label:'I3B',units:[]},
-        {label:'Load Bank',  units:[]},
+        {label:'Weather Ready', units:[]},{label:'Load Bank',  units:[]},
         {label:"I4's",    units:[]},
         {label:'Remediation', units:[]},
       ]},
@@ -2005,7 +2005,7 @@ const CONFIG = {
         {label:'Station 7',   units:['DROP-21']},{label:'Station 8',units:['DROP-20']},
         {label:'Station 9',   units:['DROP-19']},{label:'Completed', units:[]},
         {label:"I2C",         units:['DROP-18']},{label:'I3A',units:['DROP-17']},{label:'I3B',units:[]},
-        {label:'Load Bank',   units:[]},{label:"I4's",units:[]},{label:'Remediation',units:[]},{label:'RTS',units:['DROP-16','DROP-22','DROP-23']},
+        {label:'Weather Ready', units:[]},{label:'Load Bank',   units:[]},{label:"I4's",units:[]},{label:'Remediation',units:[]},{label:'RTS',units:['DROP-16','DROP-22','DROP-23']},
         {label:'Holding WDC', units:['DROP-25','DROP-26','DROP-28']},{label:'Shipped',units:['DROP-15']},
       ]},
   ],
@@ -4679,7 +4679,7 @@ function jsonpSave(tab, rows) {
   const header = tab==='QC'
     ? ['Serial','Type','Station','InspectionStarted','Held','Remediation','RemediationOrigin','Completed','Status','HistoryJSON']
     : tab==='Board'
-    ? ['UnitID','Line','Column','Held','Completed','Notes','ESONumber','GensetSerial','ReadyForInspection','InspectionStarted','HistoryJSON','SupervisorReleased','SupervisorReleaseTs','DeviationNeeded','DeviationNote','DeviationTs','ChecklistJSON','QCChecklistJSON','FailOverridesJSON','Station2TasksJSON','SolutionsESO','DueDate','LeadCheckinsJSON','StationTrackerTasksJSON','FuelTankSerial','Location','MapX','MapY','MapRotation','DeviationsJSON','InspectionComplete']
+    ? ['UnitID','Line','Column','Held','Completed','Notes','ESONumber','GensetSerial','ReadyForInspection','InspectionStarted','HistoryJSON','SupervisorReleased','SupervisorReleaseTs','DeviationNeeded','DeviationNote','DeviationTs','ChecklistJSON','QCChecklistJSON','FailOverridesJSON','Station2TasksJSON','SolutionsESO','DueDate','LeadCheckinsJSON','StationTrackerTasksJSON','FuelTankSerial','Location','MapX','MapY','MapRotation','DeviationsJSON','InspectionComplete','WeatherReadySignoffsJSON']
     : ['UnitID','Link','UpdatedAt'];
   const payload = JSON.stringify({action:'save', rows:[header,...rows]});
 
@@ -4764,13 +4764,14 @@ function syncFromSheetsViaGAS(onDone) {
           let leadCheckins=[]; try{leadCheckins=JSON.parse(r[22]||'[]');}catch(e){}
           let stationTrackerTasks={}; try{stationTrackerTasks=JSON.parse(r[23]||'{}');}catch(e){}
           let deviations=[]; try{deviations=JSON.parse(r[29]||'[]');}catch(e){}
+          let weatherReadySignoffs={}; try{weatherReadySignoffs=JSON.parse(r[31]||'{}');}catch(e){}
           // Migrate a pre-existing single deviation (from before the deviations
           // list existed) into the list, so historical entries synced from an
           // older build aren't silently dropped the first time they're pulled.
           if (deviations.length===0 && (r[13]==='TRUE'||r[13]===true) && r[14]) deviations=[{note:r[14],ts:r[15]||'',operator:''}];
           return {id:r[0],line:r[1],col:r[2],held:r[3]==='TRUE'||r[3]===true,completed:r[4]==='TRUE'||r[4]===true,notes:r[5]||'',esoNumber:r[6]||'',gensetSerial:r[7]||'',readyForInspection:r[8]==='TRUE'||r[8]===true,inspectionStarted:r[9]==='TRUE'||r[9]===true,history,
             supervisorReleased:r[11]==='TRUE'||r[11]===true,supervisorReleaseTs:r[12]||'',
-            deviationNeeded:r[13]==='TRUE'||r[13]===true,deviationNote:r[14]||'',deviationTs:r[15]||'',checklist,qcChecklist,failOverrides,station2Tasks,solutionsEso:r[20]||'',dueDate:normalizeDueDate(r[21]),leadCheckins,stationTrackerTasks,fuelTankSerial:r[24]||'',location:r[25]||'',mapX:r[26]!==undefined&&r[26]!==''?parseFloat(r[26]):null,mapY:r[27]!==undefined&&r[27]!==''?parseFloat(r[27]):null,mapRotation:r[28]!==undefined&&r[28]!==''?parseFloat(r[28]):0,deviations,inspectionComplete:r[30]==='TRUE'||r[30]===true};
+            deviationNeeded:r[13]==='TRUE'||r[13]===true,deviationNote:r[14]||'',deviationTs:r[15]||'',checklist,qcChecklist,failOverrides,station2Tasks,solutionsEso:r[20]||'',dueDate:normalizeDueDate(r[21]),leadCheckins,stationTrackerTasks,fuelTankSerial:r[24]||'',location:r[25]||'',mapX:r[26]!==undefined&&r[26]!==''?parseFloat(r[26]):null,mapY:r[27]!==undefined&&r[27]!==''?parseFloat(r[27]):null,mapRotation:r[28]!==undefined&&r[28]!==''?parseFloat(r[28]):0,deviations,inspectionComplete:r[30]==='TRUE'||r[30]===true,weatherReadySignoffs};
         });
       }
       jsonpCall(sheetsUrl+'?tab=Issues', function(err3, rows3) {
@@ -4811,7 +4812,7 @@ function proxySave(tab, rows) {
   const header = tab==='QC'
     ? ['Serial','Type','Station','InspectionStarted','Held','Remediation','RemediationOrigin','Completed','Status','HistoryJSON']
     : tab==='Board'
-    ? ['UnitID','Line','Column','Held','Completed','Notes','ESONumber','GensetSerial','ReadyForInspection','InspectionStarted','HistoryJSON','SupervisorReleased','SupervisorReleaseTs','DeviationNeeded','DeviationNote','DeviationTs','ChecklistJSON','QCChecklistJSON','FailOverridesJSON','Station2TasksJSON','SolutionsESO','DueDate','LeadCheckinsJSON','StationTrackerTasksJSON','FuelTankSerial','Location','MapX','MapY','MapRotation','DeviationsJSON','InspectionComplete']
+    ? ['UnitID','Line','Column','Held','Completed','Notes','ESONumber','GensetSerial','ReadyForInspection','InspectionStarted','HistoryJSON','SupervisorReleased','SupervisorReleaseTs','DeviationNeeded','DeviationNote','DeviationTs','ChecklistJSON','QCChecklistJSON','FailOverridesJSON','Station2TasksJSON','SolutionsESO','DueDate','LeadCheckinsJSON','StationTrackerTasksJSON','FuelTankSerial','Location','MapX','MapY','MapRotation','DeviationsJSON','InspectionComplete','WeatherReadySignoffsJSON']
     : ['UnitID','Link','UpdatedAt'];
   return proxyFetch('?action=save&tab='+tab, {
     method: 'POST',
@@ -5206,13 +5207,14 @@ function syncFromSheetsViaSmartsheet(onDone) {
         let leadCheckins=[]; try{leadCheckins=JSON.parse(r[22]||'[]');}catch(e){}
         let stationTrackerTasks={}; try{stationTrackerTasks=JSON.parse(r[23]||'{}');}catch(e){}
           let deviations=[]; try{deviations=JSON.parse(r[29]||'[]');}catch(e){}
+          let weatherReadySignoffs={}; try{weatherReadySignoffs=JSON.parse(r[31]||'{}');}catch(e){}
           // Migrate a pre-existing single deviation (from before the deviations
           // list existed) into the list, so historical entries synced from an
           // older build aren't silently dropped the first time they're pulled.
           if (deviations.length===0 && (r[13]==='TRUE'||r[13]===true) && r[14]) deviations=[{note:r[14],ts:r[15]||'',operator:''}];
         return {id:r[0],line:r[1],col:r[2],held:r[3]==='TRUE'||r[3]===true,completed:r[4]==='TRUE'||r[4]===true,notes:r[5]||'',esoNumber:r[6]||'',gensetSerial:r[7]||'',readyForInspection:r[8]==='TRUE'||r[8]===true,inspectionStarted:r[9]==='TRUE'||r[9]===true,history,
           supervisorReleased:r[11]==='TRUE'||r[11]===true,supervisorReleaseTs:r[12]||'',
-          deviationNeeded:r[13]==='TRUE'||r[13]===true,deviationNote:r[14]||'',deviationTs:r[15]||'',checklist,qcChecklist,failOverrides,station2Tasks,solutionsEso:r[20]||'',dueDate:normalizeDueDate(r[21]),leadCheckins,stationTrackerTasks,fuelTankSerial:r[24]||'',location:r[25]||'',mapX:r[26]!==undefined&&r[26]!==''?parseFloat(r[26]):null,mapY:r[27]!==undefined&&r[27]!==''?parseFloat(r[27]):null,mapRotation:r[28]!==undefined&&r[28]!==''?parseFloat(r[28]):0,deviations,inspectionComplete:r[30]==='TRUE'||r[30]===true};
+          deviationNeeded:r[13]==='TRUE'||r[13]===true,deviationNote:r[14]||'',deviationTs:r[15]||'',checklist,qcChecklist,failOverrides,station2Tasks,solutionsEso:r[20]||'',dueDate:normalizeDueDate(r[21]),leadCheckins,stationTrackerTasks,fuelTankSerial:r[24]||'',location:r[25]||'',mapX:r[26]!==undefined&&r[26]!==''?parseFloat(r[26]):null,mapY:r[27]!==undefined&&r[27]!==''?parseFloat(r[27]):null,mapRotation:r[28]!==undefined&&r[28]!==''?parseFloat(r[28]):0,deviations,inspectionComplete:r[30]==='TRUE'||r[30]===true,weatherReadySignoffs};
       });
     }
     if (rows3 && rows3.length>1) {
@@ -5279,7 +5281,7 @@ function loadLocalCache() {
    seen (via push OR pull) and padding any smaller push with blank rows up
    to that count guarantees every previously-used row gets overwritten
    with blanks, regardless of how the backend script writes the range. */
-const BOARD_COL_COUNT = 31;
+const BOARD_COL_COUNT = 32;
 const QC_COL_COUNT = 10;
 function bumpRowFloor(tab, count) {
   const key = 'push_row_floor_' + tab;
@@ -5330,7 +5332,7 @@ function pushBoard(force) {
   if (!force && isStaleRelativeToReset()) { syncFromSheets(); return Promise.resolve(false); }
   boardLastLocalEditAt = Date.now();
   saveLocalCache();
-  const rows = boardUnits.map(u=>[u.id,u.line,u.col,u.held,u.completed,u.notes,u.esoNumber||'',u.gensetSerial||'',u.readyForInspection||false,u.inspectionStarted||false,JSON.stringify(u.history),u.supervisorReleased||false,u.supervisorReleaseTs||'',u.deviationNeeded||false,u.deviationNote||'',u.deviationTs||'',JSON.stringify(u.checklist||{}),JSON.stringify(u.qcChecklist||{}),JSON.stringify(u.failOverrides||[]),JSON.stringify(u.station2Tasks||{}),u.solutionsEso||'',u.dueDate||'',JSON.stringify(u.leadCheckins||[]),JSON.stringify(u.stationTrackerTasks||{}),u.fuelTankSerial||'',u.location||'',u.mapX==null?'':u.mapX,u.mapY==null?'':u.mapY,u.mapRotation==null?'':u.mapRotation,JSON.stringify(u.deviations||[]),u.inspectionComplete||false]);
+  const rows = boardUnits.map(u=>[u.id,u.line,u.col,u.held,u.completed,u.notes,u.esoNumber||'',u.gensetSerial||'',u.readyForInspection||false,u.inspectionStarted||false,JSON.stringify(u.history),u.supervisorReleased||false,u.supervisorReleaseTs||'',u.deviationNeeded||false,u.deviationNote||'',u.deviationTs||'',JSON.stringify(u.checklist||{}),JSON.stringify(u.qcChecklist||{}),JSON.stringify(u.failOverrides||[]),JSON.stringify(u.station2Tasks||{}),u.solutionsEso||'',u.dueDate||'',JSON.stringify(u.leadCheckins||[]),JSON.stringify(u.stationTrackerTasks||{}),u.fuelTankSerial||'',u.location||'',u.mapX==null?'':u.mapX,u.mapY==null?'':u.mapY,u.mapRotation==null?'':u.mapRotation,JSON.stringify(u.deviations||[]),u.inspectionComplete||false,JSON.stringify(u.weatherReadySignoffs||{})]);
   const padded = padRowsToFloor('Board', rows, BOARD_COL_COUNT);
   return syncTarget === 'smartsheet' ? proxySave('Board', padded) : jsonpSave('Board', padded);
 }
@@ -5682,7 +5684,7 @@ function _addAllBoardUnits() {
   if (hasError) return;
   toAdd.forEach(u => {
     removeDeletedUnitId(u.id);
-    boardUnits.push({id:u.id,line:u.line,col:u.col,held:false,completed:false,notes:u.notes,esoNumber:'',gensetSerial:u.gensetSerial||'',fuelTankSerial:'',location:'',mapX:null,mapY:null,solutionsEso:u.solEso||'',dueDate:u.dueDate||'',leadCheckins:[],readyForInspection:false,inspectionStarted:false,inspectionComplete:false,supervisorReleased:false,supervisorReleaseTs:'',deviationNeeded:false,deviationNote:'',deviationTs:'',deviations:[],checklist:{},qcChecklist:{},failOverrides:[],station2Tasks:{},stationTrackerTasks:{},history:[{action:'Added to '+u.col,ts:now(),notes:u.notes}]});
+    boardUnits.push({id:u.id,line:u.line,col:u.col,held:false,completed:false,notes:u.notes,esoNumber:'',gensetSerial:u.gensetSerial||'',fuelTankSerial:'',location:'',mapX:null,mapY:null,solutionsEso:u.solEso||'',dueDate:u.dueDate||'',leadCheckins:[],readyForInspection:false,inspectionStarted:false,inspectionComplete:false,weatherReadySignoffs:{},supervisorReleased:false,supervisorReleaseTs:'',deviationNeeded:false,deviationNote:'',deviationTs:'',deviations:[],checklist:{},qcChecklist:{},failOverrides:[],station2Tasks:{},stationTrackerTasks:{},history:[{action:'Added to '+u.col,ts:now(),notes:u.notes}]});
   });
   err.textContent=''; document.getElementById('board-add-form').style.display='none';
   pushBoard(); renderAll();
@@ -5700,7 +5702,7 @@ function getAllBoardUnits() {
         if (deleted.includes(uid)) return; // tombstoned — don't resurrect from the static seed
         if (!merged.find(u=>u.id===uid)) {
           const tracked=boardUnits.find(u=>u.id===uid);
-          merged.push(tracked||{id:uid,line:line.id,col:col.label,held:false,completed:false,notes:'',esoNumber:'',gensetSerial:'',fuelTankSerial:'',location:'',mapX:null,mapY:null,solutionsEso:'',dueDate:'',leadCheckins:[],readyForInspection:false,inspectionStarted:false,inspectionComplete:false,supervisorReleased:false,supervisorReleaseTs:'',deviationNeeded:false,deviationNote:'',deviationTs:'',deviations:[],checklist:{},qcChecklist:{},failOverrides:[],station2Tasks:{},stationTrackerTasks:{},history:[]});
+          merged.push(tracked||{id:uid,line:line.id,col:col.label,held:false,completed:false,notes:'',esoNumber:'',gensetSerial:'',fuelTankSerial:'',location:'',mapX:null,mapY:null,solutionsEso:'',dueDate:'',leadCheckins:[],readyForInspection:false,inspectionStarted:false,inspectionComplete:false,weatherReadySignoffs:{},supervisorReleased:false,supervisorReleaseTs:'',deviationNeeded:false,deviationNote:'',deviationTs:'',deviations:[],checklist:{},qcChecklist:{},failOverrides:[],station2Tasks:{},stationTrackerTasks:{},history:[]});
         }
       });
     });
@@ -6138,11 +6140,36 @@ function renderBoardUnitCard(u) {
       actions+=`<button class="primary" onclick="togglePanel('bd-soldue-${sid}')">&#9998; Solutions ESO / Due Date / Location</button>`;
       panels+=`<div class="action-group" id="bd-soldue-${sid}"><div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:8px;"><div><label>Solutions ESO #</label><input id="bd-sol-eso-${sid}" type="text" placeholder="e.g. SOL-4521" value="${u.solutionsEso||''}" /></div><div><label>Due Date</label><input id="bd-due-date-${sid}" type="date" value="${u.dueDate||''}" /></div><div><label>Location</label><input id="bd-location-${sid}" type="text" placeholder="e.g. Bay 3" value="${u.location||''}" /></div></div><button class="primary sm" onclick="saveStation7Data('${u.id}')">&#10003; Save</button></div>`;
     }
+    // WEATHER READY — right before Load Bank on every line. Needs one
+    // sign-off from each of three specific supervisor roles (not just any
+    // three people) confirming the unit is safe to move outside. Kept
+    // completely separate from the general Inspectors roster below —
+    // this isn't a multi-person inspection, it's three specific,
+    // individually-verified approvals.
+    if (u.col === 'Weather Ready') {
+      const signoffs = u.weatherReadySignoffs || {};
+      actions += `<div style="width:100%;display:flex;flex-direction:column;gap:6px;">`;
+      actions += SUPERVISOR_ROLES.map(role => {
+        const s = signoffs[role];
+        if (s) {
+          return `<div style="display:flex;justify-content:space-between;align-items:center;background:#e6f7ed;border:1px solid #0e7c3a;border-radius:8px;padding:6px 10px;">
+            <span style="font-size:12px;font-weight:600;color:#0e7c3a;">&#10003; ${role}: ${s.name} — ${s.ts}</span>
+            <button class="subtle sm" onclick="weatherReadyUndoSignoff('${u.id}','${role}')" title="Undo this sign-off">&#8634; Undo</button>
+          </div>`;
+        }
+        return `<div style="display:flex;justify-content:space-between;align-items:center;background:#fdecea;border:1px solid #A03033;border-radius:8px;padding:6px 10px;">
+          <span style="font-size:12px;font-weight:600;color:#A03033;">&#9888; ${role}: Not signed off</span>
+          <button class="primary sm" onclick="weatherReadySignoff('${u.id}','${role}')">Sign as ${role}</button>
+        </div>`;
+      }).join('');
+      actions += `</div>`;
+    }
     // LEAD CHECK-IN — general-purpose roster for non-inspection stations
     // (Remediation, everywhere else). Inspection stations get their own
     // integrated, always-visible version of this directly in the
     // Start/Stop Inspection area below, so this doesn't duplicate it there.
-    if (!isInspectionCol) {
+    // Weather Ready has its own dedicated sign-off UI above instead.
+    if (!isInspectionCol && u.col !== 'Weather Ready') {
       const currentCheckins = (u.leadCheckins||[]).map((c,i)=>({...c,idx:i})).filter(c => c.station === u.col);
       actions+=`<button class="primary" onclick="togglePanel('bd-leadcheckin-${sid}')">&#128100; Inspectors${currentCheckins.length?` (${currentCheckins.length})`:''}</button>`;
       panels+=`<div class="action-group" id="bd-leadcheckin-${sid}">
@@ -6258,8 +6285,12 @@ function renderBoardUnitCard(u) {
       // stations are unaffected — they keep the always-visible,
       // checklist-gated behavior from before, since there's no
       // Start/Finish/Stop concept there to gate on in the first place.
-      const showRelease = !isInspectionCol || u.inspectionComplete;
-      if (showRelease && isLast) { actions+=`<button class="success" ${lockAttr} onclick="quickComplete('${u.id}')">&#10003; Mark complete</button>`; }
+      // Weather Ready additionally requires all three role sign-offs
+      // before it can be released, regardless of checklist state.
+      const weatherReadyOK = u.col !== 'Weather Ready' || SUPERVISOR_ROLES.every(r => (u.weatherReadySignoffs||{})[r]);
+      const showRelease = (!isInspectionCol || u.inspectionComplete) && weatherReadyOK;
+      const weatherLockAttr = (u.col === 'Weather Ready' && !weatherReadyOK) ? 'disabled title="All three sign-offs (Production, Quality, Material) are required first"' : '';
+      if (showRelease && isLast) { actions+=`<button class="success" ${lockAttr}${weatherLockAttr} onclick="quickComplete('${u.id}')">&#10003; Mark complete</button>`; }
       // A "release to a chosen station" dropdown is always visible directly
       // on the card (not hidden behind a click) — so a unit can be routed
       // to an overflow/alternate station instead of strictly following the
@@ -6271,8 +6302,16 @@ function renderBoardUnitCard(u) {
         const destOpts = otherCols.map(c => `<option value="${c.label}" ${c.label===defaultDest?'selected':''}>${c.label}</option>`).join('');
         actions+=`<div style="display:flex;gap:6px;align-items:center;">
           <select id="bd-fwd-dest-${sid}" style="font-size:12px;padding:6px 8px;max-width:160px;">${destOpts}</select>
-          <button class="success sm" ${lockAttr} onclick="quickRelease('${u.id}')">&#8594; Release</button>
+          <button class="success sm" ${lockAttr}${weatherLockAttr} onclick="quickRelease('${u.id}')">&#8594; Release</button>
         </div>`;
+      }
+      // Weather Ready explains itself even before you try to release —
+      // shown right after the sign-off rows, so it's obvious upfront why
+      // the button below is disabled instead of only finding out after
+      // clicking it.
+      if (u.col === 'Weather Ready' && !weatherReadyOK) {
+        const missing = SUPERVISOR_ROLES.filter(r => !(u.weatherReadySignoffs||{})[r]);
+        actions += `<div style="width:100%;font-size:11px;color:#A03033;">&#9888; Waiting on: ${missing.join(', ')}</div>`;
       }
     }
     actions+=`<button class="${u.held?'warn-btn':''}" onclick="quickHold('${u.id}')">${u.held?'&#8634; Remove hold':'&#9646; Hold'}</button>`;
@@ -6385,7 +6424,7 @@ function ensureBoardTracked(unitId) {
   if (!u) {
     const line=CONFIG.lines.find(l=>l.columns.some(c=>c.units.includes(unitId)));
     const col=line?line.columns.find(c=>c.units.includes(unitId)):null;
-    u={id:unitId,line:line?line.id:activeLine,col:col?col.label:activeCol,held:false,completed:false,notes:'',esoNumber:'',gensetSerial:'',fuelTankSerial:'',location:'',mapX:null,mapY:null,solutionsEso:'',dueDate:'',leadCheckins:[],readyForInspection:false,inspectionStarted:false,inspectionComplete:false,supervisorReleased:false,supervisorReleaseTs:'',deviationNeeded:false,deviationNote:'',deviationTs:'',deviations:[],checklist:{},qcChecklist:{},failOverrides:[],station2Tasks:{},stationTrackerTasks:{},history:[]};
+    u={id:unitId,line:line?line.id:activeLine,col:col?col.label:activeCol,held:false,completed:false,notes:'',esoNumber:'',gensetSerial:'',fuelTankSerial:'',location:'',mapX:null,mapY:null,solutionsEso:'',dueDate:'',leadCheckins:[],readyForInspection:false,inspectionStarted:false,inspectionComplete:false,weatherReadySignoffs:{},supervisorReleased:false,supervisorReleaseTs:'',deviationNeeded:false,deviationNote:'',deviationTs:'',deviations:[],checklist:{},qcChecklist:{},failOverrides:[],station2Tasks:{},stationTrackerTasks:{},history:[]};
     boardUnits.push(u);
   }
   return u;
@@ -6676,6 +6715,28 @@ function quickReopenInspection(unitId) {
   u.inspectionComplete = false;
   u.history.push({ action: 'Re-opened for inspection at '+u.col+' (Finish undone)', ts: now(), notes: '' });
   pushBoard(); renderAll();
+}
+// Weather Ready sign-offs — requires the entering password to actually
+// belong to a supervisor tagged with the matching role (see
+// requireSupervisorPasswordForRole), so a Production supervisor's
+// password can't be used to sign off the Quality or Material slots.
+function weatherReadySignoff(unitId, role) {
+  requireSupervisorPasswordForRole(role, () => {
+    const u = ensureBoardTracked(unitId);
+    if (!u.weatherReadySignoffs) u.weatherReadySignoffs = {};
+    u.weatherReadySignoffs[role] = { name: lastSupervisorName, ts: now() };
+    u.history.push({ action: role+' supervisor signed off weather-ready — '+lastSupervisorName, ts: now(), notes: '' });
+    pushBoard(); renderAll();
+  });
+}
+function weatherReadyUndoSignoff(unitId, role) {
+  requireSupervisorPasswordForRole(role, () => {
+    const u = ensureBoardTracked(unitId);
+    if (!u.weatherReadySignoffs || !u.weatherReadySignoffs[role]) return;
+    delete u.weatherReadySignoffs[role];
+    u.history.push({ action: role+' sign-off undone — '+lastSupervisorName, ts: now(), notes: '' });
+    pushBoard(); renderAll();
+  });
 }
 
 /* ---- SUPERVISOR FAIL OVERRIDE ----
@@ -7136,7 +7197,7 @@ function eauAddAllUnits() {
   if (hasError) return;
   toAdd.forEach(u => {
     removeDeletedUnitId(u.id);
-    boardUnits.push({id:u.id,line:u.line,col:u.col,held:false,completed:false,notes:u.notes,esoNumber:'',gensetSerial:u.gensetSerial||'',fuelTankSerial:'',location:'',mapX:null,mapY:null,solutionsEso:u.solEso,dueDate:u.dueDate,leadCheckins:[],readyForInspection:false,inspectionStarted:false,inspectionComplete:false,supervisorReleased:false,supervisorReleaseTs:'',deviationNeeded:false,deviationNote:'',deviationTs:'',deviations:[],checklist:{},qcChecklist:{},failOverrides:[],station2Tasks:{},stationTrackerTasks:{},history:[{action:'Added to '+u.col,ts:now(),notes:u.notes}]});
+    boardUnits.push({id:u.id,line:u.line,col:u.col,held:false,completed:false,notes:u.notes,esoNumber:'',gensetSerial:u.gensetSerial||'',fuelTankSerial:'',location:'',mapX:null,mapY:null,solutionsEso:u.solEso,dueDate:u.dueDate,leadCheckins:[],readyForInspection:false,inspectionStarted:false,inspectionComplete:false,weatherReadySignoffs:{},supervisorReleased:false,supervisorReleaseTs:'',deviationNeeded:false,deviationNote:'',deviationTs:'',deviations:[],checklist:{},qcChecklist:{},failOverrides:[],station2Tasks:{},stationTrackerTasks:{},history:[{action:'Added to '+u.col,ts:now(),notes:u.notes}]});
   });
   err.textContent = '';
   document.getElementById('eau-rows').innerHTML = ''; eauRowCtr = 0; eauAddRow();
@@ -10534,6 +10595,7 @@ function removeDeletedUnitId(uid) {
    attribution (like resolveFailOverride) can use it directly instead of
    asking for a separate, redundant name entry right after. */
 let lastSupervisorName = '';
+let lastSupervisorRole = '';
 function getSupervisors() {
   const synced = unitIssues['__config__supervisors'] && unitIssues['__config__supervisors'].url;
   let list = null;
@@ -10547,8 +10609,12 @@ function getSupervisors() {
     const legacyPw = (unitIssues['__config__supervisor_pw'] && unitIssues['__config__supervisor_pw'].url)
       || localStorage.getItem('supervisor_pw_local')
       || 'supervisor123';
-    list = [{ name: 'Supervisor', password: legacyPw }];
+    list = [{ name: 'Supervisor', password: legacyPw, role: '' }];
   }
+  // Supervisors added before roles existed won't have one — default to
+  // an empty string (shown as "No role set") rather than crashing
+  // anywhere that expects the field to exist.
+  list.forEach(s => { if (s.role === undefined) s.role = ''; });
   return list;
 }
 function saveSupervisors(list) {
@@ -10557,31 +10623,47 @@ function saveSupervisors(list) {
   localStorage.setItem('supervisors_local', json);
   saveIssues();
 }
+const SUPERVISOR_ROLES = ['Production', 'Quality', 'Material'];
 function renderSupervisorList() {
   const el = document.getElementById('supervisor-list-body'); if (!el) return;
   const list = getSupervisors();
   el.innerHTML = list.map((s, idx) => `<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 10px;background:var(--surface-2,#faf9f8);border-radius:8px;margin-bottom:6px;">
-    <span style="font-size:13px;font-weight:600;">&#128100; ${s.name}</span>
+    <span style="font-size:13px;font-weight:600;">&#128100; ${s.name}${s.role?` <span style="font-size:10px;font-weight:700;background:#e6f0fa;color:#0078d4;border-radius:20px;padding:2px 8px;margin-left:4px;">${s.role}</span>`:` <span style="font-size:10px;color:var(--text-3,#8a96a8);">(no role set)</span>`}</span>
     <div style="display:flex;gap:6px;">
+      <select onchange="adminSetSupervisorRole(${idx}, this.value)" style="font-size:11px;padding:4px 6px;">
+        <option value="" ${!s.role?'selected':''}>No role</option>
+        ${SUPERVISOR_ROLES.map(r => `<option value="${r}" ${s.role===r?'selected':''}>${r}</option>`).join('')}
+      </select>
       <button class="subtle sm" onclick="adminChangeSupervisorPassword(${idx})">Change password</button>
       <button class="danger sm" onclick="adminRemoveSupervisor(${idx})">Remove</button>
     </div>
   </div>`).join('');
 }
+function adminSetSupervisorRole(idx, role) {
+  requireSupervisorPassword(() => {
+    const list = getSupervisors();
+    if (!list[idx]) return;
+    list[idx].role = role;
+    saveSupervisors(list);
+    renderSupervisorList();
+  });
+}
 function adminAddSupervisor() {
   requireSupervisorPassword(() => {
     const nameInput = document.getElementById('sup-new-name');
     const pwInput = document.getElementById('sup-new-pw');
+    const roleInput = document.getElementById('sup-new-role');
     const msg = document.getElementById('sup-pw-admin-msg');
     const name = nameInput.value.trim();
     const pw = pwInput.value.trim();
+    const role = roleInput ? roleInput.value : '';
     if (!name) { msg.style.color = '#A03033'; msg.textContent = 'Enter a name.'; return; }
     if (!pw) { msg.style.color = '#A03033'; msg.textContent = 'Enter a password.'; return; }
     const list = getSupervisors();
     if (list.some(s => s.name.toLowerCase() === name.toLowerCase())) { msg.style.color = '#A03033'; msg.textContent = 'A supervisor named "'+name+'" already exists.'; return; }
-    list.push({ name, password: pw });
+    list.push({ name, password: pw, role });
     saveSupervisors(list);
-    nameInput.value = ''; pwInput.value = '';
+    nameInput.value = ''; pwInput.value = ''; if (roleInput) roleInput.value = '';
     msg.style.color = '#107c10'; msg.textContent = 'Added '+name+' and synced.';
     renderSupervisorList();
   });
@@ -10653,12 +10735,69 @@ function requireSupervisorPassword(callback) {
     const match = getSupervisors().find(s => s.password === input.value);
     if (match) {
       lastSupervisorName = match.name;
+      lastSupervisorRole = match.role || '';
       overlay.remove();
       callback();
     } else {
       err.textContent = 'Incorrect password.';
       input.value = ''; input.focus();
     }
+  };
+  overlay.querySelector('#sup-pw-confirm').addEventListener('click', doConfirm);
+  overlay.querySelector('#sup-pw-cancel').addEventListener('click', () => overlay.remove());
+  input.addEventListener('keydown', e => { if (e.key === 'Enter') doConfirm(); });
+  overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
+}
+
+/* Same modal as requireSupervisorPassword, but additionally requires the
+   authenticated supervisor to actually be tagged with the given role —
+   entering a Production supervisor's password when a Quality sign-off is
+   needed correctly gets rejected, rather than letting anyone with any
+   supervisor password sign off in any capacity. */
+function requireSupervisorPasswordForRole(role, callback) {
+  const existing = document.getElementById('supervisor-pw-overlay');
+  if (existing) existing.remove();
+
+  const overlay = document.createElement('div');
+  overlay.id = 'supervisor-pw-overlay';
+  overlay.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.55);z-index:9999;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(2px);';
+  overlay.innerHTML = `
+    <div style="background:#fff;border-radius:16px;padding:28px 32px;max-width:360px;width:92%;box-shadow:0 24px 64px rgba(0,0,0,.28);text-align:center;">
+      <div style="width:48px;height:48px;border-radius:50%;background:#fdecea;display:flex;align-items:center;justify-content:center;margin:0 auto 12px;font-size:22px;">🔒</div>
+      <h2 style="font-size:16px;font-weight:800;color:#0f1923;margin-bottom:6px;letter-spacing:-.3px;">${role} Supervisor Sign-Off</h2>
+      <p style="font-size:12px;color:#4a5568;margin-bottom:16px;">Enter your ${role} supervisor password to sign off.</p>
+      <input id="sup-pw-input" type="password" placeholder="Your password"
+        style="width:100%;font-size:14px;padding:10px 12px;border:2px solid #e2e6ea;border-radius:8px;margin-bottom:8px;color:#0f1923;" autocomplete="off" />
+      <div id="sup-pw-err" style="color:#A03033;font-size:12px;min-height:16px;margin-bottom:10px;"></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+        <button id="sup-pw-cancel" style="padding:10px;font-size:13px;font-weight:600;background:#f0f2f5;color:#4a5568;border:none;border-radius:8px;cursor:pointer;">Cancel</button>
+        <button id="sup-pw-confirm" style="padding:10px;font-size:13px;font-weight:700;background:#892729;color:#fff;border:none;border-radius:8px;cursor:pointer;">Confirm</button>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+
+  const input = overlay.querySelector('#sup-pw-input');
+  const err   = overlay.querySelector('#sup-pw-err');
+  setTimeout(() => input.focus(), 50);
+
+  const doConfirm = () => {
+    const match = getSupervisors().find(s => s.password === input.value);
+    if (!match) {
+      err.textContent = 'Incorrect password.';
+      input.value = ''; input.focus();
+      return;
+    }
+    if (match.role !== role) {
+      err.textContent = match.role
+        ? `That password belongs to a ${match.role} supervisor, not ${role}.`
+        : `That supervisor doesn't have a role assigned yet — set one in Admin first.`;
+      input.value = ''; input.focus();
+      return;
+    }
+    lastSupervisorName = match.name;
+    lastSupervisorRole = match.role || '';
+    overlay.remove();
+    callback();
   };
   overlay.querySelector('#sup-pw-confirm').addEventListener('click', doConfirm);
   overlay.querySelector('#sup-pw-cancel').addEventListener('click', () => overlay.remove());
@@ -10780,7 +10919,7 @@ function openDeviationNoteModal(unitId) {
    visible stamp every time a change is made, or version checks
    against a stale reference and never fires.
    ============================================================ */
-const BUILD_DATE = '2026-08-20-39';
+const BUILD_DATE = '2026-08-20-40';
 let updateBannerShown = false;
 function checkForNewVersion() {
   if (updateBannerShown) return;

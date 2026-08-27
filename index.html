@@ -985,7 +985,7 @@ label { font-size: 11px; font-weight: 600; color: var(--text-2); display: block;
 
 <!-- ============================================================ HEADER -->
 <div class="app-header">
-  <div id="build-stamp" title="If this looks out of date after an update was announced, hard-refresh with Ctrl+Shift+R (Cmd+Shift+R on Mac) to clear your browser's cached copy.">Build: <span id="build-stamp-text">2026-08-20-40</span></div>
+  <div id="build-stamp" title="If this looks out of date after an update was announced, hard-refresh with Ctrl+Shift+R (Cmd+Shift+R on Mac) to clear your browser's cached copy.">Build: <span id="build-stamp-text">2026-08-20-41</span></div>
   <div id="header-signed-in" style="position:absolute;top:26px;right:16px;font-size:11px;color:rgba(255,255,255,.75);white-space:nowrap;z-index:101;"></div>
   <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;flex:1;">
     <div style="background:#fff;border-radius:8px;padding:8px 14px;display:flex;align-items:center;box-shadow:0 1px 3px rgba(0,0,0,.15);">
@@ -2898,6 +2898,24 @@ function applyLineOverrides(force) {
   if (!force && Date.now() - leLastLocalEditAt < 45000) return;
   const overrides = getLineOverrides();
   if (!overrides) return;
+  // A saved override completely replaces CONFIG.lines below, which means
+  // any line whose columns were customized via the Line Editor keeps
+  // using its OWN saved column list forever — a brand new column added
+  // straight to the hardcoded defaults (like Weather Ready, right before
+  // Load Bank) never reaches a line that already has a saved override,
+  // since the override always wins. Patching newly-added columns into
+  // any existing override here, once, means they show up everywhere
+  // instead of silently only working for lines nobody's ever customized.
+  let patched = false;
+  overrides.forEach(line => {
+    const labels = line.columns.map(c => c.label);
+    const lbIdx = labels.indexOf('Load Bank');
+    if (lbIdx !== -1 && !labels.includes('Weather Ready')) {
+      line.columns.splice(lbIdx, 0, { label: 'Weather Ready', units: [] });
+      patched = true;
+    }
+  });
+  if (patched) saveLineOverrides(overrides);
   CONFIG.lines.length = 0;
   overrides.forEach(l => CONFIG.lines.push(l));
 }
@@ -10919,7 +10937,7 @@ function openDeviationNoteModal(unitId) {
    visible stamp every time a change is made, or version checks
    against a stale reference and never fires.
    ============================================================ */
-const BUILD_DATE = '2026-08-20-40';
+const BUILD_DATE = '2026-08-20-41';
 let updateBannerShown = false;
 function checkForNewVersion() {
   if (updateBannerShown) return;

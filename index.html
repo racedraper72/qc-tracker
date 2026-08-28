@@ -985,7 +985,7 @@ label { font-size: 11px; font-weight: 600; color: var(--text-2); display: block;
 
 <!-- ============================================================ HEADER -->
 <div class="app-header">
-  <div id="build-stamp" title="If this looks out of date after an update was announced, hard-refresh with Ctrl+Shift+R (Cmd+Shift+R on Mac) to clear your browser's cached copy.">Build: <span id="build-stamp-text">2026-08-20-42</span></div>
+  <div id="build-stamp" title="If this looks out of date after an update was announced, hard-refresh with Ctrl+Shift+R (Cmd+Shift+R on Mac) to clear your browser's cached copy.">Build: <span id="build-stamp-text">2026-08-20-43</span></div>
   <div id="header-signed-in" style="position:absolute;top:26px;right:16px;font-size:11px;color:rgba(255,255,255,.75);white-space:nowrap;z-index:101;"></div>
   <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;flex:1;">
     <div style="background:#fff;border-radius:8px;padding:8px 14px;display:flex;align-items:center;box-shadow:0 1px 3px rgba(0,0,0,.15);">
@@ -1259,6 +1259,7 @@ label { font-size: 11px; font-weight: 600; color: var(--text-2); display: block;
   <!-- Time in Process by Unit -->
   <div class="chart-card" id="pm-time-chart" style="margin-bottom:14px;"></div>
   <div class="chart-card" id="pm-duedate-chart" style="margin-bottom:14px;"></div>
+  <div class="chart-card" id="pm-checklist-fails" style="margin-bottom:14px;"></div>
   <div class="chart-card" id="pm-inspector-summary" style="margin-bottom:14px;"></div>
   <div class="chart-card" id="pm-lead-checkins" style="margin-bottom:14px;"></div>
   <div class="chart-card" id="pm-fail-overrides" style="margin-bottom:14px;"></div>
@@ -2198,16 +2199,38 @@ function getChecklistState(u) {
   }
   return arr;
 }
+// Parallel to getChecklistState — same shape, same indices, but holds WHO
+// marked each item and WHEN instead of the pass/fail value itself. Kept
+// completely separate from u.checklist rather than folded into it, so
+// every existing pass/fail/complete check throughout the app (which all
+// expect a plain string per item) keeps working exactly as before with
+// zero changes needed anywhere else.
+function getChecklistMetaState(u) {
+  const items = STATION_CHECKLISTS[u.col];
+  if (!items) return null;
+  if (!u.checklistMeta) u.checklistMeta = {};
+  let arr = u.checklistMeta[u.col];
+  if (!Array.isArray(arr) || arr.length !== items.length) {
+    arr = items.map((_, i) => (Array.isArray(u.checklistMeta[u.col]) ? u.checklistMeta[u.col][i] : null) || null);
+    u.checklistMeta[u.col] = arr;
+  }
+  return arr;
+}
 function isChecklistComplete(u) {
   const state = getChecklistState(u);
   return !state || state.every(v => v === 'pass'); // any fail/unmarked item blocks moving on
 }
 function setChecklistItemStatus(unitId, idx, status) {
-  const u = ensureBoardTracked(unitId);
-  const state = getChecklistState(u);
-  if (!state) return;
-  state[idx] = state[idx] === status ? null : status; // click again to clear
-  pushBoard(); renderAll();
+  requireName(() => {
+    const u = ensureBoardTracked(unitId);
+    const state = getChecklistState(u);
+    if (!state) return;
+    const clearing = state[idx] === status;
+    state[idx] = clearing ? null : status; // click again to clear
+    const meta = getChecklistMetaState(u);
+    if (meta) meta[idx] = clearing ? null : { name: getOperator().name, ts: now() };
+    pushBoard(); renderAll();
+  }, 'Sign to mark checklist item');
 }
 
 /* ---- PER-STATION QC CHECKLISTS ----
@@ -4076,16 +4099,33 @@ function getQCChecklistState(u) {
   }
   return arr;
 }
+// Same pattern as getChecklistMetaState — see that function's comment.
+function getQCChecklistMetaState(u) {
+  const items = STATION_QC_CHECKLISTS[u.col];
+  if (!items) return null;
+  if (!u.qcChecklistMeta) u.qcChecklistMeta = {};
+  let arr = u.qcChecklistMeta[u.col];
+  if (!Array.isArray(arr) || arr.length !== items.length) {
+    arr = items.map((_, i) => (Array.isArray(u.qcChecklistMeta[u.col]) ? u.qcChecklistMeta[u.col][i] : null) || null);
+    u.qcChecklistMeta[u.col] = arr;
+  }
+  return arr;
+}
 function isQCChecklistComplete(u) {
   const state = getQCChecklistState(u);
   return !state || state.every(v => v === 'pass');
 }
 function setQCChecklistItemStatus(unitId, idx, status) {
-  const u = ensureBoardTracked(unitId);
-  const state = getQCChecklistState(u);
-  if (!state) return;
-  state[idx] = state[idx] === status ? null : status;
-  pushBoard(); renderAll();
+  requireName(() => {
+    const u = ensureBoardTracked(unitId);
+    const state = getQCChecklistState(u);
+    if (!state) return;
+    const clearing = state[idx] === status;
+    state[idx] = clearing ? null : status;
+    const meta = getQCChecklistMetaState(u);
+    if (meta) meta[idx] = clearing ? null : { name: getOperator().name, ts: now() };
+    pushBoard(); renderAll();
+  }, 'Sign to mark QC checklist item');
 }
 /* Combined gate used everywhere a unit tries to move forward/complete */
 function isAllChecklistsComplete(u) {
@@ -4097,7 +4137,7 @@ function isAllChecklistsComplete(u) {
    production and QC checklist, in both Tracker cards and Floor Mode.
    opts: { unitId, label, items, state, setterName, dark } */
 function renderChecklistBox(opts) {
-  const { unitId, label, items, state, setterName, dark } = opts;
+  const { unitId, label, items, state, meta, setterName, dark } = opts;
   if (!items) return '';
   const passCount = state.filter(v => v === 'pass').length;
   const failCount = state.filter(v => v === 'fail').length;
@@ -4113,13 +4153,17 @@ function renderChecklistBox(opts) {
 
   const rows = items.map((item, idx) => {
     const v = state[idx];
+    const m = meta ? meta[idx] : null;
     const textStyle = v === 'pass'
       ? `color:${dark?'#4ade80':'#0e7c3a'};font-weight:600;`
       : v === 'fail'
       ? `color:#dc3545;font-weight:700;`
       : `color:${itemTextColor};`;
+    // Who marked it and when — only meaningful once an item is actually
+    // marked; nothing to attribute for a still-blank item.
+    const attribution = (v && m) ? `<div style="font-size:9px;color:${dark?'#9ca3af':'#8a96a8'};margin-top:1px;">${v==='pass'?'Passed':'Failed'} by ${m.name} — ${m.ts}</div>` : '';
     return `<div style="display:flex;align-items:flex-start;gap:8px;margin-bottom:6px;">
-      <span style="flex:1;min-width:0;font-size:${fontSize};font-weight:500;line-height:1.4;${textStyle}">${item}</span>
+      <span style="flex:1;min-width:0;font-size:${fontSize};font-weight:500;line-height:1.4;${textStyle}">${item}${attribution}</span>
       <div style="display:flex;gap:4px;flex-shrink:0;">
         <button onclick="${setterName}('${unitId}',${idx},'pass')"
           style="font-size:10px;padding:2px 8px;border-radius:4px;border:1px solid ${v==='pass'?'#0e7c3a':'#8a96a8'};background:${v==='pass'?'#0e7c3a':'transparent'};color:${v==='pass'?'#fff':(dark?'#c8c6c4':'#605e5c')};cursor:pointer;font-weight:700;">Pass</button>
@@ -4464,6 +4508,8 @@ function requireName(callback, title) {
     'Sign to Stop Inspection':  { desc: 'inspection stop',  button: 'Confirm Stop' },
     'Sign to confirm this reset': { desc: 'full data reset', button: 'Confirm Reset' },
     'Sign to Resolve Fail Override': { desc: 'fail override resolution', button: 'Confirm Resolution' },
+    'Sign to mark checklist item': { desc: 'checklist item', button: 'Confirm' },
+    'Sign to mark QC checklist item': { desc: 'QC checklist item', button: 'Confirm' },
   };
   const copy = SIGN_COPY[title] || { desc: 'station release', button: 'Confirm Release' };
 
@@ -4707,7 +4753,7 @@ function jsonpSave(tab, rows) {
   const header = tab==='QC'
     ? ['Serial','Type','Station','InspectionStarted','Held','Remediation','RemediationOrigin','Completed','Status','HistoryJSON']
     : tab==='Board'
-    ? ['UnitID','Line','Column','Held','Completed','Notes','ESONumber','GensetSerial','ReadyForInspection','InspectionStarted','HistoryJSON','SupervisorReleased','SupervisorReleaseTs','DeviationNeeded','DeviationNote','DeviationTs','ChecklistJSON','QCChecklistJSON','FailOverridesJSON','Station2TasksJSON','SolutionsESO','DueDate','LeadCheckinsJSON','StationTrackerTasksJSON','FuelTankSerial','Location','MapX','MapY','MapRotation','DeviationsJSON','InspectionComplete','WeatherReadySignoffsJSON']
+    ? ['UnitID','Line','Column','Held','Completed','Notes','ESONumber','GensetSerial','ReadyForInspection','InspectionStarted','HistoryJSON','SupervisorReleased','SupervisorReleaseTs','DeviationNeeded','DeviationNote','DeviationTs','ChecklistJSON','QCChecklistJSON','FailOverridesJSON','Station2TasksJSON','SolutionsESO','DueDate','LeadCheckinsJSON','StationTrackerTasksJSON','FuelTankSerial','Location','MapX','MapY','MapRotation','DeviationsJSON','InspectionComplete','WeatherReadySignoffsJSON','ChecklistMetaJSON','QCChecklistMetaJSON']
     : ['UnitID','Link','UpdatedAt'];
   const payload = JSON.stringify({action:'save', rows:[header,...rows]});
 
@@ -4793,13 +4839,15 @@ function syncFromSheetsViaGAS(onDone) {
           let stationTrackerTasks={}; try{stationTrackerTasks=JSON.parse(r[23]||'{}');}catch(e){}
           let deviations=[]; try{deviations=JSON.parse(r[29]||'[]');}catch(e){}
           let weatherReadySignoffs={}; try{weatherReadySignoffs=JSON.parse(r[31]||'{}');}catch(e){}
+          let checklistMeta={}; try{checklistMeta=JSON.parse(r[32]||'{}');}catch(e){}
+          let qcChecklistMeta={}; try{qcChecklistMeta=JSON.parse(r[33]||'{}');}catch(e){}
           // Migrate a pre-existing single deviation (from before the deviations
           // list existed) into the list, so historical entries synced from an
           // older build aren't silently dropped the first time they're pulled.
           if (deviations.length===0 && (r[13]==='TRUE'||r[13]===true) && r[14]) deviations=[{note:r[14],ts:r[15]||'',operator:''}];
           return {id:r[0],line:r[1],col:r[2],held:r[3]==='TRUE'||r[3]===true,completed:r[4]==='TRUE'||r[4]===true,notes:r[5]||'',esoNumber:r[6]||'',gensetSerial:r[7]||'',readyForInspection:r[8]==='TRUE'||r[8]===true,inspectionStarted:r[9]==='TRUE'||r[9]===true,history,
             supervisorReleased:r[11]==='TRUE'||r[11]===true,supervisorReleaseTs:r[12]||'',
-            deviationNeeded:r[13]==='TRUE'||r[13]===true,deviationNote:r[14]||'',deviationTs:r[15]||'',checklist,qcChecklist,failOverrides,station2Tasks,solutionsEso:r[20]||'',dueDate:normalizeDueDate(r[21]),leadCheckins,stationTrackerTasks,fuelTankSerial:r[24]||'',location:r[25]||'',mapX:r[26]!==undefined&&r[26]!==''?parseFloat(r[26]):null,mapY:r[27]!==undefined&&r[27]!==''?parseFloat(r[27]):null,mapRotation:r[28]!==undefined&&r[28]!==''?parseFloat(r[28]):0,deviations,inspectionComplete:r[30]==='TRUE'||r[30]===true,weatherReadySignoffs};
+            deviationNeeded:r[13]==='TRUE'||r[13]===true,deviationNote:r[14]||'',deviationTs:r[15]||'',checklist,qcChecklist,failOverrides,station2Tasks,solutionsEso:r[20]||'',dueDate:normalizeDueDate(r[21]),leadCheckins,stationTrackerTasks,fuelTankSerial:r[24]||'',location:r[25]||'',mapX:r[26]!==undefined&&r[26]!==''?parseFloat(r[26]):null,mapY:r[27]!==undefined&&r[27]!==''?parseFloat(r[27]):null,mapRotation:r[28]!==undefined&&r[28]!==''?parseFloat(r[28]):0,deviations,inspectionComplete:r[30]==='TRUE'||r[30]===true,weatherReadySignoffs,checklistMeta,qcChecklistMeta};
         });
       }
       jsonpCall(sheetsUrl+'?tab=Issues', function(err3, rows3) {
@@ -4840,7 +4888,7 @@ function proxySave(tab, rows) {
   const header = tab==='QC'
     ? ['Serial','Type','Station','InspectionStarted','Held','Remediation','RemediationOrigin','Completed','Status','HistoryJSON']
     : tab==='Board'
-    ? ['UnitID','Line','Column','Held','Completed','Notes','ESONumber','GensetSerial','ReadyForInspection','InspectionStarted','HistoryJSON','SupervisorReleased','SupervisorReleaseTs','DeviationNeeded','DeviationNote','DeviationTs','ChecklistJSON','QCChecklistJSON','FailOverridesJSON','Station2TasksJSON','SolutionsESO','DueDate','LeadCheckinsJSON','StationTrackerTasksJSON','FuelTankSerial','Location','MapX','MapY','MapRotation','DeviationsJSON','InspectionComplete','WeatherReadySignoffsJSON']
+    ? ['UnitID','Line','Column','Held','Completed','Notes','ESONumber','GensetSerial','ReadyForInspection','InspectionStarted','HistoryJSON','SupervisorReleased','SupervisorReleaseTs','DeviationNeeded','DeviationNote','DeviationTs','ChecklistJSON','QCChecklistJSON','FailOverridesJSON','Station2TasksJSON','SolutionsESO','DueDate','LeadCheckinsJSON','StationTrackerTasksJSON','FuelTankSerial','Location','MapX','MapY','MapRotation','DeviationsJSON','InspectionComplete','WeatherReadySignoffsJSON','ChecklistMetaJSON','QCChecklistMetaJSON']
     : ['UnitID','Link','UpdatedAt'];
   return proxyFetch('?action=save&tab='+tab, {
     method: 'POST',
@@ -5236,13 +5284,15 @@ function syncFromSheetsViaSmartsheet(onDone) {
         let stationTrackerTasks={}; try{stationTrackerTasks=JSON.parse(r[23]||'{}');}catch(e){}
           let deviations=[]; try{deviations=JSON.parse(r[29]||'[]');}catch(e){}
           let weatherReadySignoffs={}; try{weatherReadySignoffs=JSON.parse(r[31]||'{}');}catch(e){}
+          let checklistMeta={}; try{checklistMeta=JSON.parse(r[32]||'{}');}catch(e){}
+          let qcChecklistMeta={}; try{qcChecklistMeta=JSON.parse(r[33]||'{}');}catch(e){}
           // Migrate a pre-existing single deviation (from before the deviations
           // list existed) into the list, so historical entries synced from an
           // older build aren't silently dropped the first time they're pulled.
           if (deviations.length===0 && (r[13]==='TRUE'||r[13]===true) && r[14]) deviations=[{note:r[14],ts:r[15]||'',operator:''}];
         return {id:r[0],line:r[1],col:r[2],held:r[3]==='TRUE'||r[3]===true,completed:r[4]==='TRUE'||r[4]===true,notes:r[5]||'',esoNumber:r[6]||'',gensetSerial:r[7]||'',readyForInspection:r[8]==='TRUE'||r[8]===true,inspectionStarted:r[9]==='TRUE'||r[9]===true,history,
           supervisorReleased:r[11]==='TRUE'||r[11]===true,supervisorReleaseTs:r[12]||'',
-          deviationNeeded:r[13]==='TRUE'||r[13]===true,deviationNote:r[14]||'',deviationTs:r[15]||'',checklist,qcChecklist,failOverrides,station2Tasks,solutionsEso:r[20]||'',dueDate:normalizeDueDate(r[21]),leadCheckins,stationTrackerTasks,fuelTankSerial:r[24]||'',location:r[25]||'',mapX:r[26]!==undefined&&r[26]!==''?parseFloat(r[26]):null,mapY:r[27]!==undefined&&r[27]!==''?parseFloat(r[27]):null,mapRotation:r[28]!==undefined&&r[28]!==''?parseFloat(r[28]):0,deviations,inspectionComplete:r[30]==='TRUE'||r[30]===true,weatherReadySignoffs};
+          deviationNeeded:r[13]==='TRUE'||r[13]===true,deviationNote:r[14]||'',deviationTs:r[15]||'',checklist,qcChecklist,failOverrides,station2Tasks,solutionsEso:r[20]||'',dueDate:normalizeDueDate(r[21]),leadCheckins,stationTrackerTasks,fuelTankSerial:r[24]||'',location:r[25]||'',mapX:r[26]!==undefined&&r[26]!==''?parseFloat(r[26]):null,mapY:r[27]!==undefined&&r[27]!==''?parseFloat(r[27]):null,mapRotation:r[28]!==undefined&&r[28]!==''?parseFloat(r[28]):0,deviations,inspectionComplete:r[30]==='TRUE'||r[30]===true,weatherReadySignoffs,checklistMeta,qcChecklistMeta};
       });
     }
     if (rows3 && rows3.length>1) {
@@ -5309,7 +5359,7 @@ function loadLocalCache() {
    seen (via push OR pull) and padding any smaller push with blank rows up
    to that count guarantees every previously-used row gets overwritten
    with blanks, regardless of how the backend script writes the range. */
-const BOARD_COL_COUNT = 32;
+const BOARD_COL_COUNT = 34;
 const QC_COL_COUNT = 10;
 function bumpRowFloor(tab, count) {
   const key = 'push_row_floor_' + tab;
@@ -5360,7 +5410,7 @@ function pushBoard(force) {
   if (!force && isStaleRelativeToReset()) { syncFromSheets(); return Promise.resolve(false); }
   boardLastLocalEditAt = Date.now();
   saveLocalCache();
-  const rows = boardUnits.map(u=>[u.id,u.line,u.col,u.held,u.completed,u.notes,u.esoNumber||'',u.gensetSerial||'',u.readyForInspection||false,u.inspectionStarted||false,JSON.stringify(u.history),u.supervisorReleased||false,u.supervisorReleaseTs||'',u.deviationNeeded||false,u.deviationNote||'',u.deviationTs||'',JSON.stringify(u.checklist||{}),JSON.stringify(u.qcChecklist||{}),JSON.stringify(u.failOverrides||[]),JSON.stringify(u.station2Tasks||{}),u.solutionsEso||'',u.dueDate||'',JSON.stringify(u.leadCheckins||[]),JSON.stringify(u.stationTrackerTasks||{}),u.fuelTankSerial||'',u.location||'',u.mapX==null?'':u.mapX,u.mapY==null?'':u.mapY,u.mapRotation==null?'':u.mapRotation,JSON.stringify(u.deviations||[]),u.inspectionComplete||false,JSON.stringify(u.weatherReadySignoffs||{})]);
+  const rows = boardUnits.map(u=>[u.id,u.line,u.col,u.held,u.completed,u.notes,u.esoNumber||'',u.gensetSerial||'',u.readyForInspection||false,u.inspectionStarted||false,JSON.stringify(u.history),u.supervisorReleased||false,u.supervisorReleaseTs||'',u.deviationNeeded||false,u.deviationNote||'',u.deviationTs||'',JSON.stringify(u.checklist||{}),JSON.stringify(u.qcChecklist||{}),JSON.stringify(u.failOverrides||[]),JSON.stringify(u.station2Tasks||{}),u.solutionsEso||'',u.dueDate||'',JSON.stringify(u.leadCheckins||[]),JSON.stringify(u.stationTrackerTasks||{}),u.fuelTankSerial||'',u.location||'',u.mapX==null?'':u.mapX,u.mapY==null?'':u.mapY,u.mapRotation==null?'':u.mapRotation,JSON.stringify(u.deviations||[]),u.inspectionComplete||false,JSON.stringify(u.weatherReadySignoffs||{}),JSON.stringify(u.checklistMeta||{}),JSON.stringify(u.qcChecklistMeta||{})]);
   const padded = padRowsToFloor('Board', rows, BOARD_COL_COUNT);
   return syncTarget === 'smartsheet' ? proxySave('Board', padded) : jsonpSave('Board', padded);
 }
@@ -5712,7 +5762,7 @@ function _addAllBoardUnits() {
   if (hasError) return;
   toAdd.forEach(u => {
     removeDeletedUnitId(u.id);
-    boardUnits.push({id:u.id,line:u.line,col:u.col,held:false,completed:false,notes:u.notes,esoNumber:'',gensetSerial:u.gensetSerial||'',fuelTankSerial:'',location:'',mapX:null,mapY:null,solutionsEso:u.solEso||'',dueDate:u.dueDate||'',leadCheckins:[],readyForInspection:false,inspectionStarted:false,inspectionComplete:false,weatherReadySignoffs:{},supervisorReleased:false,supervisorReleaseTs:'',deviationNeeded:false,deviationNote:'',deviationTs:'',deviations:[],checklist:{},qcChecklist:{},failOverrides:[],station2Tasks:{},stationTrackerTasks:{},history:[{action:'Added to '+u.col,ts:now(),notes:u.notes}]});
+    boardUnits.push({id:u.id,line:u.line,col:u.col,held:false,completed:false,notes:u.notes,esoNumber:'',gensetSerial:u.gensetSerial||'',fuelTankSerial:'',location:'',mapX:null,mapY:null,solutionsEso:u.solEso||'',dueDate:u.dueDate||'',leadCheckins:[],readyForInspection:false,inspectionStarted:false,inspectionComplete:false,weatherReadySignoffs:{},supervisorReleased:false,supervisorReleaseTs:'',deviationNeeded:false,deviationNote:'',deviationTs:'',deviations:[],checklist:{},qcChecklist:{},checklistMeta:{},qcChecklistMeta:{},failOverrides:[],station2Tasks:{},stationTrackerTasks:{},history:[{action:'Added to '+u.col,ts:now(),notes:u.notes}]});
   });
   err.textContent=''; document.getElementById('board-add-form').style.display='none';
   pushBoard(); renderAll();
@@ -5730,7 +5780,7 @@ function getAllBoardUnits() {
         if (deleted.includes(uid)) return; // tombstoned — don't resurrect from the static seed
         if (!merged.find(u=>u.id===uid)) {
           const tracked=boardUnits.find(u=>u.id===uid);
-          merged.push(tracked||{id:uid,line:line.id,col:col.label,held:false,completed:false,notes:'',esoNumber:'',gensetSerial:'',fuelTankSerial:'',location:'',mapX:null,mapY:null,solutionsEso:'',dueDate:'',leadCheckins:[],readyForInspection:false,inspectionStarted:false,inspectionComplete:false,weatherReadySignoffs:{},supervisorReleased:false,supervisorReleaseTs:'',deviationNeeded:false,deviationNote:'',deviationTs:'',deviations:[],checklist:{},qcChecklist:{},failOverrides:[],station2Tasks:{},stationTrackerTasks:{},history:[]});
+          merged.push(tracked||{id:uid,line:line.id,col:col.label,held:false,completed:false,notes:'',esoNumber:'',gensetSerial:'',fuelTankSerial:'',location:'',mapX:null,mapY:null,solutionsEso:'',dueDate:'',leadCheckins:[],readyForInspection:false,inspectionStarted:false,inspectionComplete:false,weatherReadySignoffs:{},supervisorReleased:false,supervisorReleaseTs:'',deviationNeeded:false,deviationNote:'',deviationTs:'',deviations:[],checklist:{},qcChecklist:{},checklistMeta:{},qcChecklistMeta:{},failOverrides:[],station2Tasks:{},stationTrackerTasks:{},history:[]});
         }
       });
     });
@@ -6138,8 +6188,10 @@ function renderBoardUnitCard(u) {
   const remedReturnCols = cols.filter(c => c.label !== 'Remediation').map(c => c.label);
   const stationChecklistItems = STATION_CHECKLISTS[u.col] || null;
   const stationChecklistState = stationChecklistItems ? getChecklistState(u) : null;
+  const stationChecklistMeta = stationChecklistItems ? getChecklistMetaState(u) : null;
   const stationQCChecklistItems = STATION_QC_CHECKLISTS[u.col] || null;
   const stationQCChecklistState = stationQCChecklistItems ? getQCChecklistState(u) : null;
+  const stationQCChecklistMeta = stationQCChecklistItems ? getQCChecklistMetaState(u) : null;
   const checklistOK = isAllChecklistsComplete(u);
   // Distinct from checklistOK: whether anything is still genuinely
   // unanswered (as opposed to answered-but-Fail). The Confirm button
@@ -6385,12 +6437,12 @@ function renderBoardUnitCard(u) {
   </div>`;
   const prodChecklistOK = !stationChecklistItems || stationChecklistState.every(v => v === 'pass');
   const stationChecklistSect = stationChecklistItems ? renderChecklistBox({
-    unitId: u.id, label: u.col+' Checklist', items: stationChecklistItems, state: stationChecklistState,
+    unitId: u.id, label: u.col+' Checklist', items: stationChecklistItems, state: stationChecklistState, meta: stationChecklistMeta,
     setterName: 'setChecklistItemStatus', dark: false
   }) : '';
   const qcChecklistOK = !stationQCChecklistItems || stationQCChecklistState.every(v => v === 'pass');
   const stationQCChecklistSect = stationQCChecklistItems ? renderChecklistBox({
-    unitId: u.id, label: u.col+' QC Checklist', items: stationQCChecklistItems, state: stationQCChecklistState,
+    unitId: u.id, label: u.col+' QC Checklist', items: stationQCChecklistItems, state: stationQCChecklistState, meta: stationQCChecklistMeta,
     setterName: 'setQCChecklistItemStatus', dark: false
   }) : '';
   // Side by side on the Tracker page — cards render full-width here, so there's
@@ -6452,7 +6504,7 @@ function ensureBoardTracked(unitId) {
   if (!u) {
     const line=CONFIG.lines.find(l=>l.columns.some(c=>c.units.includes(unitId)));
     const col=line?line.columns.find(c=>c.units.includes(unitId)):null;
-    u={id:unitId,line:line?line.id:activeLine,col:col?col.label:activeCol,held:false,completed:false,notes:'',esoNumber:'',gensetSerial:'',fuelTankSerial:'',location:'',mapX:null,mapY:null,solutionsEso:'',dueDate:'',leadCheckins:[],readyForInspection:false,inspectionStarted:false,inspectionComplete:false,weatherReadySignoffs:{},supervisorReleased:false,supervisorReleaseTs:'',deviationNeeded:false,deviationNote:'',deviationTs:'',deviations:[],checklist:{},qcChecklist:{},failOverrides:[],station2Tasks:{},stationTrackerTasks:{},history:[]};
+    u={id:unitId,line:line?line.id:activeLine,col:col?col.label:activeCol,held:false,completed:false,notes:'',esoNumber:'',gensetSerial:'',fuelTankSerial:'',location:'',mapX:null,mapY:null,solutionsEso:'',dueDate:'',leadCheckins:[],readyForInspection:false,inspectionStarted:false,inspectionComplete:false,weatherReadySignoffs:{},supervisorReleased:false,supervisorReleaseTs:'',deviationNeeded:false,deviationNote:'',deviationTs:'',deviations:[],checklist:{},qcChecklist:{},checklistMeta:{},qcChecklistMeta:{},failOverrides:[],station2Tasks:{},stationTrackerTasks:{},history:[]};
     boardUnits.push(u);
   }
   return u;
@@ -7225,7 +7277,7 @@ function eauAddAllUnits() {
   if (hasError) return;
   toAdd.forEach(u => {
     removeDeletedUnitId(u.id);
-    boardUnits.push({id:u.id,line:u.line,col:u.col,held:false,completed:false,notes:u.notes,esoNumber:'',gensetSerial:u.gensetSerial||'',fuelTankSerial:'',location:'',mapX:null,mapY:null,solutionsEso:u.solEso,dueDate:u.dueDate,leadCheckins:[],readyForInspection:false,inspectionStarted:false,inspectionComplete:false,weatherReadySignoffs:{},supervisorReleased:false,supervisorReleaseTs:'',deviationNeeded:false,deviationNote:'',deviationTs:'',deviations:[],checklist:{},qcChecklist:{},failOverrides:[],station2Tasks:{},stationTrackerTasks:{},history:[{action:'Added to '+u.col,ts:now(),notes:u.notes}]});
+    boardUnits.push({id:u.id,line:u.line,col:u.col,held:false,completed:false,notes:u.notes,esoNumber:'',gensetSerial:u.gensetSerial||'',fuelTankSerial:'',location:'',mapX:null,mapY:null,solutionsEso:u.solEso,dueDate:u.dueDate,leadCheckins:[],readyForInspection:false,inspectionStarted:false,inspectionComplete:false,weatherReadySignoffs:{},supervisorReleased:false,supervisorReleaseTs:'',deviationNeeded:false,deviationNote:'',deviationTs:'',deviations:[],checklist:{},qcChecklist:{},checklistMeta:{},qcChecklistMeta:{},failOverrides:[],station2Tasks:{},stationTrackerTasks:{},history:[{action:'Added to '+u.col,ts:now(),notes:u.notes}]});
   });
   err.textContent = '';
   document.getElementById('eau-rows').innerHTML = ''; eauRowCtr = 0; eauAddRow();
@@ -7497,6 +7549,7 @@ function renderPMPage() {
   renderPMLineProgress();
   renderPMTimeChart();
   renderPMDueDateChart();
+  renderPMChecklistFails();
   renderPMInspectorSummary();
   renderPMLeadCheckins();
   renderPMFailOverrides();
@@ -8290,6 +8343,61 @@ function pmFormatDuration(ms) {
   if (totalMin < 60) return totalMin + 'm';
   const h = Math.floor(totalMin / 60), m = totalMin % 60;
   return h + 'h' + (m ? ' ' + m + 'm' : '');
+}
+// Every currently-marked checklist item, across every unit, both Station
+// and QC checklists — filterable to just the Fails. Pulls the item TEXT
+// itself (not just an index) by matching against the same
+// STATION_CHECKLISTS/STATION_QC_CHECKLISTS definitions the checklist
+// boxes render from, so a renamed or reordered item still shows
+// correctly rather than a stale cached label.
+function pmGetChecklistItemLog(onlyFails) {
+  const rows = [];
+  getAllBoardUnits().forEach(u => {
+    [
+      { items: STATION_CHECKLISTS[u.col], state: u.checklist && u.checklist[u.col], meta: u.checklistMeta && u.checklistMeta[u.col], kind: 'Station' },
+      { items: STATION_QC_CHECKLISTS[u.col], state: u.qcChecklist && u.qcChecklist[u.col], meta: u.qcChecklistMeta && u.qcChecklistMeta[u.col], kind: 'QC' },
+    ].forEach(({ items, state, meta, kind }) => {
+      if (!items || !state) return;
+      state.forEach((v, idx) => {
+        if (!v) return;
+        if (onlyFails && v !== 'fail') return;
+        const m = meta ? meta[idx] : null;
+        rows.push({ unitId: u.id, station: u.col, kind, item: items[idx] || '(item removed)', result: v, name: m ? m.name : '—', ts: m ? m.ts : '—' });
+      });
+    });
+  });
+  rows.sort((a, b) => new Date(b.ts) - new Date(a.ts));
+  return rows;
+}
+function renderPMChecklistFails() {
+  const el = document.getElementById('pm-checklist-fails'); if (!el) return;
+  const fails = pmGetChecklistItemLog(true);
+  if (!fails.length) {
+    el.innerHTML = `<div class="chart-title">Checklist Fails <span class="chart-subtitle">Which items failed, and who marked them</span></div><p style="font-size:13px;color:#605e5c;">No checklist items are currently marked Fail.</p>`;
+    return;
+  }
+  const recent = fails.slice(0, 25);
+  const rows = recent.map(f => `<tr>
+    <td style="padding:6px 10px;font-size:12px;font-weight:600;">${f.unitId}</td>
+    <td style="padding:6px 10px;font-size:12px;">${f.station} <span style="font-size:10px;color:var(--text-3,#8a96a8);">(${f.kind})</span></td>
+    <td style="padding:6px 10px;font-size:12px;color:#A03033;">${f.item}</td>
+    <td style="padding:6px 10px;font-size:12px;">${f.name}</td>
+    <td style="padding:6px 10px;font-size:11px;color:var(--text-3,#8a96a8);">${f.ts}</td>
+  </tr>`).join('');
+  el.innerHTML = `<div class="chart-title">Checklist Fails <span class="chart-subtitle">${fails.length} currently marked Fail${fails.length>25?' · showing 25 most recent':''}</span></div>
+    <div style="overflow-x:auto;">
+      <table style="width:100%;border-collapse:collapse;">
+        <thead><tr style="border-bottom:2px solid #edebe9;text-align:left;">
+          <th style="padding:6px 10px;font-size:11px;color:var(--text-3,#8a96a8);text-transform:uppercase;">Unit</th>
+          <th style="padding:6px 10px;font-size:11px;color:var(--text-3,#8a96a8);text-transform:uppercase;">Station</th>
+          <th style="padding:6px 10px;font-size:11px;color:var(--text-3,#8a96a8);text-transform:uppercase;">Item</th>
+          <th style="padding:6px 10px;font-size:11px;color:var(--text-3,#8a96a8);text-transform:uppercase;">Marked By</th>
+          <th style="padding:6px 10px;font-size:11px;color:var(--text-3,#8a96a8);text-transform:uppercase;">When</th>
+        </tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>
+    <p style="font-size:10px;color:var(--text-3,#8a96a8);margin-top:8px;">Only items marked from Build 2026-08-20-43 onward have a name attached — older marks show as "—".</p>`;
 }
 function renderPMInspectorSummary() {
   const el = document.getElementById('pm-inspector-summary'); if (!el) return;
@@ -10421,8 +10529,10 @@ function renderFloorCard(u, line) {
   // Station checklist gating (must be complete before advancing/completing)
   const floorChecklistItems = STATION_CHECKLISTS[u.col] || null;
   const floorChecklistState = floorChecklistItems ? getChecklistState(u) : null;
+  const floorChecklistMeta = floorChecklistItems ? getChecklistMetaState(u) : null;
   const floorQCChecklistItems = STATION_QC_CHECKLISTS[u.col] || null;
   const floorQCChecklistState = floorQCChecklistItems ? getQCChecklistState(u) : null;
+  const floorQCChecklistMeta = floorQCChecklistItems ? getQCChecklistMetaState(u) : null;
   const floorChecklistOK    = isAllChecklistsComplete(u);
   // Same distinction as the Tracker card — see the comment there. A Fail
   // item (as opposed to a genuinely unanswered one) must stay clickable
@@ -10468,12 +10578,12 @@ function renderFloorCard(u, line) {
   }
   const floorProdOK = !floorChecklistItems || floorChecklistState.every(v => v === 'pass');
   const floorChecklistSect = floorChecklistItems ? renderChecklistBox({
-    unitId: u.id, label: u.col+' Checklist', items: floorChecklistItems, state: floorChecklistState,
+    unitId: u.id, label: u.col+' Checklist', items: floorChecklistItems, state: floorChecklistState, meta: floorChecklistMeta,
     setterName: 'setChecklistItemStatus', dark: true
   }) : '';
   const floorQCOK = !floorQCChecklistItems || floorQCChecklistState.every(v => v === 'pass');
   const floorQCChecklistSect = floorQCChecklistItems ? renderChecklistBox({
-    unitId: u.id, label: u.col+' QC Checklist', items: floorQCChecklistItems, state: floorQCChecklistState,
+    unitId: u.id, label: u.col+' QC Checklist', items: floorQCChecklistItems, state: floorQCChecklistState, meta: floorQCChecklistMeta,
     setterName: 'setQCChecklistItemStatus', dark: true
   }) : '';
 
@@ -10947,7 +11057,7 @@ function openDeviationNoteModal(unitId) {
    visible stamp every time a change is made, or version checks
    against a stale reference and never fires.
    ============================================================ */
-const BUILD_DATE = '2026-08-20-42';
+const BUILD_DATE = '2026-08-20-43';
 let updateBannerShown = false;
 function checkForNewVersion() {
   if (updateBannerShown) return;

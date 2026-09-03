@@ -985,7 +985,7 @@ label { font-size: 11px; font-weight: 600; color: var(--text-2); display: block;
 
 <!-- ============================================================ HEADER -->
 <div class="app-header">
-  <div id="build-stamp" title="If this looks out of date after an update was announced, hard-refresh with Ctrl+Shift+R (Cmd+Shift+R on Mac) to clear your browser's cached copy.">Build: <span id="build-stamp-text">2026-08-20-47</span></div>
+  <div id="build-stamp" title="If this looks out of date after an update was announced, hard-refresh with Ctrl+Shift+R (Cmd+Shift+R on Mac) to clear your browser's cached copy.">Build: <span id="build-stamp-text">2026-08-20-48</span></div>
   <div id="header-signed-in" style="position:absolute;top:26px;right:16px;font-size:11px;color:rgba(255,255,255,.75);white-space:nowrap;z-index:101;"></div>
   <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;flex:1;">
     <div style="background:#fff;border-radius:8px;padding:8px 14px;display:flex;align-items:center;box-shadow:0 1px 3px rgba(0,0,0,.15);">
@@ -6825,22 +6825,20 @@ function quickReopenInspection(unitId) {
   u.history.push({ action: 'Re-opened for inspection at '+u.col+' (Finish undone)', ts: now(), notes: '' });
   pushBoard(); renderAll();
 }
-// Issue Closure — a simple log, not a full open/close lifecycle. Records
-// that this operator closed out an issue on this unit at this inspection
-// station, with a note describing what it was. Requires signing in (or
-// uses whoever's already signed in on this device) for attribution, same
-// as every other action in the app — this is what makes "who's doing
-// issue closures on that unit" trackable in the first place.
+// Issue Closure — a simple presence log, not a note about a specific
+// issue. Just records that this person is doing issue closure work on
+// this unit right now — deliberately separate from the Inspectors
+// roster (leadCheckins/inspection roster), so it's clear at a glance who
+// is actively inspecting versus who is here specifically closing out
+// issues, not the same activity. Requires signing in (or uses whoever's
+// already signed in on this device) for attribution.
 function quickIssueClosure(unitId) {
   requireName(() => {
-    const note = prompt('What issue was closed?');
-    if (note === null) return; // cancelled
-    if (!note.trim()) { alert('A note is required.'); return; }
     const u = ensureBoardTracked(unitId);
     if (!u.issueClosures) u.issueClosures = [];
     const operator = getOperator();
-    u.issueClosures.push({ name: operator.name, ts: now(), notes: note.trim(), station: u.col });
-    u.history.push({ action: 'Issue closure at '+u.col+' — '+operator.name, ts: now(), notes: note.trim() });
+    u.issueClosures.push({ name: operator.name, ts: now(), station: u.col });
+    u.history.push({ action: operator.name+' is doing issue closure at '+u.col, ts: now(), notes: '' });
     pushBoard(); renderAll();
   }, 'Sign to log Issue Closure');
 }
@@ -8448,7 +8446,6 @@ function renderPMIssueClosures() {
   const rows = recent.map(c => `<tr>
     <td style="padding:6px 10px;font-size:12px;font-weight:600;">${c.unitId}</td>
     <td style="padding:6px 10px;font-size:12px;">${c.station}</td>
-    <td style="padding:6px 10px;font-size:12px;">${c.notes}</td>
     <td style="padding:6px 10px;font-size:12px;">${c.name}</td>
     <td style="padding:6px 10px;font-size:11px;color:var(--text-3,#8a96a8);">${c.ts}</td>
   </tr>`).join('');
@@ -8460,7 +8457,6 @@ function renderPMIssueClosures() {
         <thead><tr style="border-bottom:2px solid #edebe9;text-align:left;">
           <th style="padding:6px 10px;font-size:11px;color:var(--text-3,#8a96a8);text-transform:uppercase;">Unit</th>
           <th style="padding:6px 10px;font-size:11px;color:var(--text-3,#8a96a8);text-transform:uppercase;">Station</th>
-          <th style="padding:6px 10px;font-size:11px;color:var(--text-3,#8a96a8);text-transform:uppercase;">Issue Closed</th>
           <th style="padding:6px 10px;font-size:11px;color:var(--text-3,#8a96a8);text-transform:uppercase;">By</th>
           <th style="padding:6px 10px;font-size:11px;color:var(--text-3,#8a96a8);text-transform:uppercase;">When</th>
         </tr></thead>
@@ -11156,7 +11152,7 @@ function openDeviationNoteModal(unitId) {
    visible stamp every time a change is made, or version checks
    against a stale reference and never fires.
    ============================================================ */
-const BUILD_DATE = '2026-08-20-47';
+const BUILD_DATE = '2026-08-20-48';
 let updateBannerShown = false;
 function checkForNewVersion() {
   if (updateBannerShown) return;

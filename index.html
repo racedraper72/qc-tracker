@@ -985,7 +985,7 @@ label { font-size: 11px; font-weight: 600; color: var(--text-2); display: block;
 
 <!-- ============================================================ HEADER -->
 <div class="app-header">
-  <div id="build-stamp" title="If this looks out of date after an update was announced, hard-refresh with Ctrl+Shift+R (Cmd+Shift+R on Mac) to clear your browser's cached copy.">Build: <span id="build-stamp-text">2026-08-20-48</span></div>
+  <div id="build-stamp" title="If this looks out of date after an update was announced, hard-refresh with Ctrl+Shift+R (Cmd+Shift+R on Mac) to clear your browser's cached copy.">Build: <span id="build-stamp-text">2026-08-20-49</span></div>
   <div id="header-signed-in" style="position:absolute;top:26px;right:16px;font-size:11px;color:rgba(255,255,255,.75);white-space:nowrap;z-index:101;"></div>
   <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;flex:1;">
     <div style="background:#fff;border-radius:8px;padding:8px 14px;display:flex;align-items:center;box-shadow:0 1px 3px rgba(0,0,0,.15);">
@@ -6325,7 +6325,7 @@ function renderBoardUnitCard(u) {
       const currentInspectors = (u.leadCheckins||[]).map((c,i)=>({...c,idx:i})).filter(c => c.station === u.col);
       actions += `<div style="width:100%;display:flex;flex-direction:column;gap:6px;">`;
       actions += currentInspectors.map(c => `<div style="display:flex;justify-content:space-between;align-items:center;background:${c.training?'#fff4ce':'#f0eeff'};border:1px solid ${c.training?'#7a5d00':'#4b3a9e'};border-radius:8px;padding:6px 10px;gap:8px;">
-        <span style="font-size:12px;font-weight:600;color:${c.training?'#7a5d00':'#4b3a9e'};">&#128100; ${c.name}${c.training?' &#127891; Trainee':''} — Inspecting</span>
+        <span style="font-size:12px;font-weight:600;color:${c.training?'#7a5d00':'#4b3a9e'};">&#128100; ${c.name}${c.training?' &#127891; Trainee':''}${c.issueClosing?' &#128295; Issue Closing':''} — Inspecting</span>
         <div style="display:flex;gap:6px;flex-shrink:0;">
           <button class="success sm" onclick="quickFinishOneInspector('${u.id}',${c.idx})" title="This person is done — successfully completed their inspection.">&#10003; Finish</button>
           <button class="warn-btn sm" onclick="quickStopOneInspector('${u.id}',${c.idx})" title="Pausing — not done yet (e.g. end of day). Can resume later.">&#9208; Stop</button>
@@ -6356,6 +6356,9 @@ function renderBoardUnitCard(u) {
         <input id="bd-addinsp-name-${sid}" type="text" placeholder="Their name" />
         <label style="display:flex;align-items:center;gap:6px;font-size:12px;font-weight:400;margin:8px 0;">
           <input id="bd-addinsp-training-${sid}" type="checkbox" style="width:auto;" /> This person is in training
+        </label>
+        <label style="display:flex;align-items:center;gap:6px;font-size:12px;font-weight:400;margin:8px 0;">
+          <input id="bd-addinsp-issueclosing-${sid}" type="checkbox" style="width:auto;" /> This person is doing issue closing
         </label>
         <button class="inspect-btn sm" onclick="quickAddInspector('${u.id}')">&#9654; Confirm Start</button>
       </div>`;
@@ -6417,13 +6420,6 @@ function renderBoardUnitCard(u) {
     }
     actions+=`<button class="${u.held?'warn-btn':''}" onclick="quickHold('${u.id}')">${u.held?'&#8634; Remove hold':'&#9646; Hold'}</button>`;
     actions+=`<button class="${u.deviationNeeded?'danger':''}" onclick="toggleDeviation('${u.id}')">&#9888; ${u.deviationNeeded?'Deviation ('+u.deviations.length+') — Add another':'Deviation'}</button>`;
-    // Issue Closure — inspection stations only (M1, M2, M3 EOL, I3A, I3B,
-    // I4's, Load Bank). A simple log, not a full open/close lifecycle —
-    // just records that this operator closed out an issue on this unit,
-    // with a note, for later tracking in PM View.
-    if (isInspectionCol) {
-      actions+=`<button onclick="quickIssueClosure('${u.id}')">&#10003; Issue Closure${(u.issueClosures||[]).length?' ('+u.issueClosures.length+')':''}</button>`;
-    }
   }
   if (u.history.length) actions+=`<button class="subtle" onclick="togglePanel('bd-hist-${sid}')">History (${u.history.length})</button>`;
   const historyDurations = getStationDurations(u); // parallel array — one entry per Added-to/Moved-to history row, in order
@@ -6762,12 +6758,14 @@ function quickAddInspector(unitId) {
   const sid = safeId(unitId);
   const nameEl = document.getElementById('bd-addinsp-name-'+sid);
   const trainingEl = document.getElementById('bd-addinsp-training-'+sid);
+  const issueClosingEl = document.getElementById('bd-addinsp-issueclosing-'+sid);
   const name = nameEl ? nameEl.value.trim() : '';
   if (!name) { alert('Enter the inspector\'s name first.'); return; }
   const training = trainingEl ? trainingEl.checked : false;
+  const issueClosing = issueClosingEl ? issueClosingEl.checked : false;
   const u = ensureBoardTracked(unitId);
   if (!u.leadCheckins) u.leadCheckins = [];
-  u.leadCheckins.push({ station: u.col, name, email: '', training, ts: now() });
+  u.leadCheckins.push({ station: u.col, name, email: '', training, issueClosing, ts: now() });
   // u.inspectionStarted stays a real, general-purpose flag (still read
   // elsewhere for badges/status) — true as long as at least one person is
   // checked in as inspecting at this station. Starting fresh work always
@@ -6776,7 +6774,7 @@ function quickAddInspector(unitId) {
   // "Ready for Release" until this new round is actually finished too.
   u.inspectionStarted = true;
   u.inspectionComplete = false;
-  u.history.push({ action: 'Inspection started at '+u.col+' — '+name+(training?' (trainee)':''), ts: now(), notes: '' });
+  u.history.push({ action: 'Inspection started at '+u.col+' — '+name+(training?' (trainee)':'')+(issueClosing?' (issue closing)':''), ts: now(), notes: '' });
   pushBoard(); renderAll();
 }
 // This person is DONE — successfully completed their part. If they're the
@@ -6824,23 +6822,6 @@ function quickReopenInspection(unitId) {
   u.inspectionComplete = false;
   u.history.push({ action: 'Re-opened for inspection at '+u.col+' (Finish undone)', ts: now(), notes: '' });
   pushBoard(); renderAll();
-}
-// Issue Closure — a simple presence log, not a note about a specific
-// issue. Just records that this person is doing issue closure work on
-// this unit right now — deliberately separate from the Inspectors
-// roster (leadCheckins/inspection roster), so it's clear at a glance who
-// is actively inspecting versus who is here specifically closing out
-// issues, not the same activity. Requires signing in (or uses whoever's
-// already signed in on this device) for attribution.
-function quickIssueClosure(unitId) {
-  requireName(() => {
-    const u = ensureBoardTracked(unitId);
-    if (!u.issueClosures) u.issueClosures = [];
-    const operator = getOperator();
-    u.issueClosures.push({ name: operator.name, ts: now(), station: u.col });
-    u.history.push({ action: operator.name+' is doing issue closure at '+u.col, ts: now(), notes: '' });
-    pushBoard(); renderAll();
-  }, 'Sign to log Issue Closure');
 }
 // Weather Ready sign-offs — requires the entering password to actually
 // belong to a supervisor tagged with the matching role (see
@@ -8416,13 +8397,14 @@ function pmGetChecklistItemLog(onlyFails) {
   rows.sort((a, b) => new Date(b.ts) - new Date(a.ts));
   return rows;
 }
-// Every operator's issue closures across every unit, tracking who's
-// closing issues, where, and how often — a simple log, not a lifecycle
-// tracker, matching how quickIssueClosure records them.
+// Every currently-checked-in inspector marked "issue closing," across
+// every unit — sourced from the Inspectors roster itself (leadCheckins)
+// now that this is a checkbox on that same roster entry, rather than a
+// separate standalone log.
 function pmGetIssueClosures() {
   const rows = [];
   getAllBoardUnits().forEach(u => {
-    (u.issueClosures || []).forEach(c => rows.push({ unitId: u.id, ...c }));
+    (u.leadCheckins || []).filter(c => c.issueClosing).forEach(c => rows.push({ unitId: u.id, name: c.name, station: c.station, ts: c.ts }));
   });
   rows.sort((a, b) => new Date(b.ts) - new Date(a.ts));
   return rows;
@@ -11152,7 +11134,7 @@ function openDeviationNoteModal(unitId) {
    visible stamp every time a change is made, or version checks
    against a stale reference and never fires.
    ============================================================ */
-const BUILD_DATE = '2026-08-20-48';
+const BUILD_DATE = '2026-08-20-49';
 let updateBannerShown = false;
 function checkForNewVersion() {
   if (updateBannerShown) return;

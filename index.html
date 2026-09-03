@@ -995,7 +995,7 @@ label { font-size: 11px; font-weight: 600; color: var(--text-2); display: block;
 
 <!-- ============================================================ HEADER -->
 <div class="app-header">
-  <div id="build-stamp" title="If this looks out of date after an update was announced, hard-refresh with Ctrl+Shift+R (Cmd+Shift+R on Mac) to clear your browser's cached copy.">Build: <span id="build-stamp-text">2026-08-20-53</span></div>
+  <div id="build-stamp" title="If this looks out of date after an update was announced, hard-refresh with Ctrl+Shift+R (Cmd+Shift+R on Mac) to clear your browser's cached copy.">Build: <span id="build-stamp-text">2026-08-20-54</span></div>
   <div id="header-signed-in" style="position:absolute;top:26px;right:16px;font-size:11px;color:rgba(255,255,255,.75);white-space:nowrap;z-index:101;"></div>
   <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;flex:1;">
     <div style="background:#fff;border-radius:8px;padding:8px 14px;display:flex;align-items:center;box-shadow:0 1px 3px rgba(0,0,0,.15);">
@@ -2979,6 +2979,12 @@ function migrateUnitsOffRemediationColumn() {
       : (validCols[0] || 'In the Hole');
     if (!u.remediations) u.remediations = [];
     u.remediations.push({ note: 'Migrated from the old Remediation station', ts: now(), name: 'System' });
+    // Marked complete rather than left active — there's no roster entry
+    // to Finish here (this unit was never in the new lifecycle to begin
+    // with), so leaving remediationComplete false would block release
+    // indefinitely with no way to clear it.
+    u.remediationNeeded = true;
+    u.remediationComplete = true;
     u.col = dest;
     u.history.push({ action: 'Moved off Remediation station (now tracked as a flag instead) to '+dest, ts: now(), notes: '' });
   });
@@ -4797,7 +4803,7 @@ function jsonpSave(tab, rows) {
   const header = tab==='QC'
     ? ['Serial','Type','Station','InspectionStarted','Held','Remediation','RemediationOrigin','Completed','Status','HistoryJSON']
     : tab==='Board'
-    ? ['UnitID','Line','Column','Held','Completed','Notes','ESONumber','GensetSerial','ReadyForInspection','InspectionStarted','HistoryJSON','SupervisorReleased','SupervisorReleaseTs','DeviationNeeded','DeviationNote','DeviationTs','ChecklistJSON','QCChecklistJSON','FailOverridesJSON','Station2TasksJSON','SolutionsESO','DueDate','LeadCheckinsJSON','StationTrackerTasksJSON','FuelTankSerial','Location','MapX','MapY','MapRotation','DeviationsJSON','InspectionComplete','WeatherReadySignoffsJSON','ChecklistMetaJSON','QCChecklistMetaJSON','IssueClosuresJSON','RemediationsJSON','IssueClosingSessionsJSON','CleaningSessionsJSON']
+    ? ['UnitID','Line','Column','Held','Completed','Notes','ESONumber','GensetSerial','ReadyForInspection','InspectionStarted','HistoryJSON','SupervisorReleased','SupervisorReleaseTs','DeviationNeeded','DeviationNote','DeviationTs','ChecklistJSON','QCChecklistJSON','FailOverridesJSON','Station2TasksJSON','SolutionsESO','DueDate','LeadCheckinsJSON','StationTrackerTasksJSON','FuelTankSerial','Location','MapX','MapY','MapRotation','DeviationsJSON','InspectionComplete','WeatherReadySignoffsJSON','ChecklistMetaJSON','QCChecklistMetaJSON','IssueClosuresJSON','RemediationsJSON','IssueClosingSessionsJSON','CleaningSessionsJSON','RemediationCheckinsJSON','RemediationStarted','RemediationComplete']
     : ['UnitID','Link','UpdatedAt'];
   const payload = JSON.stringify({action:'save', rows:[header,...rows]});
 
@@ -4889,13 +4895,14 @@ function syncFromSheetsViaGAS(onDone) {
           let remediations=[]; try{remediations=JSON.parse(r[35]||'[]');}catch(e){}
           let issueClosingSessions=[]; try{issueClosingSessions=JSON.parse(r[36]||'[]');}catch(e){}
           let cleaningSessions=[]; try{cleaningSessions=JSON.parse(r[37]||'[]');}catch(e){}
+          let remediationCheckins=[]; try{remediationCheckins=JSON.parse(r[38]||'[]');}catch(e){}
           // Migrate a pre-existing single deviation (from before the deviations
           // list existed) into the list, so historical entries synced from an
           // older build aren't silently dropped the first time they're pulled.
           if (deviations.length===0 && (r[13]==='TRUE'||r[13]===true) && r[14]) deviations=[{note:r[14],ts:r[15]||'',operator:''}];
           return {id:r[0],line:r[1],col:r[2],held:r[3]==='TRUE'||r[3]===true,completed:r[4]==='TRUE'||r[4]===true,notes:r[5]||'',esoNumber:r[6]||'',gensetSerial:r[7]||'',readyForInspection:r[8]==='TRUE'||r[8]===true,inspectionStarted:r[9]==='TRUE'||r[9]===true,history,
             supervisorReleased:r[11]==='TRUE'||r[11]===true,supervisorReleaseTs:r[12]||'',
-            deviationNeeded:r[13]==='TRUE'||r[13]===true,deviationNote:r[14]||'',deviationTs:r[15]||'',checklist,qcChecklist,failOverrides,station2Tasks,solutionsEso:r[20]||'',dueDate:normalizeDueDate(r[21]),leadCheckins,stationTrackerTasks,fuelTankSerial:r[24]||'',location:r[25]||'',mapX:r[26]!==undefined&&r[26]!==''?parseFloat(r[26]):null,mapY:r[27]!==undefined&&r[27]!==''?parseFloat(r[27]):null,mapRotation:r[28]!==undefined&&r[28]!==''?parseFloat(r[28]):0,deviations,inspectionComplete:r[30]==='TRUE'||r[30]===true,weatherReadySignoffs,checklistMeta,qcChecklistMeta,issueClosures,remediations,issueClosingSessions,cleaningSessions};
+            deviationNeeded:r[13]==='TRUE'||r[13]===true,deviationNote:r[14]||'',deviationTs:r[15]||'',checklist,qcChecklist,failOverrides,station2Tasks,solutionsEso:r[20]||'',dueDate:normalizeDueDate(r[21]),leadCheckins,stationTrackerTasks,fuelTankSerial:r[24]||'',location:r[25]||'',mapX:r[26]!==undefined&&r[26]!==''?parseFloat(r[26]):null,mapY:r[27]!==undefined&&r[27]!==''?parseFloat(r[27]):null,mapRotation:r[28]!==undefined&&r[28]!==''?parseFloat(r[28]):0,deviations,inspectionComplete:r[30]==='TRUE'||r[30]===true,weatherReadySignoffs,checklistMeta,qcChecklistMeta,issueClosures,remediations,issueClosingSessions,cleaningSessions,remediationCheckins,remediationStarted:r[39]==='TRUE'||r[39]===true,remediationComplete:r[40]==='TRUE'||r[40]===true};
         });
       }
       jsonpCall(sheetsUrl+'?tab=Issues', function(err3, rows3) {
@@ -4936,7 +4943,7 @@ function proxySave(tab, rows) {
   const header = tab==='QC'
     ? ['Serial','Type','Station','InspectionStarted','Held','Remediation','RemediationOrigin','Completed','Status','HistoryJSON']
     : tab==='Board'
-    ? ['UnitID','Line','Column','Held','Completed','Notes','ESONumber','GensetSerial','ReadyForInspection','InspectionStarted','HistoryJSON','SupervisorReleased','SupervisorReleaseTs','DeviationNeeded','DeviationNote','DeviationTs','ChecklistJSON','QCChecklistJSON','FailOverridesJSON','Station2TasksJSON','SolutionsESO','DueDate','LeadCheckinsJSON','StationTrackerTasksJSON','FuelTankSerial','Location','MapX','MapY','MapRotation','DeviationsJSON','InspectionComplete','WeatherReadySignoffsJSON','ChecklistMetaJSON','QCChecklistMetaJSON','IssueClosuresJSON','RemediationsJSON','IssueClosingSessionsJSON','CleaningSessionsJSON']
+    ? ['UnitID','Line','Column','Held','Completed','Notes','ESONumber','GensetSerial','ReadyForInspection','InspectionStarted','HistoryJSON','SupervisorReleased','SupervisorReleaseTs','DeviationNeeded','DeviationNote','DeviationTs','ChecklistJSON','QCChecklistJSON','FailOverridesJSON','Station2TasksJSON','SolutionsESO','DueDate','LeadCheckinsJSON','StationTrackerTasksJSON','FuelTankSerial','Location','MapX','MapY','MapRotation','DeviationsJSON','InspectionComplete','WeatherReadySignoffsJSON','ChecklistMetaJSON','QCChecklistMetaJSON','IssueClosuresJSON','RemediationsJSON','IssueClosingSessionsJSON','CleaningSessionsJSON','RemediationCheckinsJSON','RemediationStarted','RemediationComplete']
     : ['UnitID','Link','UpdatedAt'];
   return proxyFetch('?action=save&tab='+tab, {
     method: 'POST',
@@ -5338,13 +5345,14 @@ function syncFromSheetsViaSmartsheet(onDone) {
           let remediations=[]; try{remediations=JSON.parse(r[35]||'[]');}catch(e){}
           let issueClosingSessions=[]; try{issueClosingSessions=JSON.parse(r[36]||'[]');}catch(e){}
           let cleaningSessions=[]; try{cleaningSessions=JSON.parse(r[37]||'[]');}catch(e){}
+          let remediationCheckins=[]; try{remediationCheckins=JSON.parse(r[38]||'[]');}catch(e){}
           // Migrate a pre-existing single deviation (from before the deviations
           // list existed) into the list, so historical entries synced from an
           // older build aren't silently dropped the first time they're pulled.
           if (deviations.length===0 && (r[13]==='TRUE'||r[13]===true) && r[14]) deviations=[{note:r[14],ts:r[15]||'',operator:''}];
         return {id:r[0],line:r[1],col:r[2],held:r[3]==='TRUE'||r[3]===true,completed:r[4]==='TRUE'||r[4]===true,notes:r[5]||'',esoNumber:r[6]||'',gensetSerial:r[7]||'',readyForInspection:r[8]==='TRUE'||r[8]===true,inspectionStarted:r[9]==='TRUE'||r[9]===true,history,
           supervisorReleased:r[11]==='TRUE'||r[11]===true,supervisorReleaseTs:r[12]||'',
-          deviationNeeded:r[13]==='TRUE'||r[13]===true,deviationNote:r[14]||'',deviationTs:r[15]||'',checklist,qcChecklist,failOverrides,station2Tasks,solutionsEso:r[20]||'',dueDate:normalizeDueDate(r[21]),leadCheckins,stationTrackerTasks,fuelTankSerial:r[24]||'',location:r[25]||'',mapX:r[26]!==undefined&&r[26]!==''?parseFloat(r[26]):null,mapY:r[27]!==undefined&&r[27]!==''?parseFloat(r[27]):null,mapRotation:r[28]!==undefined&&r[28]!==''?parseFloat(r[28]):0,deviations,inspectionComplete:r[30]==='TRUE'||r[30]===true,weatherReadySignoffs,checklistMeta,qcChecklistMeta,issueClosures,remediations,issueClosingSessions,cleaningSessions};
+          deviationNeeded:r[13]==='TRUE'||r[13]===true,deviationNote:r[14]||'',deviationTs:r[15]||'',checklist,qcChecklist,failOverrides,station2Tasks,solutionsEso:r[20]||'',dueDate:normalizeDueDate(r[21]),leadCheckins,stationTrackerTasks,fuelTankSerial:r[24]||'',location:r[25]||'',mapX:r[26]!==undefined&&r[26]!==''?parseFloat(r[26]):null,mapY:r[27]!==undefined&&r[27]!==''?parseFloat(r[27]):null,mapRotation:r[28]!==undefined&&r[28]!==''?parseFloat(r[28]):0,deviations,inspectionComplete:r[30]==='TRUE'||r[30]===true,weatherReadySignoffs,checklistMeta,qcChecklistMeta,issueClosures,remediations,issueClosingSessions,cleaningSessions,remediationCheckins,remediationStarted:r[39]==='TRUE'||r[39]===true,remediationComplete:r[40]==='TRUE'||r[40]===true};
       });
     }
     if (rows3 && rows3.length>1) {
@@ -5411,7 +5419,7 @@ function loadLocalCache() {
    seen (via push OR pull) and padding any smaller push with blank rows up
    to that count guarantees every previously-used row gets overwritten
    with blanks, regardless of how the backend script writes the range. */
-const BOARD_COL_COUNT = 38;
+const BOARD_COL_COUNT = 41;
 const QC_COL_COUNT = 10;
 function bumpRowFloor(tab, count) {
   const key = 'push_row_floor_' + tab;
@@ -5462,7 +5470,7 @@ function pushBoard(force) {
   if (!force && isStaleRelativeToReset()) { syncFromSheets(); return Promise.resolve(false); }
   boardLastLocalEditAt = Date.now();
   saveLocalCache();
-  const rows = boardUnits.map(u=>[u.id,u.line,u.col,u.held,u.completed,u.notes,u.esoNumber||'',u.gensetSerial||'',u.readyForInspection||false,u.inspectionStarted||false,JSON.stringify(u.history),u.supervisorReleased||false,u.supervisorReleaseTs||'',u.deviationNeeded||false,u.deviationNote||'',u.deviationTs||'',JSON.stringify(u.checklist||{}),JSON.stringify(u.qcChecklist||{}),JSON.stringify(u.failOverrides||[]),JSON.stringify(u.station2Tasks||{}),u.solutionsEso||'',u.dueDate||'',JSON.stringify(u.leadCheckins||[]),JSON.stringify(u.stationTrackerTasks||{}),u.fuelTankSerial||'',u.location||'',u.mapX==null?'':u.mapX,u.mapY==null?'':u.mapY,u.mapRotation==null?'':u.mapRotation,JSON.stringify(u.deviations||[]),u.inspectionComplete||false,JSON.stringify(u.weatherReadySignoffs||{}),JSON.stringify(u.checklistMeta||{}),JSON.stringify(u.qcChecklistMeta||{}),JSON.stringify(u.issueClosures||[]),JSON.stringify(u.remediations||[]),JSON.stringify(u.issueClosingSessions||[]),JSON.stringify(u.cleaningSessions||[])]);
+  const rows = boardUnits.map(u=>[u.id,u.line,u.col,u.held,u.completed,u.notes,u.esoNumber||'',u.gensetSerial||'',u.readyForInspection||false,u.inspectionStarted||false,JSON.stringify(u.history),u.supervisorReleased||false,u.supervisorReleaseTs||'',u.deviationNeeded||false,u.deviationNote||'',u.deviationTs||'',JSON.stringify(u.checklist||{}),JSON.stringify(u.qcChecklist||{}),JSON.stringify(u.failOverrides||[]),JSON.stringify(u.station2Tasks||{}),u.solutionsEso||'',u.dueDate||'',JSON.stringify(u.leadCheckins||[]),JSON.stringify(u.stationTrackerTasks||{}),u.fuelTankSerial||'',u.location||'',u.mapX==null?'':u.mapX,u.mapY==null?'':u.mapY,u.mapRotation==null?'':u.mapRotation,JSON.stringify(u.deviations||[]),u.inspectionComplete||false,JSON.stringify(u.weatherReadySignoffs||{}),JSON.stringify(u.checklistMeta||{}),JSON.stringify(u.qcChecklistMeta||{}),JSON.stringify(u.issueClosures||[]),JSON.stringify(u.remediations||[]),JSON.stringify(u.issueClosingSessions||[]),JSON.stringify(u.cleaningSessions||[]),JSON.stringify(u.remediationCheckins||[]),u.remediationStarted||false,u.remediationComplete||false]);
   const padded = padRowsToFloor('Board', rows, BOARD_COL_COUNT);
   return syncTarget === 'smartsheet' ? proxySave('Board', padded) : jsonpSave('Board', padded);
 }
@@ -5815,7 +5823,7 @@ function _addAllBoardUnits() {
   if (hasError) return;
   toAdd.forEach(u => {
     removeDeletedUnitId(u.id);
-    boardUnits.push({id:u.id,line:u.line,col:u.col,held:false,completed:false,notes:u.notes,esoNumber:'',gensetSerial:u.gensetSerial||'',fuelTankSerial:'',location:'',mapX:null,mapY:null,solutionsEso:u.solEso||'',dueDate:u.dueDate||'',leadCheckins:[],readyForInspection:false,inspectionStarted:false,inspectionComplete:false,weatherReadySignoffs:{},issueClosures:[],supervisorReleased:false,supervisorReleaseTs:'',deviationNeeded:false,deviationNote:'',deviationTs:'',deviations:[],remediationNeeded:false,remediationNote:'',remediationTs:'',remediations:[],issueClosingSessions:[],cleaningSessions:[],checklist:{},qcChecklist:{},checklistMeta:{},qcChecklistMeta:{},failOverrides:[],station2Tasks:{},stationTrackerTasks:{},history:[{action:'Added to '+u.col,ts:now(),notes:u.notes}]});
+    boardUnits.push({id:u.id,line:u.line,col:u.col,held:false,completed:false,notes:u.notes,esoNumber:'',gensetSerial:u.gensetSerial||'',fuelTankSerial:'',location:'',mapX:null,mapY:null,solutionsEso:u.solEso||'',dueDate:u.dueDate||'',leadCheckins:[],readyForInspection:false,inspectionStarted:false,inspectionComplete:false,weatherReadySignoffs:{},issueClosures:[],supervisorReleased:false,supervisorReleaseTs:'',deviationNeeded:false,deviationNote:'',deviationTs:'',deviations:[],remediationNeeded:false,remediationNote:'',remediationTs:'',remediations:[],remediationCheckins:[],remediationStarted:false,remediationComplete:false,issueClosingSessions:[],cleaningSessions:[],checklist:{},qcChecklist:{},checklistMeta:{},qcChecklistMeta:{},failOverrides:[],station2Tasks:{},stationTrackerTasks:{},history:[{action:'Added to '+u.col,ts:now(),notes:u.notes}]});
   });
   err.textContent=''; document.getElementById('board-add-form').style.display='none';
   pushBoard(); renderAll();
@@ -5833,7 +5841,7 @@ function getAllBoardUnits() {
         if (deleted.includes(uid)) return; // tombstoned — don't resurrect from the static seed
         if (!merged.find(u=>u.id===uid)) {
           const tracked=boardUnits.find(u=>u.id===uid);
-          merged.push(tracked||{id:uid,line:line.id,col:col.label,held:false,completed:false,notes:'',esoNumber:'',gensetSerial:'',fuelTankSerial:'',location:'',mapX:null,mapY:null,solutionsEso:'',dueDate:'',leadCheckins:[],readyForInspection:false,inspectionStarted:false,inspectionComplete:false,weatherReadySignoffs:{},issueClosures:[],supervisorReleased:false,supervisorReleaseTs:'',deviationNeeded:false,deviationNote:'',deviationTs:'',deviations:[],remediationNeeded:false,remediationNote:'',remediationTs:'',remediations:[],issueClosingSessions:[],cleaningSessions:[],checklist:{},qcChecklist:{},checklistMeta:{},qcChecklistMeta:{},failOverrides:[],station2Tasks:{},stationTrackerTasks:{},history:[]});
+          merged.push(tracked||{id:uid,line:line.id,col:col.label,held:false,completed:false,notes:'',esoNumber:'',gensetSerial:'',fuelTankSerial:'',location:'',mapX:null,mapY:null,solutionsEso:'',dueDate:'',leadCheckins:[],readyForInspection:false,inspectionStarted:false,inspectionComplete:false,weatherReadySignoffs:{},issueClosures:[],supervisorReleased:false,supervisorReleaseTs:'',deviationNeeded:false,deviationNote:'',deviationTs:'',deviations:[],remediationNeeded:false,remediationNote:'',remediationTs:'',remediations:[],remediationCheckins:[],remediationStarted:false,remediationComplete:false,issueClosingSessions:[],cleaningSessions:[],checklist:{},qcChecklist:{},checklistMeta:{},qcChecklistMeta:{},failOverrides:[],station2Tasks:{},stationTrackerTasks:{},history:[]});
         }
       });
     });
@@ -5870,7 +5878,7 @@ function renderLineSummary() {
       const cu=getColUnits(line.id,col.label); const count=cu.length;
       const hasHeld=cu.some(u=>u.held); const hasDone=cu.some(u=>u.completed);
       const hasDeviation=cu.some(u=>u.deviationNeeded);
-      const hasRemediation=cu.some(u=>u.remediationNeeded);
+      const hasRemediation=cu.some(u=>u.remediationNeeded&&!u.remediationComplete);
       const hasFail=cu.some(u=>{
         const cS=getChecklistState(u), qS=getQCChecklistState(u);
         return (cS && cS.includes('fail')) || (qS && qS.includes('fail'));
@@ -5978,7 +5986,7 @@ function renderUnifiedTabs() {
 
   // Top tab bar: Board | All Lines | Remediation | QC stations
   let html='<button class="tab-btn '+(trackerMode==='board'?'active':'')+'" style="'+(trackerMode==='board'?'color:#0078d4;border-bottom-color:#0078d4;font-weight:600;':'')+'" onclick="switchToBoard()">&#9776; All Lines</button>';
-  const remedCount = getAllBoardUnits().filter(u=>u.remediationNeeded&&!u.completed).length;
+  const remedCount = getAllBoardUnits().filter(u=>u.remediationNeeded&&!u.remediationComplete&&!u.completed).length;
   html+=`<button class="tab-btn ${trackerMode==='remed'?'active':''}" style="${trackerMode==='remed'?'color:#A03033;border-bottom-color:#A03033;font-weight:600;':''}" onclick="switchToRemed()">&#9888; Remediation${remedCount>0?'<span class="tab-count">'+remedCount+'</span>':''}</button>`;
   html+='<span style="display:inline-block;width:1px;height:20px;background:#edebe9;margin:0 8px;vertical-align:middle;"></span>';
   {
@@ -6055,7 +6063,7 @@ function renderRemedContent(el) {
   // Remediation is a flag now (u.remediationNeeded), not a physical
   // station a unit sits at, so this shows any unit currently flagged,
   // wherever it actually is on the board — not filtered by column.
-  const allRemed = getAllBoardUnits().filter(u => u.remediationNeeded && !u.completed);
+  const allRemed = getAllBoardUnits().filter(u => u.remediationNeeded && !u.remediationComplete && !u.completed);
   if (!allRemed.length) { el.innerHTML='<p style="font-size:13px;color:#605e5c;padding:12px 0;">No units are currently flagged for Remediation.</p>'; return; }
   // Group by line
   el.innerHTML = CONFIG.lines.map(line => {
@@ -6463,9 +6471,15 @@ function renderBoardUnitCard(u) {
       // Weather Ready additionally requires all three role sign-offs
       // before it can be released, regardless of checklist state.
       const weatherReadyOK = u.col !== 'Weather Ready' || SUPERVISOR_ROLES.every(r => (u.weatherReadySignoffs||{})[r]);
-      const showRelease = (!isInspectionCol || u.inspectionComplete) && weatherReadyOK;
+      // Remediation blocks release the same way as an active inspection —
+      // once started, release stays blocked until every remediator has
+      // finished (u.remediationComplete). A unit that's never needed
+      // remediation is completely unaffected (remediationNeeded false).
+      const remediationOK = !u.remediationNeeded || u.remediationComplete;
+      const showRelease = (!isInspectionCol || u.inspectionComplete) && weatherReadyOK && remediationOK;
       const weatherLockAttr = (u.col === 'Weather Ready' && !weatherReadyOK) ? 'disabled title="All three sign-offs (Production, Quality, Material) are required first"' : '';
-      if (showRelease && isLast) { actions+=`<button class="success" ${lockAttr}${weatherLockAttr} onclick="quickComplete('${u.id}')">&#10003; Mark complete</button>`; }
+      const remediationLockAttr = !remediationOK ? 'disabled title="Remediation must be marked Finished first"' : '';
+      if (showRelease && isLast) { actions+=`<button class="success" ${lockAttr}${weatherLockAttr}${remediationLockAttr} onclick="quickComplete('${u.id}')">&#10003; Mark complete</button>`; }
       // A "release to a chosen station" dropdown is always visible directly
       // on the card (not hidden behind a click) — so a unit can be routed
       // to an overflow/alternate station instead of strictly following the
@@ -6477,7 +6491,7 @@ function renderBoardUnitCard(u) {
         const destOpts = otherCols.map(c => `<option value="${c.label}" ${c.label===defaultDest?'selected':''}>${c.label}</option>`).join('');
         actions+=`<div style="display:flex;gap:6px;align-items:center;">
           <select id="bd-fwd-dest-${sid}" style="font-size:12px;padding:6px 8px;max-width:160px;">${destOpts}</select>
-          <button class="success sm" ${lockAttr}${weatherLockAttr} onclick="quickRelease('${u.id}')">&#8594; Release</button>
+          <button class="success sm" ${lockAttr}${weatherLockAttr}${remediationLockAttr} onclick="quickRelease('${u.id}')">&#8594; Release</button>
         </div>`;
       }
       // Weather Ready explains itself even before you try to release —
@@ -6488,10 +6502,45 @@ function renderBoardUnitCard(u) {
         const missing = SUPERVISOR_ROLES.filter(r => !(u.weatherReadySignoffs||{})[r]);
         actions += `<div style="width:100%;font-size:11px;color:#A03033;">&#9888; Waiting on: ${missing.join(', ')}</div>`;
       }
+      if (!remediationOK) {
+        actions += `<div style="width:100%;font-size:11px;color:#A03033;">&#9888; Waiting on remediation to be marked Finished</div>`;
+      }
     }
     actions+=`<button class="${u.held?'warn-btn':''}" onclick="quickHold('${u.id}')">${u.held?'&#8634; Remove hold':'&#9646; Hold'}</button>`;
     actions+=`<button class="${u.deviationNeeded?'danger':''}" onclick="toggleDeviation('${u.id}')">&#9888; ${u.deviationNeeded?'Deviation ('+u.deviations.length+') — Add another':'Deviation'}</button>`;
-    actions+=`<button class="${u.remediationNeeded?'danger':''}" onclick="toggleRemediation('${u.id}')">&#9888; ${u.remediationNeeded?'Remediation ('+u.remediations.length+') — Add another':'Remediation'}</button>`;
+    // REMEDIATION — full lifecycle now (Start → Finished → Release),
+    // mirroring the Inspection roster exactly: any number of people can
+    // independently start and stop their own remediation session on this
+    // unit. Release stays blocked (see showRelease below) the whole time
+    // remediation has been started and not yet marked complete — the
+    // same pattern as inspectionStarted/inspectionComplete.
+    {
+      const currentRemediators = (u.remediationCheckins||[]).map((c,i)=>({...c,idx:i}));
+      actions += `<div style="width:100%;display:flex;flex-direction:column;gap:6px;">`;
+      actions += currentRemediators.map(c => `<div style="display:flex;justify-content:space-between;align-items:center;background:#fdecea;border:1px solid #A03033;border-radius:8px;padding:6px 10px;gap:8px;">
+        <span style="font-size:12px;font-weight:600;color:#A03033;">&#9888; ${c.name} — Remediation since ${c.startTs}</span>
+        <div style="display:flex;gap:6px;flex-shrink:0;">
+          <button class="success sm" onclick="quickFinishOneRemediator('${u.id}',${c.idx})" title="This person is done — remediation successfully completed.">&#10003; Finish</button>
+          <button class="warn-btn sm" onclick="quickStopOneRemediator('${u.id}',${c.idx})" title="Pausing — not done yet. Can resume later.">&#9208; Stop</button>
+        </div>
+      </div>`).join('');
+      if (u.remediationComplete && !currentRemediators.length) {
+        actions += `<div style="display:flex;gap:6px;align-items:center;">
+          <span class="badge" style="background:#e6f7ed;color:#0e7c3a;border:1px solid #0e7c3a;font-weight:800;flex:1;text-align:center;padding:6px;">&#10003; Remediation complete — ready to release</span>
+          <button class="subtle sm" onclick="quickReopenRemediation('${u.id}')" title="Finished by mistake? Undo it and bring back Start Remediation.">&#8634; Re-open</button>
+        </div>`;
+      } else {
+        actions += `<button class="${u.remediationNeeded?'danger':''}" onclick="togglePanel('bd-startremed-${sid}')" title="Adds one more person as a remediator on this unit right now — click again for each additional person.">&#9888; Start Remediation${currentRemediators.length?' — add another':''}</button>`;
+      }
+      actions += `</div>`;
+      panels += `<div class="action-group" id="bd-startremed-${sid}">
+        <label>Name</label>
+        <input id="bd-startremed-name-${sid}" type="text" placeholder="Their name" />
+        <label>Reason</label>
+        <textarea id="bd-startremed-note-${sid}" rows="2" placeholder="Describe the issue..."></textarea>
+        <button class="danger sm" onclick="quickStartRemediation('${u.id}')">&#9888; Confirm Start</button>
+      </div>`;
+    }
   }
   if (u.history.length) actions+=`<button class="subtle" onclick="togglePanel('bd-hist-${sid}')">History (${u.history.length})</button>`;
   const historyDurations = getStationDurations(u); // parallel array — one entry per Added-to/Moved-to history row, in order
@@ -6562,7 +6611,8 @@ function renderBoardUnitCard(u) {
         ? `<div style="margin-top:8px;font-size:12px;font-weight:700;color:#A03033;background:#fdecea;border:1px solid #A03033;border-radius:6px;padding:7px 12px;display:flex;align-items:center;gap:6px;">&#9888; Checklist not yet complete.</div>`
         : `<div style="margin-top:8px;font-size:12px;font-weight:700;color:#7a5d00;background:#fff4ce;border:1px solid #7a5d00;border-radius:6px;padding:7px 12px;display:flex;align-items:center;gap:6px;">&#9888; Checklist has a Fail item — release requires a supervisor password and note.</div>`)
     : '';
-  return `<div class="unit-card ${u.held?'held':''} ${u.completed?'completed':''} ${u.remediationNeeded?'remediation-alert':''}" style="${u.remediationNeeded?'border:3px solid #A03033;':(u.deviationNeeded||openFailOverrides.length?'border:2px solid #A03033;':'')}">
+  const remediationActive = u.remediationNeeded && !u.remediationComplete;
+  return `<div class="unit-card ${u.held?'held':''} ${u.completed?'completed':''} ${remediationActive?'remediation-alert':''}" style="${remediationActive?'border:3px solid #A03033;':(u.deviationNeeded||openFailOverrides.length?'border:2px solid #A03033;':'')}">
     <div class="unit-header"><div>${boardPill(u.id)}</div><div style="display:flex;gap:6px;align-items:center;">${deviationBadge}${failOverrideBadge}${statusBadge}</div></div>
     ${remedOrigin}
     ${esoGensetInfo}
@@ -6607,7 +6657,7 @@ function ensureBoardTracked(unitId) {
   if (!u) {
     const line=CONFIG.lines.find(l=>l.columns.some(c=>c.units.includes(unitId)));
     const col=line?line.columns.find(c=>c.units.includes(unitId)):null;
-    u={id:unitId,line:line?line.id:activeLine,col:col?col.label:activeCol,held:false,completed:false,notes:'',esoNumber:'',gensetSerial:'',fuelTankSerial:'',location:'',mapX:null,mapY:null,solutionsEso:'',dueDate:'',leadCheckins:[],readyForInspection:false,inspectionStarted:false,inspectionComplete:false,weatherReadySignoffs:{},issueClosures:[],supervisorReleased:false,supervisorReleaseTs:'',deviationNeeded:false,deviationNote:'',deviationTs:'',deviations:[],remediationNeeded:false,remediationNote:'',remediationTs:'',remediations:[],issueClosingSessions:[],cleaningSessions:[],checklist:{},qcChecklist:{},checklistMeta:{},qcChecklistMeta:{},failOverrides:[],station2Tasks:{},stationTrackerTasks:{},history:[]};
+    u={id:unitId,line:line?line.id:activeLine,col:col?col.label:activeCol,held:false,completed:false,notes:'',esoNumber:'',gensetSerial:'',fuelTankSerial:'',location:'',mapX:null,mapY:null,solutionsEso:'',dueDate:'',leadCheckins:[],readyForInspection:false,inspectionStarted:false,inspectionComplete:false,weatherReadySignoffs:{},issueClosures:[],supervisorReleased:false,supervisorReleaseTs:'',deviationNeeded:false,deviationNote:'',deviationTs:'',deviations:[],remediationNeeded:false,remediationNote:'',remediationTs:'',remediations:[],remediationCheckins:[],remediationStarted:false,remediationComplete:false,issueClosingSessions:[],cleaningSessions:[],checklist:{},qcChecklist:{},checklistMeta:{},qcChecklistMeta:{},failOverrides:[],station2Tasks:{},stationTrackerTasks:{},history:[]};
     boardUnits.push(u);
   }
   return u;
@@ -6947,6 +6997,60 @@ function quickReopenInspection(unitId) {
   if (!u.inspectionComplete) return;
   u.inspectionComplete = false;
   u.history.push({ action: 'Re-opened for inspection at '+u.col+' (Finish undone)', ts: now(), notes: '' });
+  pushBoard(); renderAll();
+}
+// REMEDIATION lifecycle — Start/Finish/Stop, mirroring the Inspection
+// roster functions above exactly (see those for the fuller reasoning).
+// Any number of people can independently start and stop their own
+// remediation session on this unit — one person stopping (a pause)
+// doesn't affect anyone else still working. remediationNeeded, once set,
+// stays true permanently as a record that this unit needed remediation
+// at some point; remediationComplete is what actually gates release —
+// see the showRelease logic on the card.
+function quickStartRemediation(unitId) {
+  const sid = safeId(unitId);
+  const nameEl = document.getElementById('bd-startremed-name-'+sid);
+  const noteEl = document.getElementById('bd-startremed-note-'+sid);
+  const name = nameEl ? nameEl.value.trim() : '';
+  if (!name) { alert('Enter a name first.'); return; }
+  const note = noteEl ? noteEl.value.trim() : '';
+  const u = ensureBoardTracked(unitId);
+  if (!u.remediationCheckins) u.remediationCheckins = [];
+  if (!u.remediations) u.remediations = [];
+  u.remediationCheckins.push({ name, startTs: now() });
+  if (note) u.remediations.push({ note, ts: now(), operator: name });
+  u.remediationNeeded = true;
+  u.remediationStarted = true;
+  u.remediationComplete = false;
+  u.history.push({ action: name+' started remediation at '+u.col+(note?' — '+note:''), ts: now(), notes: note });
+  pushBoard(); renderAll();
+}
+function quickFinishOneRemediator(unitId, idx) {
+  const u = ensureBoardTracked(unitId);
+  if (!u.remediationCheckins || !u.remediationCheckins[idx]) return;
+  const person = u.remediationCheckins[idx];
+  u.remediationCheckins.splice(idx, 1);
+  const stillWorking = u.remediationCheckins.length > 0;
+  u.remediationStarted = stillWorking;
+  if (!stillWorking) u.remediationComplete = true;
+  u.history.push({ action: 'Remediation finished at '+u.col+' — '+person.name+(stillWorking?'':' (last remediator — unit now Ready for Release)'), ts: now(), notes: '' });
+  pushBoard(); renderAll();
+}
+function quickStopOneRemediator(unitId, idx) {
+  const u = ensureBoardTracked(unitId);
+  if (!u.remediationCheckins || !u.remediationCheckins[idx]) return;
+  const person = u.remediationCheckins[idx];
+  u.remediationCheckins.splice(idx, 1);
+  const stillWorking = u.remediationCheckins.length > 0;
+  u.remediationStarted = stillWorking;
+  u.history.push({ action: 'Remediation stopped at '+u.col+' — '+person.name+(stillWorking?'':' (last remediator — paused, not yet complete)'), ts: now(), notes: '' });
+  pushBoard(); renderAll();
+}
+function quickReopenRemediation(unitId) {
+  const u = ensureBoardTracked(unitId);
+  if (!u.remediationComplete) return;
+  u.remediationComplete = false;
+  u.history.push({ action: 'Re-opened for remediation at '+u.col+' (Finish undone)', ts: now(), notes: '' });
   pushBoard(); renderAll();
 }
 // Weather Ready sign-offs — requires the entering password to actually
@@ -7430,7 +7534,7 @@ function eauAddAllUnits() {
   if (hasError) return;
   toAdd.forEach(u => {
     removeDeletedUnitId(u.id);
-    boardUnits.push({id:u.id,line:u.line,col:u.col,held:false,completed:false,notes:u.notes,esoNumber:'',gensetSerial:u.gensetSerial||'',fuelTankSerial:'',location:'',mapX:null,mapY:null,solutionsEso:u.solEso,dueDate:u.dueDate,leadCheckins:[],readyForInspection:false,inspectionStarted:false,inspectionComplete:false,weatherReadySignoffs:{},issueClosures:[],supervisorReleased:false,supervisorReleaseTs:'',deviationNeeded:false,deviationNote:'',deviationTs:'',deviations:[],remediationNeeded:false,remediationNote:'',remediationTs:'',remediations:[],issueClosingSessions:[],cleaningSessions:[],checklist:{},qcChecklist:{},checklistMeta:{},qcChecklistMeta:{},failOverrides:[],station2Tasks:{},stationTrackerTasks:{},history:[{action:'Added to '+u.col,ts:now(),notes:u.notes}]});
+    boardUnits.push({id:u.id,line:u.line,col:u.col,held:false,completed:false,notes:u.notes,esoNumber:'',gensetSerial:u.gensetSerial||'',fuelTankSerial:'',location:'',mapX:null,mapY:null,solutionsEso:u.solEso,dueDate:u.dueDate,leadCheckins:[],readyForInspection:false,inspectionStarted:false,inspectionComplete:false,weatherReadySignoffs:{},issueClosures:[],supervisorReleased:false,supervisorReleaseTs:'',deviationNeeded:false,deviationNote:'',deviationTs:'',deviations:[],remediationNeeded:false,remediationNote:'',remediationTs:'',remediations:[],remediationCheckins:[],remediationStarted:false,remediationComplete:false,issueClosingSessions:[],cleaningSessions:[],checklist:{},qcChecklist:{},checklistMeta:{},qcChecklistMeta:{},failOverrides:[],station2Tasks:{},stationTrackerTasks:{},history:[{action:'Added to '+u.col,ts:now(),notes:u.notes}]});
   });
   err.textContent = '';
   document.getElementById('eau-rows').innerHTML = ''; eauRowCtr = 0; eauAddRow();
@@ -7731,7 +7835,7 @@ const PM_WIDGET_METRICS = [
   { id:'completed', label:'Completed', icon:'&#10003;', color:'#0e7c3a', filterFn: u=>u.completed },
   { id:'wip', label:'WIP', icon:'&#9889;', color:'#b45309', filterFn: u=>!u.completed&&!u.held },
   { id:'onHold', label:'On Hold', icon:'&#9208;', color:'#b45309', filterFn: u=>u.held&&!u.completed },
-  { id:'remediation', label:'In Remediation', icon:'&#9888;', color:'#A03033', filterFn: u=>u.remediationNeeded },
+  { id:'remediation', label:'In Remediation', icon:'&#9888;', color:'#A03033', filterFn: u=>u.remediationNeeded&&!u.remediationComplete },
   { id:'rts', label:'Ready to Ship', icon:'&#9650;', color:'#0e7c3a', filterFn: u=>u.col==='Ready to Ship'||u.col==='RTS' },
   { id:'checklistPassRate', label:'Checklist Pass Rate', icon:'&#9989;', color:'#0e7c3a',
     compute: () => getChecklistStats().passRate+'%',
@@ -11416,87 +11520,6 @@ function openDeviationNoteModal(unitId) {
   overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
 }
 
-/* ---- Remediation flag (Board units) ----
-   Used to be a physical station a unit moved to. Now works exactly like
-   Deviations above instead — a flag on the unit that doesn't move it
-   anywhere, supporting any number of entries, each individually
-   removable, gated behind the supervisor password the same way. */
-function syncRemediationSummary(u) {
-  if (!Array.isArray(u.remediations)) u.remediations = [];
-  const latest = u.remediations[u.remediations.length - 1];
-  u.remediationNeeded = u.remediations.length > 0;
-  u.remediationNote = latest ? latest.note : '';
-  u.remediationTs = latest ? latest.ts : '';
-}
-function toggleRemediation(unitId) {
-  const u = ensureBoardTracked(unitId);
-  syncRemediationSummary(u);
-  requireName(() => openRemediationNoteModal(unitId), 'Sign to flag Remediation');
-}
-function removeRemediation(unitId, idx) {
-  requireName(() => {
-    const u = ensureBoardTracked(unitId);
-    syncRemediationSummary(u);
-    const removed = u.remediations[idx];
-    if (!removed) return;
-    if (!confirm('Remove this remediation flag?\n\n"'+removed.note+'"')) return;
-    u.remediations.splice(idx, 1);
-    syncRemediationSummary(u);
-    u.history.push({ action: 'Remediation flag removed', ts: now(), notes: removed.note });
-    pushBoard(); renderAll();
-  }, 'Sign to remove Remediation flag');
-}
-
-function openRemediationNoteModal(unitId) {
-  const existing = document.getElementById('remediation-note-overlay');
-  if (existing) existing.remove();
-  const u = ensureBoardTracked(unitId);
-  syncRemediationSummary(u);
-
-  const overlay = document.createElement('div');
-  overlay.id = 'remediation-note-overlay';
-  overlay.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.55);z-index:9999;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(2px);';
-  const existingListHtml = u.remediations.length ? `
-      <label style="font-size:11px;font-weight:700;color:#4a5568;text-transform:uppercase;letter-spacing:.3px;display:block;margin-bottom:5px;">Existing Remediation Flags (${u.remediations.length})</label>
-      <div style="max-height:120px;overflow-y:auto;margin-bottom:14px;border:1px solid #e2e6ea;border-radius:8px;padding:6px;">
-        ${u.remediations.map((d, idx) => `<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;font-size:12px;padding:6px 8px;border-bottom:1px solid #f0f2f5;">
-          <div><div style="color:#0f1923;">${d.note}</div><div style="color:#8a96a8;font-size:10px;margin-top:2px;">${d.ts}</div></div>
-          <button onclick="removeRemediation('${unitId}',${idx})" title="Remove" style="border:none;background:transparent;color:#A03033;font-weight:900;cursor:pointer;font-size:14px;padding:0 2px;flex-shrink:0;">&times;</button>
-        </div>`).join('')}
-      </div>` : '';
-  overlay.innerHTML = `
-    <div style="background:#fff;border-radius:16px;padding:28px 32px;max-width:400px;width:94%;box-shadow:0 24px 64px rgba(0,0,0,.28);">
-      <h2 style="font-size:16px;font-weight:800;color:#0f1923;margin-bottom:12px;letter-spacing:-.3px;">&#9888; Remediation — ${unitId}</h2>
-      ${existingListHtml}
-      <label style="font-size:11px;font-weight:700;color:#4a5568;text-transform:uppercase;letter-spacing:.3px;display:block;margin-bottom:5px;">${u.remediations.length ? 'Add Another Remediation Flag *' : 'Remediation Note *'}</label>
-      <textarea id="remed-note-input" rows="3" placeholder="Describe the issue needing remediation..." style="width:100%;font-size:13px;padding:9px 12px;border:2px solid #e2e6ea;border-radius:8px;margin-bottom:6px;color:#0f1923;"></textarea>
-      <div id="remed-note-err" style="color:#A03033;font-size:12px;min-height:16px;margin-bottom:10px;"></div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
-        <button id="remed-note-cancel" style="padding:10px;font-size:13px;font-weight:600;background:#f0f2f5;color:#4a5568;border:none;border-radius:8px;cursor:pointer;">Cancel</button>
-        <button id="remed-note-confirm" style="padding:10px;font-size:13px;font-weight:700;background:#A03033;color:#fff;border:none;border-radius:8px;cursor:pointer;">&#9888; ${u.remediations.length ? 'Add Flag' : 'Flag Remediation'}</button>
-      </div>
-    </div>`;
-  document.body.appendChild(overlay);
-
-  const textarea = overlay.querySelector('#remed-note-input');
-  setTimeout(() => textarea.focus(), 50);
-
-  overlay.querySelector('#remed-note-confirm').addEventListener('click', () => {
-    const note  = textarea.value.trim();
-    const errEl = overlay.querySelector('#remed-note-err');
-    if (!note) { errEl.textContent = 'A note is required.'; return; }
-    const u = ensureBoardTracked(unitId);
-    syncRemediationSummary(u);
-    u.remediations.push({ note: note, ts: now(), operator: getOperator().name });
-    syncRemediationSummary(u);
-    u.history.push({ action: 'Remediation flagged', ts: now(), notes: note });
-    pushBoard(); renderAll();
-    overlay.remove();
-  });
-  overlay.querySelector('#remed-note-cancel').addEventListener('click', () => overlay.remove());
-  overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
-}
-
 /* ---- INIT ---- */
 /* ============================================================
    VERSION CHECK — actively detects when a newer copy of this
@@ -11512,7 +11535,7 @@ function openRemediationNoteModal(unitId) {
    visible stamp every time a change is made, or version checks
    against a stale reference and never fires.
    ============================================================ */
-const BUILD_DATE = '2026-08-20-53';
+const BUILD_DATE = '2026-08-20-54';
 let updateBannerShown = false;
 function checkForNewVersion() {
   if (updateBannerShown) return;

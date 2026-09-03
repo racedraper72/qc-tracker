@@ -995,7 +995,7 @@ label { font-size: 11px; font-weight: 600; color: var(--text-2); display: block;
 
 <!-- ============================================================ HEADER -->
 <div class="app-header">
-  <div id="build-stamp" title="If this looks out of date after an update was announced, hard-refresh with Ctrl+Shift+R (Cmd+Shift+R on Mac) to clear your browser's cached copy.">Build: <span id="build-stamp-text">2026-08-20-55</span></div>
+  <div id="build-stamp" title="If this looks out of date after an update was announced, hard-refresh with Ctrl+Shift+R (Cmd+Shift+R on Mac) to clear your browser's cached copy.">Build: <span id="build-stamp-text">2026-08-20-57</span></div>
   <div id="header-signed-in" style="position:absolute;top:26px;right:16px;font-size:11px;color:rgba(255,255,255,.75);white-space:nowrap;z-index:101;"></div>
   <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;flex:1;">
     <div style="background:#fff;border-radius:8px;padding:8px 14px;display:flex;align-items:center;box-shadow:0 1px 3px rgba(0,0,0,.15);">
@@ -6510,7 +6510,26 @@ function renderBoardUnitCard(u) {
     }
     actions+=`<button class="${u.held?'warn-btn':''}" onclick="quickHold('${u.id}')">${u.held?'&#8634; Remove hold':'&#9646; Hold'}</button>`;
     actions+=`<button class="${u.deviationNeeded?'danger':''}" onclick="toggleDeviation('${u.id}')">&#9888; ${u.deviationNeeded?'Deviation ('+u.deviations.length+') — Add another':'Deviation'}</button>`;
-    actions+=`<button class="${(u.remediationFlags||[]).length?'danger':''}" onclick="toggleRemediationFlag('${u.id}')">&#9888; ${(u.remediationFlags||[]).length?'Flagged for Remediation ('+u.remediationFlags.length+') — Add another':'Flag for Remediation'}</button>`;
+    // FLAG FOR REMEDIATION — its own dedicated, always-visible box
+    // (not a modal popup, not mixed in with Hold/Deviation as a plain
+    // button) — separate from the Start Remediation roster right below
+    // it. Purely informational: logs that this unit needs remediation,
+    // shows every existing flag with its own remove button, but never
+    // blocks Release on its own — only the roster below does that.
+    {
+      const flags = u.remediationFlags || [];
+      actions += `<div style="width:100%;padding:10px 12px;border:2px solid #A03033;border-radius:8px;background:#fdecea;">
+        <div style="font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.3px;color:#A03033;margin-bottom:8px;">&#9888; Flag for Remediation${flags.length?' — '+flags.length+' flagged':''}</div>
+        ${flags.map((f, idx) => `<div style="margin-bottom:6px;font-size:12px;color:#A03033;background:#fff;border:1px solid rgba(160,48,51,.25);border-radius:6px;padding:6px 8px;display:flex;justify-content:space-between;align-items:flex-start;gap:8px;">
+          <div>${f.note} <span style="opacity:.7;font-size:10px;">(${f.operator} — ${f.ts})</span></div>
+          <button onclick="removeRemediationFlag('${u.id}',${idx})" title="Remove" style="border:none;background:transparent;color:#A03033;font-weight:900;cursor:pointer;font-size:14px;padding:0 2px;flex-shrink:0;">&times;</button>
+        </div>`).join('')}
+        <div style="display:flex;gap:6px;">
+          <input id="bd-remedflag-note-${sid}" type="text" placeholder="Describe the issue..." style="flex:1;font-size:12px;padding:6px 8px;" />
+          <button class="danger sm" onclick="quickAddRemediationFlag('${u.id}')">&#9888; Add Flag</button>
+        </div>
+      </div>`;
+    }
     // REMEDIATION — full lifecycle now (Start → Finished → Release),
     // mirroring the Inspection roster exactly: any number of people can
     // independently start and stop their own remediation session on this
@@ -7035,7 +7054,20 @@ function quickFinishOneRemediator(unitId, idx) {
   u.remediationCheckins.splice(idx, 1);
   const stillWorking = u.remediationCheckins.length > 0;
   u.remediationStarted = stillWorking;
-  if (!stillWorking) u.remediationComplete = true;
+  if (!stillWorking) {
+    u.remediationComplete = true;
+    // The last person finishing means the work is genuinely done, so any
+    // Flag for Remediation notes logged earlier are cleared out too —
+    // the issue they described has now been addressed by this completed
+    // remediation. Recorded in history first so the reason for clearing
+    // isn't lost, since the flag text itself is about to disappear from
+    // the card.
+    const flagCount = (u.remediationFlags||[]).length;
+    if (flagCount) {
+      u.history.push({ action: flagCount+' remediation flag'+(flagCount!==1?'s':'')+' cleared — resolved by completed remediation', ts: now(), notes: '' });
+      u.remediationFlags = [];
+    }
+  }
   u.history.push({ action: 'Remediation finished at '+u.col+' — '+person.name+(stillWorking?'':' (last remediator — unit now Ready for Release)'), ts: now(), notes: '' });
   pushBoard(); renderAll();
 }
@@ -11536,10 +11568,22 @@ function openDeviationNoteModal(unitId) {
 function syncRemediationFlagSummary(u) {
   if (!Array.isArray(u.remediationFlags)) u.remediationFlags = [];
 }
-function toggleRemediationFlag(unitId) {
-  const u = ensureBoardTracked(unitId);
-  syncRemediationFlagSummary(u);
-  requireName(() => openRemediationFlagModal(unitId), 'Sign to flag Remediation');
+// Inline, dedicated-box version — no modal popup. Reads directly from
+// the always-visible input in the Flag for Remediation box on the card
+// (see renderBoardUnitCard), matching how the Start Remediation roster
+// input works right next to it.
+function quickAddRemediationFlag(unitId) {
+  requireName(() => {
+    const sid = safeId(unitId);
+    const noteEl = document.getElementById('bd-remedflag-note-'+sid);
+    const note = noteEl ? noteEl.value.trim() : '';
+    if (!note) { alert('Describe the issue first.'); return; }
+    const u = ensureBoardTracked(unitId);
+    syncRemediationFlagSummary(u);
+    u.remediationFlags.push({ note, ts: now(), operator: getOperator().name });
+    u.history.push({ action: 'Flagged for remediation', ts: now(), notes: note });
+    pushBoard(); renderAll();
+  }, 'Sign to flag Remediation');
 }
 function removeRemediationFlag(unitId, idx) {
   requireName(() => {
@@ -11552,54 +11596,6 @@ function removeRemediationFlag(unitId, idx) {
     u.history.push({ action: 'Remediation flag removed', ts: now(), notes: removed.note });
     pushBoard(); renderAll();
   }, 'Sign to remove Remediation flag');
-}
-function openRemediationFlagModal(unitId) {
-  const existing = document.getElementById('remediation-flag-overlay');
-  if (existing) existing.remove();
-  const u = ensureBoardTracked(unitId);
-  syncRemediationFlagSummary(u);
-
-  const overlay = document.createElement('div');
-  overlay.id = 'remediation-flag-overlay';
-  overlay.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.55);z-index:9999;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(2px);';
-  const existingListHtml = u.remediationFlags.length ? `
-      <label style="font-size:11px;font-weight:700;color:#4a5568;text-transform:uppercase;letter-spacing:.3px;display:block;margin-bottom:5px;">Existing Flags (${u.remediationFlags.length})</label>
-      <div style="max-height:120px;overflow-y:auto;margin-bottom:14px;border:1px solid #e2e6ea;border-radius:8px;padding:6px;">
-        ${u.remediationFlags.map((d, idx) => `<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;font-size:12px;padding:6px 8px;border-bottom:1px solid #f0f2f5;">
-          <div><div style="color:#0f1923;">${d.note}</div><div style="color:#8a96a8;font-size:10px;margin-top:2px;">${d.ts}</div></div>
-          <button onclick="removeRemediationFlag('${unitId}',${idx})" title="Remove" style="border:none;background:transparent;color:#A03033;font-weight:900;cursor:pointer;font-size:14px;padding:0 2px;flex-shrink:0;">&times;</button>
-        </div>`).join('')}
-      </div>` : '';
-  overlay.innerHTML = `
-    <div style="background:#fff;border-radius:16px;padding:28px 32px;max-width:400px;width:94%;box-shadow:0 24px 64px rgba(0,0,0,.28);">
-      <h2 style="font-size:16px;font-weight:800;color:#0f1923;margin-bottom:12px;letter-spacing:-.3px;">&#9888; Flag for Remediation — ${unitId}</h2>
-      ${existingListHtml}
-      <label style="font-size:11px;font-weight:700;color:#4a5568;text-transform:uppercase;letter-spacing:.3px;display:block;margin-bottom:5px;">${u.remediationFlags.length ? 'Add Another Flag *' : 'What needs remediation? *'}</label>
-      <textarea id="remedflag-note-input" rows="3" placeholder="Describe the issue..." style="width:100%;font-size:13px;padding:9px 12px;border:2px solid #e2e6ea;border-radius:8px;margin-bottom:6px;color:#0f1923;"></textarea>
-      <div id="remedflag-note-err" style="color:#A03033;font-size:12px;min-height:16px;margin-bottom:10px;"></div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
-        <button id="remedflag-note-cancel" style="padding:10px;font-size:13px;font-weight:600;background:#f0f2f5;color:#4a5568;border:none;border-radius:8px;cursor:pointer;">Cancel</button>
-        <button id="remedflag-note-confirm" style="padding:10px;font-size:13px;font-weight:700;background:#A03033;color:#fff;border:none;border-radius:8px;cursor:pointer;">&#9888; ${u.remediationFlags.length ? 'Add Flag' : 'Flag for Remediation'}</button>
-      </div>
-    </div>`;
-  document.body.appendChild(overlay);
-
-  const textarea = overlay.querySelector('#remedflag-note-input');
-  setTimeout(() => textarea.focus(), 50);
-
-  overlay.querySelector('#remedflag-note-confirm').addEventListener('click', () => {
-    const note  = textarea.value.trim();
-    const errEl = overlay.querySelector('#remedflag-note-err');
-    if (!note) { errEl.textContent = 'A note is required.'; return; }
-    const u = ensureBoardTracked(unitId);
-    syncRemediationFlagSummary(u);
-    u.remediationFlags.push({ note: note, ts: now(), operator: getOperator().name });
-    u.history.push({ action: 'Flagged for remediation', ts: now(), notes: note });
-    pushBoard(); renderAll();
-    overlay.remove();
-  });
-  overlay.querySelector('#remedflag-note-cancel').addEventListener('click', () => overlay.remove());
-  overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
 }
 
 /* ---- INIT ---- */
@@ -11617,7 +11613,7 @@ function openRemediationFlagModal(unitId) {
    visible stamp every time a change is made, or version checks
    against a stale reference and never fires.
    ============================================================ */
-const BUILD_DATE = '2026-08-20-55';
+const BUILD_DATE = '2026-08-20-57';
 let updateBannerShown = false;
 function checkForNewVersion() {
   if (updateBannerShown) return;

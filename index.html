@@ -995,7 +995,7 @@ label { font-size: 11px; font-weight: 600; color: var(--text-2); display: block;
 
 <!-- ============================================================ HEADER -->
 <div class="app-header">
-  <div id="build-stamp" title="If this looks out of date after an update was announced, hard-refresh with Ctrl+Shift+R (Cmd+Shift+R on Mac) to clear your browser's cached copy.">Build: <span id="build-stamp-text">2026-08-20-51</span></div>
+  <div id="build-stamp" title="If this looks out of date after an update was announced, hard-refresh with Ctrl+Shift+R (Cmd+Shift+R on Mac) to clear your browser's cached copy.">Build: <span id="build-stamp-text">2026-08-20-52</span></div>
   <div id="header-signed-in" style="position:absolute;top:26px;right:16px;font-size:11px;color:rgba(255,255,255,.75);white-space:nowrap;z-index:101;"></div>
   <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;flex:1;">
     <div style="background:#fff;border-radius:8px;padding:8px 14px;display:flex;align-items:center;box-shadow:0 1px 3px rgba(0,0,0,.15);">
@@ -1269,6 +1269,7 @@ label { font-size: 11px; font-weight: 600; color: var(--text-2); display: block;
   <!-- Time in Process by Unit -->
   <div class="chart-card" id="pm-time-chart" style="margin-bottom:14px;"></div>
   <div class="chart-card" id="pm-duedate-chart" style="margin-bottom:14px;"></div>
+  <div class="chart-card" id="pm-cleaning-time" style="margin-bottom:14px;"></div>
   <div class="chart-card" id="pm-issue-closing-time" style="margin-bottom:14px;"></div>
   <div class="chart-card" id="pm-issue-closures" style="margin-bottom:14px;"></div>
   <div class="chart-card" id="pm-checklist-fails" style="margin-bottom:14px;"></div>
@@ -4794,7 +4795,7 @@ function jsonpSave(tab, rows) {
   const header = tab==='QC'
     ? ['Serial','Type','Station','InspectionStarted','Held','Remediation','RemediationOrigin','Completed','Status','HistoryJSON']
     : tab==='Board'
-    ? ['UnitID','Line','Column','Held','Completed','Notes','ESONumber','GensetSerial','ReadyForInspection','InspectionStarted','HistoryJSON','SupervisorReleased','SupervisorReleaseTs','DeviationNeeded','DeviationNote','DeviationTs','ChecklistJSON','QCChecklistJSON','FailOverridesJSON','Station2TasksJSON','SolutionsESO','DueDate','LeadCheckinsJSON','StationTrackerTasksJSON','FuelTankSerial','Location','MapX','MapY','MapRotation','DeviationsJSON','InspectionComplete','WeatherReadySignoffsJSON','ChecklistMetaJSON','QCChecklistMetaJSON','IssueClosuresJSON','RemediationsJSON','IssueClosingSessionsJSON']
+    ? ['UnitID','Line','Column','Held','Completed','Notes','ESONumber','GensetSerial','ReadyForInspection','InspectionStarted','HistoryJSON','SupervisorReleased','SupervisorReleaseTs','DeviationNeeded','DeviationNote','DeviationTs','ChecklistJSON','QCChecklistJSON','FailOverridesJSON','Station2TasksJSON','SolutionsESO','DueDate','LeadCheckinsJSON','StationTrackerTasksJSON','FuelTankSerial','Location','MapX','MapY','MapRotation','DeviationsJSON','InspectionComplete','WeatherReadySignoffsJSON','ChecklistMetaJSON','QCChecklistMetaJSON','IssueClosuresJSON','RemediationsJSON','IssueClosingSessionsJSON','CleaningSessionsJSON']
     : ['UnitID','Link','UpdatedAt'];
   const payload = JSON.stringify({action:'save', rows:[header,...rows]});
 
@@ -4885,13 +4886,14 @@ function syncFromSheetsViaGAS(onDone) {
           let issueClosures=[]; try{issueClosures=JSON.parse(r[34]||'[]');}catch(e){}
           let remediations=[]; try{remediations=JSON.parse(r[35]||'[]');}catch(e){}
           let issueClosingSessions=[]; try{issueClosingSessions=JSON.parse(r[36]||'[]');}catch(e){}
+          let cleaningSessions=[]; try{cleaningSessions=JSON.parse(r[37]||'[]');}catch(e){}
           // Migrate a pre-existing single deviation (from before the deviations
           // list existed) into the list, so historical entries synced from an
           // older build aren't silently dropped the first time they're pulled.
           if (deviations.length===0 && (r[13]==='TRUE'||r[13]===true) && r[14]) deviations=[{note:r[14],ts:r[15]||'',operator:''}];
           return {id:r[0],line:r[1],col:r[2],held:r[3]==='TRUE'||r[3]===true,completed:r[4]==='TRUE'||r[4]===true,notes:r[5]||'',esoNumber:r[6]||'',gensetSerial:r[7]||'',readyForInspection:r[8]==='TRUE'||r[8]===true,inspectionStarted:r[9]==='TRUE'||r[9]===true,history,
             supervisorReleased:r[11]==='TRUE'||r[11]===true,supervisorReleaseTs:r[12]||'',
-            deviationNeeded:r[13]==='TRUE'||r[13]===true,deviationNote:r[14]||'',deviationTs:r[15]||'',checklist,qcChecklist,failOverrides,station2Tasks,solutionsEso:r[20]||'',dueDate:normalizeDueDate(r[21]),leadCheckins,stationTrackerTasks,fuelTankSerial:r[24]||'',location:r[25]||'',mapX:r[26]!==undefined&&r[26]!==''?parseFloat(r[26]):null,mapY:r[27]!==undefined&&r[27]!==''?parseFloat(r[27]):null,mapRotation:r[28]!==undefined&&r[28]!==''?parseFloat(r[28]):0,deviations,inspectionComplete:r[30]==='TRUE'||r[30]===true,weatherReadySignoffs,checklistMeta,qcChecklistMeta,issueClosures,remediations,issueClosingSessions};
+            deviationNeeded:r[13]==='TRUE'||r[13]===true,deviationNote:r[14]||'',deviationTs:r[15]||'',checklist,qcChecklist,failOverrides,station2Tasks,solutionsEso:r[20]||'',dueDate:normalizeDueDate(r[21]),leadCheckins,stationTrackerTasks,fuelTankSerial:r[24]||'',location:r[25]||'',mapX:r[26]!==undefined&&r[26]!==''?parseFloat(r[26]):null,mapY:r[27]!==undefined&&r[27]!==''?parseFloat(r[27]):null,mapRotation:r[28]!==undefined&&r[28]!==''?parseFloat(r[28]):0,deviations,inspectionComplete:r[30]==='TRUE'||r[30]===true,weatherReadySignoffs,checklistMeta,qcChecklistMeta,issueClosures,remediations,issueClosingSessions,cleaningSessions};
         });
       }
       jsonpCall(sheetsUrl+'?tab=Issues', function(err3, rows3) {
@@ -4932,7 +4934,7 @@ function proxySave(tab, rows) {
   const header = tab==='QC'
     ? ['Serial','Type','Station','InspectionStarted','Held','Remediation','RemediationOrigin','Completed','Status','HistoryJSON']
     : tab==='Board'
-    ? ['UnitID','Line','Column','Held','Completed','Notes','ESONumber','GensetSerial','ReadyForInspection','InspectionStarted','HistoryJSON','SupervisorReleased','SupervisorReleaseTs','DeviationNeeded','DeviationNote','DeviationTs','ChecklistJSON','QCChecklistJSON','FailOverridesJSON','Station2TasksJSON','SolutionsESO','DueDate','LeadCheckinsJSON','StationTrackerTasksJSON','FuelTankSerial','Location','MapX','MapY','MapRotation','DeviationsJSON','InspectionComplete','WeatherReadySignoffsJSON','ChecklistMetaJSON','QCChecklistMetaJSON','IssueClosuresJSON','RemediationsJSON','IssueClosingSessionsJSON']
+    ? ['UnitID','Line','Column','Held','Completed','Notes','ESONumber','GensetSerial','ReadyForInspection','InspectionStarted','HistoryJSON','SupervisorReleased','SupervisorReleaseTs','DeviationNeeded','DeviationNote','DeviationTs','ChecklistJSON','QCChecklistJSON','FailOverridesJSON','Station2TasksJSON','SolutionsESO','DueDate','LeadCheckinsJSON','StationTrackerTasksJSON','FuelTankSerial','Location','MapX','MapY','MapRotation','DeviationsJSON','InspectionComplete','WeatherReadySignoffsJSON','ChecklistMetaJSON','QCChecklistMetaJSON','IssueClosuresJSON','RemediationsJSON','IssueClosingSessionsJSON','CleaningSessionsJSON']
     : ['UnitID','Link','UpdatedAt'];
   return proxyFetch('?action=save&tab='+tab, {
     method: 'POST',
@@ -5333,13 +5335,14 @@ function syncFromSheetsViaSmartsheet(onDone) {
           let issueClosures=[]; try{issueClosures=JSON.parse(r[34]||'[]');}catch(e){}
           let remediations=[]; try{remediations=JSON.parse(r[35]||'[]');}catch(e){}
           let issueClosingSessions=[]; try{issueClosingSessions=JSON.parse(r[36]||'[]');}catch(e){}
+          let cleaningSessions=[]; try{cleaningSessions=JSON.parse(r[37]||'[]');}catch(e){}
           // Migrate a pre-existing single deviation (from before the deviations
           // list existed) into the list, so historical entries synced from an
           // older build aren't silently dropped the first time they're pulled.
           if (deviations.length===0 && (r[13]==='TRUE'||r[13]===true) && r[14]) deviations=[{note:r[14],ts:r[15]||'',operator:''}];
         return {id:r[0],line:r[1],col:r[2],held:r[3]==='TRUE'||r[3]===true,completed:r[4]==='TRUE'||r[4]===true,notes:r[5]||'',esoNumber:r[6]||'',gensetSerial:r[7]||'',readyForInspection:r[8]==='TRUE'||r[8]===true,inspectionStarted:r[9]==='TRUE'||r[9]===true,history,
           supervisorReleased:r[11]==='TRUE'||r[11]===true,supervisorReleaseTs:r[12]||'',
-          deviationNeeded:r[13]==='TRUE'||r[13]===true,deviationNote:r[14]||'',deviationTs:r[15]||'',checklist,qcChecklist,failOverrides,station2Tasks,solutionsEso:r[20]||'',dueDate:normalizeDueDate(r[21]),leadCheckins,stationTrackerTasks,fuelTankSerial:r[24]||'',location:r[25]||'',mapX:r[26]!==undefined&&r[26]!==''?parseFloat(r[26]):null,mapY:r[27]!==undefined&&r[27]!==''?parseFloat(r[27]):null,mapRotation:r[28]!==undefined&&r[28]!==''?parseFloat(r[28]):0,deviations,inspectionComplete:r[30]==='TRUE'||r[30]===true,weatherReadySignoffs,checklistMeta,qcChecklistMeta,issueClosures,remediations,issueClosingSessions};
+          deviationNeeded:r[13]==='TRUE'||r[13]===true,deviationNote:r[14]||'',deviationTs:r[15]||'',checklist,qcChecklist,failOverrides,station2Tasks,solutionsEso:r[20]||'',dueDate:normalizeDueDate(r[21]),leadCheckins,stationTrackerTasks,fuelTankSerial:r[24]||'',location:r[25]||'',mapX:r[26]!==undefined&&r[26]!==''?parseFloat(r[26]):null,mapY:r[27]!==undefined&&r[27]!==''?parseFloat(r[27]):null,mapRotation:r[28]!==undefined&&r[28]!==''?parseFloat(r[28]):0,deviations,inspectionComplete:r[30]==='TRUE'||r[30]===true,weatherReadySignoffs,checklistMeta,qcChecklistMeta,issueClosures,remediations,issueClosingSessions,cleaningSessions};
       });
     }
     if (rows3 && rows3.length>1) {
@@ -5406,7 +5409,7 @@ function loadLocalCache() {
    seen (via push OR pull) and padding any smaller push with blank rows up
    to that count guarantees every previously-used row gets overwritten
    with blanks, regardless of how the backend script writes the range. */
-const BOARD_COL_COUNT = 37;
+const BOARD_COL_COUNT = 38;
 const QC_COL_COUNT = 10;
 function bumpRowFloor(tab, count) {
   const key = 'push_row_floor_' + tab;
@@ -5457,7 +5460,7 @@ function pushBoard(force) {
   if (!force && isStaleRelativeToReset()) { syncFromSheets(); return Promise.resolve(false); }
   boardLastLocalEditAt = Date.now();
   saveLocalCache();
-  const rows = boardUnits.map(u=>[u.id,u.line,u.col,u.held,u.completed,u.notes,u.esoNumber||'',u.gensetSerial||'',u.readyForInspection||false,u.inspectionStarted||false,JSON.stringify(u.history),u.supervisorReleased||false,u.supervisorReleaseTs||'',u.deviationNeeded||false,u.deviationNote||'',u.deviationTs||'',JSON.stringify(u.checklist||{}),JSON.stringify(u.qcChecklist||{}),JSON.stringify(u.failOverrides||[]),JSON.stringify(u.station2Tasks||{}),u.solutionsEso||'',u.dueDate||'',JSON.stringify(u.leadCheckins||[]),JSON.stringify(u.stationTrackerTasks||{}),u.fuelTankSerial||'',u.location||'',u.mapX==null?'':u.mapX,u.mapY==null?'':u.mapY,u.mapRotation==null?'':u.mapRotation,JSON.stringify(u.deviations||[]),u.inspectionComplete||false,JSON.stringify(u.weatherReadySignoffs||{}),JSON.stringify(u.checklistMeta||{}),JSON.stringify(u.qcChecklistMeta||{}),JSON.stringify(u.issueClosures||[]),JSON.stringify(u.remediations||[]),JSON.stringify(u.issueClosingSessions||[])]);
+  const rows = boardUnits.map(u=>[u.id,u.line,u.col,u.held,u.completed,u.notes,u.esoNumber||'',u.gensetSerial||'',u.readyForInspection||false,u.inspectionStarted||false,JSON.stringify(u.history),u.supervisorReleased||false,u.supervisorReleaseTs||'',u.deviationNeeded||false,u.deviationNote||'',u.deviationTs||'',JSON.stringify(u.checklist||{}),JSON.stringify(u.qcChecklist||{}),JSON.stringify(u.failOverrides||[]),JSON.stringify(u.station2Tasks||{}),u.solutionsEso||'',u.dueDate||'',JSON.stringify(u.leadCheckins||[]),JSON.stringify(u.stationTrackerTasks||{}),u.fuelTankSerial||'',u.location||'',u.mapX==null?'':u.mapX,u.mapY==null?'':u.mapY,u.mapRotation==null?'':u.mapRotation,JSON.stringify(u.deviations||[]),u.inspectionComplete||false,JSON.stringify(u.weatherReadySignoffs||{}),JSON.stringify(u.checklistMeta||{}),JSON.stringify(u.qcChecklistMeta||{}),JSON.stringify(u.issueClosures||[]),JSON.stringify(u.remediations||[]),JSON.stringify(u.issueClosingSessions||[]),JSON.stringify(u.cleaningSessions||[])]);
   const padded = padRowsToFloor('Board', rows, BOARD_COL_COUNT);
   return syncTarget === 'smartsheet' ? proxySave('Board', padded) : jsonpSave('Board', padded);
 }
@@ -5810,7 +5813,7 @@ function _addAllBoardUnits() {
   if (hasError) return;
   toAdd.forEach(u => {
     removeDeletedUnitId(u.id);
-    boardUnits.push({id:u.id,line:u.line,col:u.col,held:false,completed:false,notes:u.notes,esoNumber:'',gensetSerial:u.gensetSerial||'',fuelTankSerial:'',location:'',mapX:null,mapY:null,solutionsEso:u.solEso||'',dueDate:u.dueDate||'',leadCheckins:[],readyForInspection:false,inspectionStarted:false,inspectionComplete:false,weatherReadySignoffs:{},issueClosures:[],supervisorReleased:false,supervisorReleaseTs:'',deviationNeeded:false,deviationNote:'',deviationTs:'',deviations:[],remediationNeeded:false,remediationNote:'',remediationTs:'',remediations:[],issueClosingSessions:[],checklist:{},qcChecklist:{},checklistMeta:{},qcChecklistMeta:{},failOverrides:[],station2Tasks:{},stationTrackerTasks:{},history:[{action:'Added to '+u.col,ts:now(),notes:u.notes}]});
+    boardUnits.push({id:u.id,line:u.line,col:u.col,held:false,completed:false,notes:u.notes,esoNumber:'',gensetSerial:u.gensetSerial||'',fuelTankSerial:'',location:'',mapX:null,mapY:null,solutionsEso:u.solEso||'',dueDate:u.dueDate||'',leadCheckins:[],readyForInspection:false,inspectionStarted:false,inspectionComplete:false,weatherReadySignoffs:{},issueClosures:[],supervisorReleased:false,supervisorReleaseTs:'',deviationNeeded:false,deviationNote:'',deviationTs:'',deviations:[],remediationNeeded:false,remediationNote:'',remediationTs:'',remediations:[],issueClosingSessions:[],cleaningSessions:[],checklist:{},qcChecklist:{},checklistMeta:{},qcChecklistMeta:{},failOverrides:[],station2Tasks:{},stationTrackerTasks:{},history:[{action:'Added to '+u.col,ts:now(),notes:u.notes}]});
   });
   err.textContent=''; document.getElementById('board-add-form').style.display='none';
   pushBoard(); renderAll();
@@ -5828,7 +5831,7 @@ function getAllBoardUnits() {
         if (deleted.includes(uid)) return; // tombstoned — don't resurrect from the static seed
         if (!merged.find(u=>u.id===uid)) {
           const tracked=boardUnits.find(u=>u.id===uid);
-          merged.push(tracked||{id:uid,line:line.id,col:col.label,held:false,completed:false,notes:'',esoNumber:'',gensetSerial:'',fuelTankSerial:'',location:'',mapX:null,mapY:null,solutionsEso:'',dueDate:'',leadCheckins:[],readyForInspection:false,inspectionStarted:false,inspectionComplete:false,weatherReadySignoffs:{},issueClosures:[],supervisorReleased:false,supervisorReleaseTs:'',deviationNeeded:false,deviationNote:'',deviationTs:'',deviations:[],remediationNeeded:false,remediationNote:'',remediationTs:'',remediations:[],issueClosingSessions:[],checklist:{},qcChecklist:{},checklistMeta:{},qcChecklistMeta:{},failOverrides:[],station2Tasks:{},stationTrackerTasks:{},history:[]});
+          merged.push(tracked||{id:uid,line:line.id,col:col.label,held:false,completed:false,notes:'',esoNumber:'',gensetSerial:'',fuelTankSerial:'',location:'',mapX:null,mapY:null,solutionsEso:'',dueDate:'',leadCheckins:[],readyForInspection:false,inspectionStarted:false,inspectionComplete:false,weatherReadySignoffs:{},issueClosures:[],supervisorReleased:false,supervisorReleaseTs:'',deviationNeeded:false,deviationNote:'',deviationTs:'',deviations:[],remediationNeeded:false,remediationNote:'',remediationTs:'',remediations:[],issueClosingSessions:[],cleaningSessions:[],checklist:{},qcChecklist:{},checklistMeta:{},qcChecklistMeta:{},failOverrides:[],station2Tasks:{},stationTrackerTasks:{},history:[]});
         }
       });
     });
@@ -5865,12 +5868,13 @@ function renderLineSummary() {
       const cu=getColUnits(line.id,col.label); const count=cu.length;
       const hasHeld=cu.some(u=>u.held); const hasDone=cu.some(u=>u.completed);
       const hasDeviation=cu.some(u=>u.deviationNeeded);
+      const hasRemediation=cu.some(u=>u.remediationNeeded);
       const hasFail=cu.some(u=>{
         const cS=getChecklistState(u), qS=getQCChecklistState(u);
         return (cS && cS.includes('fail')) || (qS && qS.includes('fail'));
       });
-      const cls=count>0?(hasDeviation?'has-deviation':hasFail?'has-fail':hasHeld?'has-held':hasDone?'has-done':'has-units'):'';
-      const topColor=count>0?(hasDeviation?'#A03033':hasFail?'#A03033':hasHeld?'#7a5d00':hasDone?'#107c10':line.headerColor):'#edebe9';
+      const cls=count>0?(hasRemediation?'remediation-alert has-deviation':hasDeviation?'has-deviation':hasFail?'has-fail':hasHeld?'has-held':hasDone?'has-done':'has-units'):'';
+      const topColor=count>0?(hasRemediation?'#A03033':hasDeviation?'#A03033':hasFail?'#A03033':hasHeld?'#7a5d00':hasDone?'#107c10':line.headerColor):'#edebe9';
       const shortLabel=col.label.replace('Station ','Stn ').replace('In the Hole','Hole').replace('On Deck','Deck').replace('Ready to Ship','✓ RTS').replace('Holding ','Hold.').replace('Load Bank','LB');
       // Color each unit's name by ITS OWN checklist status — green once fully
       // passed (ready to move on), red if it currently has a Fail item.
@@ -6361,6 +6365,25 @@ function renderBoardUnitCard(u) {
         <button class="sm" onclick="quickStartIssueClosing('${u.id}')">&#128295; Confirm Start</button>
       </div>`;
     }
+    // START CLEANING — the Cleaning station only. Same multi-person,
+    // time-logged pattern as Start Issue Closing above — independent
+    // start/stop per person, duration tracked in PM View — just scoped
+    // to this one specific station instead of every production station.
+    if (u.col === 'Cleaning') {
+      const openCleaners = (u.cleaningSessions||[]).map((c,i)=>({...c,idx:i})).filter(c => !c.endTs);
+      actions += `<div style="width:100%;display:flex;flex-direction:column;gap:6px;">`;
+      actions += openCleaners.map(c => `<div style="display:flex;justify-content:space-between;align-items:center;background:#e6f0fa;border:1px solid #0078d4;border-radius:8px;padding:6px 10px;gap:8px;">
+        <span style="font-size:12px;font-weight:600;color:#0078d4;">&#129529; ${c.name} — Cleaning since ${c.startTs}</span>
+        <button class="warn-btn sm" onclick="quickStopCleaning('${u.id}',${c.idx})">&#9208; Stop</button>
+      </div>`).join('');
+      actions += `<button onclick="togglePanel('bd-startclean-${sid}')">&#129529; Start Cleaning${openCleaners.length?' — add another':''}</button>`;
+      actions += `</div>`;
+      panels += `<div class="action-group" id="bd-startclean-${sid}">
+        <label>Name</label>
+        <input id="bd-startclean-name-${sid}" type="text" placeholder="Their name" />
+        <button class="sm" onclick="quickStartCleaning('${u.id}')">&#129529; Confirm Start</button>
+      </div>`;
+    }
     // Inspection cols — a persistent, always-visible roster of everyone
     // currently inspecting this unit, shown immediately on arrival — no
     // separate "Ready for Inspection" click needed first anymore. Multiple
@@ -6582,7 +6605,7 @@ function ensureBoardTracked(unitId) {
   if (!u) {
     const line=CONFIG.lines.find(l=>l.columns.some(c=>c.units.includes(unitId)));
     const col=line?line.columns.find(c=>c.units.includes(unitId)):null;
-    u={id:unitId,line:line?line.id:activeLine,col:col?col.label:activeCol,held:false,completed:false,notes:'',esoNumber:'',gensetSerial:'',fuelTankSerial:'',location:'',mapX:null,mapY:null,solutionsEso:'',dueDate:'',leadCheckins:[],readyForInspection:false,inspectionStarted:false,inspectionComplete:false,weatherReadySignoffs:{},issueClosures:[],supervisorReleased:false,supervisorReleaseTs:'',deviationNeeded:false,deviationNote:'',deviationTs:'',deviations:[],remediationNeeded:false,remediationNote:'',remediationTs:'',remediations:[],issueClosingSessions:[],checklist:{},qcChecklist:{},checklistMeta:{},qcChecklistMeta:{},failOverrides:[],station2Tasks:{},stationTrackerTasks:{},history:[]};
+    u={id:unitId,line:line?line.id:activeLine,col:col?col.label:activeCol,held:false,completed:false,notes:'',esoNumber:'',gensetSerial:'',fuelTankSerial:'',location:'',mapX:null,mapY:null,solutionsEso:'',dueDate:'',leadCheckins:[],readyForInspection:false,inspectionStarted:false,inspectionComplete:false,weatherReadySignoffs:{},issueClosures:[],supervisorReleased:false,supervisorReleaseTs:'',deviationNeeded:false,deviationNote:'',deviationTs:'',deviations:[],remediationNeeded:false,remediationNote:'',remediationTs:'',remediations:[],issueClosingSessions:[],cleaningSessions:[],checklist:{},qcChecklist:{},checklistMeta:{},qcChecklistMeta:{},failOverrides:[],station2Tasks:{},stationTrackerTasks:{},history:[]};
     boardUnits.push(u);
   }
   return u;
@@ -6889,6 +6912,29 @@ function quickStopIssueClosing(unitId, idx) {
   const session = u.issueClosingSessions[idx];
   session.endTs = now();
   u.history.push({ action: session.name+' stopped issue closing at '+u.col, ts: now(), notes: '' });
+  pushBoard(); renderAll();
+}
+// START/STOP CLEANING — same pattern as Start/Stop Issue Closing above,
+// just its own separate array (cleaningSessions) and scoped to the
+// Cleaning station specifically, so it's tracked and reported on
+// distinctly from issue-closing time.
+function quickStartCleaning(unitId) {
+  const sid = safeId(unitId);
+  const nameEl = document.getElementById('bd-startclean-name-'+sid);
+  const name = nameEl ? nameEl.value.trim() : '';
+  if (!name) { alert('Enter a name first.'); return; }
+  const u = ensureBoardTracked(unitId);
+  if (!u.cleaningSessions) u.cleaningSessions = [];
+  u.cleaningSessions.push({ station: u.col, name, startTs: now(), endTs: '' });
+  u.history.push({ action: name+' started cleaning at '+u.col, ts: now(), notes: '' });
+  pushBoard(); renderAll();
+}
+function quickStopCleaning(unitId, idx) {
+  const u = ensureBoardTracked(unitId);
+  if (!u.cleaningSessions || !u.cleaningSessions[idx]) return;
+  const session = u.cleaningSessions[idx];
+  session.endTs = now();
+  u.history.push({ action: session.name+' stopped cleaning at '+u.col, ts: now(), notes: '' });
   pushBoard(); renderAll();
 }
 // Undoes a mistaken Finish — brings a unit back out of "Ready for
@@ -7382,7 +7428,7 @@ function eauAddAllUnits() {
   if (hasError) return;
   toAdd.forEach(u => {
     removeDeletedUnitId(u.id);
-    boardUnits.push({id:u.id,line:u.line,col:u.col,held:false,completed:false,notes:u.notes,esoNumber:'',gensetSerial:u.gensetSerial||'',fuelTankSerial:'',location:'',mapX:null,mapY:null,solutionsEso:u.solEso,dueDate:u.dueDate,leadCheckins:[],readyForInspection:false,inspectionStarted:false,inspectionComplete:false,weatherReadySignoffs:{},issueClosures:[],supervisorReleased:false,supervisorReleaseTs:'',deviationNeeded:false,deviationNote:'',deviationTs:'',deviations:[],remediationNeeded:false,remediationNote:'',remediationTs:'',remediations:[],issueClosingSessions:[],checklist:{},qcChecklist:{},checklistMeta:{},qcChecklistMeta:{},failOverrides:[],station2Tasks:{},stationTrackerTasks:{},history:[{action:'Added to '+u.col,ts:now(),notes:u.notes}]});
+    boardUnits.push({id:u.id,line:u.line,col:u.col,held:false,completed:false,notes:u.notes,esoNumber:'',gensetSerial:u.gensetSerial||'',fuelTankSerial:'',location:'',mapX:null,mapY:null,solutionsEso:u.solEso,dueDate:u.dueDate,leadCheckins:[],readyForInspection:false,inspectionStarted:false,inspectionComplete:false,weatherReadySignoffs:{},issueClosures:[],supervisorReleased:false,supervisorReleaseTs:'',deviationNeeded:false,deviationNote:'',deviationTs:'',deviations:[],remediationNeeded:false,remediationNote:'',remediationTs:'',remediations:[],issueClosingSessions:[],cleaningSessions:[],checklist:{},qcChecklist:{},checklistMeta:{},qcChecklistMeta:{},failOverrides:[],station2Tasks:{},stationTrackerTasks:{},history:[{action:'Added to '+u.col,ts:now(),notes:u.notes}]});
   });
   err.textContent = '';
   document.getElementById('eau-rows').innerHTML = ''; eauRowCtr = 0; eauAddRow();
@@ -7654,6 +7700,7 @@ function renderPMPage() {
   renderPMLineProgress();
   renderPMTimeChart();
   renderPMDueDateChart();
+  renderPMCleaningTime();
   renderPMIssueClosingTime();
   renderPMIssueClosures();
   renderPMChecklistFails();
@@ -8574,6 +8621,86 @@ function pmGetIssueClosingSessions() {
   });
   rows.sort((a, b) => new Date(b.endTs) - new Date(a.endTs));
   return rows;
+}
+// Same idea as pmGetIssueClosingSessions — explicit startTs/endTs, no
+// pairing logic needed, just its own separate array and station.
+function pmGetCleaningSessions() {
+  const rows = [];
+  getAllBoardUnits().forEach(u => {
+    (u.cleaningSessions || []).forEach(s => {
+      if (!s.endTs) return;
+      const startMs = new Date(s.startTs).getTime();
+      const endMs = new Date(s.endTs).getTime();
+      if (isNaN(startMs) || isNaN(endMs) || endMs < startMs) return;
+      rows.push({ unitId: u.id, name: s.name, station: s.station, startTs: s.startTs, endTs: s.endTs, durationMs: endMs - startMs });
+    });
+  });
+  rows.sort((a, b) => new Date(b.endTs) - new Date(a.endTs));
+  return rows;
+}
+function renderPMCleaningTime() {
+  const el = document.getElementById('pm-cleaning-time'); if (!el) return;
+  const sessions = pmGetCleaningSessions();
+  if (!sessions.length) {
+    el.innerHTML = `<div class="chart-title">Cleaning Time <span class="chart-subtitle">How long cleaning takes, per unit</span></div><p style="font-size:13px;color:#605e5c;">No completed cleaning sessions recorded yet.</p>`;
+    return;
+  }
+
+  const now = new Date();
+  const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const startOfWeek = new Date(startOfDay); startOfWeek.setDate(startOfWeek.getDate() - startOfWeek.getDay());
+  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+  const bucket = (since) => sessions.filter(s => new Date(s.endTs) >= since);
+  const summarize = (list) => {
+    if (!list.length) return { count: 0, avg: '—', total: '—' };
+    const totalMs = list.reduce((sum, s) => sum + s.durationMs, 0);
+    return { count: list.length, avg: pmFormatDuration(totalMs / list.length), total: pmFormatDuration(totalMs) };
+  };
+  const today = summarize(bucket(startOfDay));
+  const week = summarize(bucket(startOfWeek));
+  const month = summarize(bucket(startOfMonth));
+
+  const kpiCard = (label, s) => `<div style="border-top:3px solid #0078d4;background:var(--surface-2,#faf9f8);border-radius:8px;padding:10px 12px;">
+    <div style="font-size:10px;color:var(--text-3,#8a96a8);text-transform:uppercase;letter-spacing:.3px;margin-bottom:4px;">${label}</div>
+    <div style="font-size:18px;font-weight:800;color:#0078d4;">${s.count}</div>
+    <div style="font-size:11px;color:var(--text-2,#605e5c);margin-top:2px;">sessions · avg ${s.avg}${s.count?' · total '+s.total:''}</div>
+  </div>`;
+
+  const openNow = [];
+  getAllBoardUnits().forEach(u => {
+    (u.cleaningSessions || []).filter(s => !s.endTs).forEach(s => openNow.push({ unitId: u.id, name: s.name, station: s.station }));
+  });
+  const openNowHtml = openNow.length ? `<div style="margin-bottom:12px;">
+    <div style="font-size:11px;font-weight:700;color:#0078d4;text-transform:uppercase;letter-spacing:.3px;margin-bottom:6px;">&#129529; Currently Cleaning (${openNow.length})</div>
+    ${openNow.map(o => `<span style="font-size:11px;background:#e6f0fa;color:#0078d4;border:1px solid #0078d4;border-radius:20px;padding:3px 10px;font-weight:700;margin:0 6px 6px 0;display:inline-block;">${o.name} — ${o.unitId}</span>`).join('')}
+  </div>` : '';
+
+  const recent = sessions.slice(0, 25);
+  const rows = recent.map(s => `<tr>
+    <td style="padding:6px 10px;font-size:12px;font-weight:600;">${s.unitId}</td>
+    <td style="padding:6px 10px;font-size:12px;">${s.name}</td>
+    <td style="padding:6px 10px;font-size:12px;font-weight:600;">${pmFormatDuration(s.durationMs)}</td>
+    <td style="padding:6px 10px;font-size:11px;color:var(--text-3,#8a96a8);">${s.endTs}</td>
+  </tr>`).join('');
+
+  el.innerHTML = `<div class="chart-title">Cleaning Time <span class="chart-subtitle">${sessions.length} completed session${sessions.length!==1?'s':''} total</span></div>
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:14px;">
+      ${kpiCard('Today', today)}
+      ${kpiCard('This Week', week)}
+      ${kpiCard('This Month', month)}
+    </div>
+    ${openNowHtml}
+    <div style="overflow-x:auto;">
+      <table style="width:100%;border-collapse:collapse;">
+        <thead><tr style="border-bottom:2px solid #edebe9;text-align:left;">
+          <th style="padding:6px 10px;font-size:11px;color:var(--text-3,#8a96a8);text-transform:uppercase;">Unit</th>
+          <th style="padding:6px 10px;font-size:11px;color:var(--text-3,#8a96a8);text-transform:uppercase;">By</th>
+          <th style="padding:6px 10px;font-size:11px;color:var(--text-3,#8a96a8);text-transform:uppercase;">Duration</th>
+          <th style="padding:6px 10px;font-size:11px;color:var(--text-3,#8a96a8);text-transform:uppercase;">Ended</th>
+        </tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>`;
 }
 function renderPMIssueClosingTime() {
   const el = document.getElementById('pm-issue-closing-time'); if (!el) return;
@@ -11383,7 +11510,7 @@ function openRemediationNoteModal(unitId) {
    visible stamp every time a change is made, or version checks
    against a stale reference and never fires.
    ============================================================ */
-const BUILD_DATE = '2026-08-20-51';
+const BUILD_DATE = '2026-08-20-52';
 let updateBannerShown = false;
 function checkForNewVersion() {
   if (updateBannerShown) return;

@@ -995,7 +995,7 @@ label { font-size: 11px; font-weight: 600; color: var(--text-2); display: block;
 
 <!-- ============================================================ HEADER -->
 <div class="app-header">
-  <div id="build-stamp" title="If this looks out of date after an update was announced, hard-refresh with Ctrl+Shift+R (Cmd+Shift+R on Mac) to clear your browser's cached copy.">Build: <span id="build-stamp-text">2026-08-20-54</span></div>
+  <div id="build-stamp" title="If this looks out of date after an update was announced, hard-refresh with Ctrl+Shift+R (Cmd+Shift+R on Mac) to clear your browser's cached copy.">Build: <span id="build-stamp-text">2026-08-20-55</span></div>
   <div id="header-signed-in" style="position:absolute;top:26px;right:16px;font-size:11px;color:rgba(255,255,255,.75);white-space:nowrap;z-index:101;"></div>
   <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;flex:1;">
     <div style="background:#fff;border-radius:8px;padding:8px 14px;display:flex;align-items:center;box-shadow:0 1px 3px rgba(0,0,0,.15);">
@@ -4803,7 +4803,7 @@ function jsonpSave(tab, rows) {
   const header = tab==='QC'
     ? ['Serial','Type','Station','InspectionStarted','Held','Remediation','RemediationOrigin','Completed','Status','HistoryJSON']
     : tab==='Board'
-    ? ['UnitID','Line','Column','Held','Completed','Notes','ESONumber','GensetSerial','ReadyForInspection','InspectionStarted','HistoryJSON','SupervisorReleased','SupervisorReleaseTs','DeviationNeeded','DeviationNote','DeviationTs','ChecklistJSON','QCChecklistJSON','FailOverridesJSON','Station2TasksJSON','SolutionsESO','DueDate','LeadCheckinsJSON','StationTrackerTasksJSON','FuelTankSerial','Location','MapX','MapY','MapRotation','DeviationsJSON','InspectionComplete','WeatherReadySignoffsJSON','ChecklistMetaJSON','QCChecklistMetaJSON','IssueClosuresJSON','RemediationsJSON','IssueClosingSessionsJSON','CleaningSessionsJSON','RemediationCheckinsJSON','RemediationStarted','RemediationComplete']
+    ? ['UnitID','Line','Column','Held','Completed','Notes','ESONumber','GensetSerial','ReadyForInspection','InspectionStarted','HistoryJSON','SupervisorReleased','SupervisorReleaseTs','DeviationNeeded','DeviationNote','DeviationTs','ChecklistJSON','QCChecklistJSON','FailOverridesJSON','Station2TasksJSON','SolutionsESO','DueDate','LeadCheckinsJSON','StationTrackerTasksJSON','FuelTankSerial','Location','MapX','MapY','MapRotation','DeviationsJSON','InspectionComplete','WeatherReadySignoffsJSON','ChecklistMetaJSON','QCChecklistMetaJSON','IssueClosuresJSON','RemediationsJSON','IssueClosingSessionsJSON','CleaningSessionsJSON','RemediationCheckinsJSON','RemediationStarted','RemediationComplete','RemediationFlagsJSON']
     : ['UnitID','Link','UpdatedAt'];
   const payload = JSON.stringify({action:'save', rows:[header,...rows]});
 
@@ -4896,13 +4896,14 @@ function syncFromSheetsViaGAS(onDone) {
           let issueClosingSessions=[]; try{issueClosingSessions=JSON.parse(r[36]||'[]');}catch(e){}
           let cleaningSessions=[]; try{cleaningSessions=JSON.parse(r[37]||'[]');}catch(e){}
           let remediationCheckins=[]; try{remediationCheckins=JSON.parse(r[38]||'[]');}catch(e){}
+          let remediationFlags=[]; try{remediationFlags=JSON.parse(r[41]||'[]');}catch(e){}
           // Migrate a pre-existing single deviation (from before the deviations
           // list existed) into the list, so historical entries synced from an
           // older build aren't silently dropped the first time they're pulled.
           if (deviations.length===0 && (r[13]==='TRUE'||r[13]===true) && r[14]) deviations=[{note:r[14],ts:r[15]||'',operator:''}];
           return {id:r[0],line:r[1],col:r[2],held:r[3]==='TRUE'||r[3]===true,completed:r[4]==='TRUE'||r[4]===true,notes:r[5]||'',esoNumber:r[6]||'',gensetSerial:r[7]||'',readyForInspection:r[8]==='TRUE'||r[8]===true,inspectionStarted:r[9]==='TRUE'||r[9]===true,history,
             supervisorReleased:r[11]==='TRUE'||r[11]===true,supervisorReleaseTs:r[12]||'',
-            deviationNeeded:r[13]==='TRUE'||r[13]===true,deviationNote:r[14]||'',deviationTs:r[15]||'',checklist,qcChecklist,failOverrides,station2Tasks,solutionsEso:r[20]||'',dueDate:normalizeDueDate(r[21]),leadCheckins,stationTrackerTasks,fuelTankSerial:r[24]||'',location:r[25]||'',mapX:r[26]!==undefined&&r[26]!==''?parseFloat(r[26]):null,mapY:r[27]!==undefined&&r[27]!==''?parseFloat(r[27]):null,mapRotation:r[28]!==undefined&&r[28]!==''?parseFloat(r[28]):0,deviations,inspectionComplete:r[30]==='TRUE'||r[30]===true,weatherReadySignoffs,checklistMeta,qcChecklistMeta,issueClosures,remediations,issueClosingSessions,cleaningSessions,remediationCheckins,remediationStarted:r[39]==='TRUE'||r[39]===true,remediationComplete:r[40]==='TRUE'||r[40]===true};
+            deviationNeeded:r[13]==='TRUE'||r[13]===true,deviationNote:r[14]||'',deviationTs:r[15]||'',checklist,qcChecklist,failOverrides,station2Tasks,solutionsEso:r[20]||'',dueDate:normalizeDueDate(r[21]),leadCheckins,stationTrackerTasks,fuelTankSerial:r[24]||'',location:r[25]||'',mapX:r[26]!==undefined&&r[26]!==''?parseFloat(r[26]):null,mapY:r[27]!==undefined&&r[27]!==''?parseFloat(r[27]):null,mapRotation:r[28]!==undefined&&r[28]!==''?parseFloat(r[28]):0,deviations,inspectionComplete:r[30]==='TRUE'||r[30]===true,weatherReadySignoffs,checklistMeta,qcChecklistMeta,issueClosures,remediations,issueClosingSessions,cleaningSessions,remediationCheckins,remediationStarted:r[39]==='TRUE'||r[39]===true,remediationComplete:r[40]==='TRUE'||r[40]===true,remediationFlags};
         });
       }
       jsonpCall(sheetsUrl+'?tab=Issues', function(err3, rows3) {
@@ -4943,7 +4944,7 @@ function proxySave(tab, rows) {
   const header = tab==='QC'
     ? ['Serial','Type','Station','InspectionStarted','Held','Remediation','RemediationOrigin','Completed','Status','HistoryJSON']
     : tab==='Board'
-    ? ['UnitID','Line','Column','Held','Completed','Notes','ESONumber','GensetSerial','ReadyForInspection','InspectionStarted','HistoryJSON','SupervisorReleased','SupervisorReleaseTs','DeviationNeeded','DeviationNote','DeviationTs','ChecklistJSON','QCChecklistJSON','FailOverridesJSON','Station2TasksJSON','SolutionsESO','DueDate','LeadCheckinsJSON','StationTrackerTasksJSON','FuelTankSerial','Location','MapX','MapY','MapRotation','DeviationsJSON','InspectionComplete','WeatherReadySignoffsJSON','ChecklistMetaJSON','QCChecklistMetaJSON','IssueClosuresJSON','RemediationsJSON','IssueClosingSessionsJSON','CleaningSessionsJSON','RemediationCheckinsJSON','RemediationStarted','RemediationComplete']
+    ? ['UnitID','Line','Column','Held','Completed','Notes','ESONumber','GensetSerial','ReadyForInspection','InspectionStarted','HistoryJSON','SupervisorReleased','SupervisorReleaseTs','DeviationNeeded','DeviationNote','DeviationTs','ChecklistJSON','QCChecklistJSON','FailOverridesJSON','Station2TasksJSON','SolutionsESO','DueDate','LeadCheckinsJSON','StationTrackerTasksJSON','FuelTankSerial','Location','MapX','MapY','MapRotation','DeviationsJSON','InspectionComplete','WeatherReadySignoffsJSON','ChecklistMetaJSON','QCChecklistMetaJSON','IssueClosuresJSON','RemediationsJSON','IssueClosingSessionsJSON','CleaningSessionsJSON','RemediationCheckinsJSON','RemediationStarted','RemediationComplete','RemediationFlagsJSON']
     : ['UnitID','Link','UpdatedAt'];
   return proxyFetch('?action=save&tab='+tab, {
     method: 'POST',
@@ -5346,13 +5347,14 @@ function syncFromSheetsViaSmartsheet(onDone) {
           let issueClosingSessions=[]; try{issueClosingSessions=JSON.parse(r[36]||'[]');}catch(e){}
           let cleaningSessions=[]; try{cleaningSessions=JSON.parse(r[37]||'[]');}catch(e){}
           let remediationCheckins=[]; try{remediationCheckins=JSON.parse(r[38]||'[]');}catch(e){}
+          let remediationFlags=[]; try{remediationFlags=JSON.parse(r[41]||'[]');}catch(e){}
           // Migrate a pre-existing single deviation (from before the deviations
           // list existed) into the list, so historical entries synced from an
           // older build aren't silently dropped the first time they're pulled.
           if (deviations.length===0 && (r[13]==='TRUE'||r[13]===true) && r[14]) deviations=[{note:r[14],ts:r[15]||'',operator:''}];
         return {id:r[0],line:r[1],col:r[2],held:r[3]==='TRUE'||r[3]===true,completed:r[4]==='TRUE'||r[4]===true,notes:r[5]||'',esoNumber:r[6]||'',gensetSerial:r[7]||'',readyForInspection:r[8]==='TRUE'||r[8]===true,inspectionStarted:r[9]==='TRUE'||r[9]===true,history,
           supervisorReleased:r[11]==='TRUE'||r[11]===true,supervisorReleaseTs:r[12]||'',
-          deviationNeeded:r[13]==='TRUE'||r[13]===true,deviationNote:r[14]||'',deviationTs:r[15]||'',checklist,qcChecklist,failOverrides,station2Tasks,solutionsEso:r[20]||'',dueDate:normalizeDueDate(r[21]),leadCheckins,stationTrackerTasks,fuelTankSerial:r[24]||'',location:r[25]||'',mapX:r[26]!==undefined&&r[26]!==''?parseFloat(r[26]):null,mapY:r[27]!==undefined&&r[27]!==''?parseFloat(r[27]):null,mapRotation:r[28]!==undefined&&r[28]!==''?parseFloat(r[28]):0,deviations,inspectionComplete:r[30]==='TRUE'||r[30]===true,weatherReadySignoffs,checklistMeta,qcChecklistMeta,issueClosures,remediations,issueClosingSessions,cleaningSessions,remediationCheckins,remediationStarted:r[39]==='TRUE'||r[39]===true,remediationComplete:r[40]==='TRUE'||r[40]===true};
+          deviationNeeded:r[13]==='TRUE'||r[13]===true,deviationNote:r[14]||'',deviationTs:r[15]||'',checklist,qcChecklist,failOverrides,station2Tasks,solutionsEso:r[20]||'',dueDate:normalizeDueDate(r[21]),leadCheckins,stationTrackerTasks,fuelTankSerial:r[24]||'',location:r[25]||'',mapX:r[26]!==undefined&&r[26]!==''?parseFloat(r[26]):null,mapY:r[27]!==undefined&&r[27]!==''?parseFloat(r[27]):null,mapRotation:r[28]!==undefined&&r[28]!==''?parseFloat(r[28]):0,deviations,inspectionComplete:r[30]==='TRUE'||r[30]===true,weatherReadySignoffs,checklistMeta,qcChecklistMeta,issueClosures,remediations,issueClosingSessions,cleaningSessions,remediationCheckins,remediationStarted:r[39]==='TRUE'||r[39]===true,remediationComplete:r[40]==='TRUE'||r[40]===true,remediationFlags};
       });
     }
     if (rows3 && rows3.length>1) {
@@ -5419,7 +5421,7 @@ function loadLocalCache() {
    seen (via push OR pull) and padding any smaller push with blank rows up
    to that count guarantees every previously-used row gets overwritten
    with blanks, regardless of how the backend script writes the range. */
-const BOARD_COL_COUNT = 41;
+const BOARD_COL_COUNT = 42;
 const QC_COL_COUNT = 10;
 function bumpRowFloor(tab, count) {
   const key = 'push_row_floor_' + tab;
@@ -5470,7 +5472,7 @@ function pushBoard(force) {
   if (!force && isStaleRelativeToReset()) { syncFromSheets(); return Promise.resolve(false); }
   boardLastLocalEditAt = Date.now();
   saveLocalCache();
-  const rows = boardUnits.map(u=>[u.id,u.line,u.col,u.held,u.completed,u.notes,u.esoNumber||'',u.gensetSerial||'',u.readyForInspection||false,u.inspectionStarted||false,JSON.stringify(u.history),u.supervisorReleased||false,u.supervisorReleaseTs||'',u.deviationNeeded||false,u.deviationNote||'',u.deviationTs||'',JSON.stringify(u.checklist||{}),JSON.stringify(u.qcChecklist||{}),JSON.stringify(u.failOverrides||[]),JSON.stringify(u.station2Tasks||{}),u.solutionsEso||'',u.dueDate||'',JSON.stringify(u.leadCheckins||[]),JSON.stringify(u.stationTrackerTasks||{}),u.fuelTankSerial||'',u.location||'',u.mapX==null?'':u.mapX,u.mapY==null?'':u.mapY,u.mapRotation==null?'':u.mapRotation,JSON.stringify(u.deviations||[]),u.inspectionComplete||false,JSON.stringify(u.weatherReadySignoffs||{}),JSON.stringify(u.checklistMeta||{}),JSON.stringify(u.qcChecklistMeta||{}),JSON.stringify(u.issueClosures||[]),JSON.stringify(u.remediations||[]),JSON.stringify(u.issueClosingSessions||[]),JSON.stringify(u.cleaningSessions||[]),JSON.stringify(u.remediationCheckins||[]),u.remediationStarted||false,u.remediationComplete||false]);
+  const rows = boardUnits.map(u=>[u.id,u.line,u.col,u.held,u.completed,u.notes,u.esoNumber||'',u.gensetSerial||'',u.readyForInspection||false,u.inspectionStarted||false,JSON.stringify(u.history),u.supervisorReleased||false,u.supervisorReleaseTs||'',u.deviationNeeded||false,u.deviationNote||'',u.deviationTs||'',JSON.stringify(u.checklist||{}),JSON.stringify(u.qcChecklist||{}),JSON.stringify(u.failOverrides||[]),JSON.stringify(u.station2Tasks||{}),u.solutionsEso||'',u.dueDate||'',JSON.stringify(u.leadCheckins||[]),JSON.stringify(u.stationTrackerTasks||{}),u.fuelTankSerial||'',u.location||'',u.mapX==null?'':u.mapX,u.mapY==null?'':u.mapY,u.mapRotation==null?'':u.mapRotation,JSON.stringify(u.deviations||[]),u.inspectionComplete||false,JSON.stringify(u.weatherReadySignoffs||{}),JSON.stringify(u.checklistMeta||{}),JSON.stringify(u.qcChecklistMeta||{}),JSON.stringify(u.issueClosures||[]),JSON.stringify(u.remediations||[]),JSON.stringify(u.issueClosingSessions||[]),JSON.stringify(u.cleaningSessions||[]),JSON.stringify(u.remediationCheckins||[]),u.remediationStarted||false,u.remediationComplete||false,JSON.stringify(u.remediationFlags||[])]);
   const padded = padRowsToFloor('Board', rows, BOARD_COL_COUNT);
   return syncTarget === 'smartsheet' ? proxySave('Board', padded) : jsonpSave('Board', padded);
 }
@@ -5823,7 +5825,7 @@ function _addAllBoardUnits() {
   if (hasError) return;
   toAdd.forEach(u => {
     removeDeletedUnitId(u.id);
-    boardUnits.push({id:u.id,line:u.line,col:u.col,held:false,completed:false,notes:u.notes,esoNumber:'',gensetSerial:u.gensetSerial||'',fuelTankSerial:'',location:'',mapX:null,mapY:null,solutionsEso:u.solEso||'',dueDate:u.dueDate||'',leadCheckins:[],readyForInspection:false,inspectionStarted:false,inspectionComplete:false,weatherReadySignoffs:{},issueClosures:[],supervisorReleased:false,supervisorReleaseTs:'',deviationNeeded:false,deviationNote:'',deviationTs:'',deviations:[],remediationNeeded:false,remediationNote:'',remediationTs:'',remediations:[],remediationCheckins:[],remediationStarted:false,remediationComplete:false,issueClosingSessions:[],cleaningSessions:[],checklist:{},qcChecklist:{},checklistMeta:{},qcChecklistMeta:{},failOverrides:[],station2Tasks:{},stationTrackerTasks:{},history:[{action:'Added to '+u.col,ts:now(),notes:u.notes}]});
+    boardUnits.push({id:u.id,line:u.line,col:u.col,held:false,completed:false,notes:u.notes,esoNumber:'',gensetSerial:u.gensetSerial||'',fuelTankSerial:'',location:'',mapX:null,mapY:null,solutionsEso:u.solEso||'',dueDate:u.dueDate||'',leadCheckins:[],readyForInspection:false,inspectionStarted:false,inspectionComplete:false,weatherReadySignoffs:{},issueClosures:[],supervisorReleased:false,supervisorReleaseTs:'',deviationNeeded:false,deviationNote:'',deviationTs:'',deviations:[],remediationNeeded:false,remediationNote:'',remediationTs:'',remediations:[],remediationCheckins:[],remediationStarted:false,remediationComplete:false,remediationFlags:[],issueClosingSessions:[],cleaningSessions:[],checklist:{},qcChecklist:{},checklistMeta:{},qcChecklistMeta:{},failOverrides:[],station2Tasks:{},stationTrackerTasks:{},history:[{action:'Added to '+u.col,ts:now(),notes:u.notes}]});
   });
   err.textContent=''; document.getElementById('board-add-form').style.display='none';
   pushBoard(); renderAll();
@@ -5841,7 +5843,7 @@ function getAllBoardUnits() {
         if (deleted.includes(uid)) return; // tombstoned — don't resurrect from the static seed
         if (!merged.find(u=>u.id===uid)) {
           const tracked=boardUnits.find(u=>u.id===uid);
-          merged.push(tracked||{id:uid,line:line.id,col:col.label,held:false,completed:false,notes:'',esoNumber:'',gensetSerial:'',fuelTankSerial:'',location:'',mapX:null,mapY:null,solutionsEso:'',dueDate:'',leadCheckins:[],readyForInspection:false,inspectionStarted:false,inspectionComplete:false,weatherReadySignoffs:{},issueClosures:[],supervisorReleased:false,supervisorReleaseTs:'',deviationNeeded:false,deviationNote:'',deviationTs:'',deviations:[],remediationNeeded:false,remediationNote:'',remediationTs:'',remediations:[],remediationCheckins:[],remediationStarted:false,remediationComplete:false,issueClosingSessions:[],cleaningSessions:[],checklist:{},qcChecklist:{},checklistMeta:{},qcChecklistMeta:{},failOverrides:[],station2Tasks:{},stationTrackerTasks:{},history:[]});
+          merged.push(tracked||{id:uid,line:line.id,col:col.label,held:false,completed:false,notes:'',esoNumber:'',gensetSerial:'',fuelTankSerial:'',location:'',mapX:null,mapY:null,solutionsEso:'',dueDate:'',leadCheckins:[],readyForInspection:false,inspectionStarted:false,inspectionComplete:false,weatherReadySignoffs:{},issueClosures:[],supervisorReleased:false,supervisorReleaseTs:'',deviationNeeded:false,deviationNote:'',deviationTs:'',deviations:[],remediationNeeded:false,remediationNote:'',remediationTs:'',remediations:[],remediationCheckins:[],remediationStarted:false,remediationComplete:false,remediationFlags:[],issueClosingSessions:[],cleaningSessions:[],checklist:{},qcChecklist:{},checklistMeta:{},qcChecklistMeta:{},failOverrides:[],station2Tasks:{},stationTrackerTasks:{},history:[]});
         }
       });
     });
@@ -5878,7 +5880,7 @@ function renderLineSummary() {
       const cu=getColUnits(line.id,col.label); const count=cu.length;
       const hasHeld=cu.some(u=>u.held); const hasDone=cu.some(u=>u.completed);
       const hasDeviation=cu.some(u=>u.deviationNeeded);
-      const hasRemediation=cu.some(u=>u.remediationNeeded&&!u.remediationComplete);
+      const hasRemediation=cu.some(u=>(u.remediationNeeded&&!u.remediationComplete)||(u.remediationFlags||[]).length>0);
       const hasFail=cu.some(u=>{
         const cS=getChecklistState(u), qS=getQCChecklistState(u);
         return (cS && cS.includes('fail')) || (qS && qS.includes('fail'));
@@ -5986,7 +5988,7 @@ function renderUnifiedTabs() {
 
   // Top tab bar: Board | All Lines | Remediation | QC stations
   let html='<button class="tab-btn '+(trackerMode==='board'?'active':'')+'" style="'+(trackerMode==='board'?'color:#0078d4;border-bottom-color:#0078d4;font-weight:600;':'')+'" onclick="switchToBoard()">&#9776; All Lines</button>';
-  const remedCount = getAllBoardUnits().filter(u=>u.remediationNeeded&&!u.remediationComplete&&!u.completed).length;
+  const remedCount = getAllBoardUnits().filter(u=>((u.remediationNeeded&&!u.remediationComplete)||(u.remediationFlags||[]).length>0)&&!u.completed).length;
   html+=`<button class="tab-btn ${trackerMode==='remed'?'active':''}" style="${trackerMode==='remed'?'color:#A03033;border-bottom-color:#A03033;font-weight:600;':''}" onclick="switchToRemed()">&#9888; Remediation${remedCount>0?'<span class="tab-count">'+remedCount+'</span>':''}</button>`;
   html+='<span style="display:inline-block;width:1px;height:20px;background:#edebe9;margin:0 8px;vertical-align:middle;"></span>';
   {
@@ -6063,7 +6065,7 @@ function renderRemedContent(el) {
   // Remediation is a flag now (u.remediationNeeded), not a physical
   // station a unit sits at, so this shows any unit currently flagged,
   // wherever it actually is on the board — not filtered by column.
-  const allRemed = getAllBoardUnits().filter(u => u.remediationNeeded && !u.remediationComplete && !u.completed);
+  const allRemed = getAllBoardUnits().filter(u => ((u.remediationNeeded && !u.remediationComplete) || (u.remediationFlags||[]).length>0) && !u.completed);
   if (!allRemed.length) { el.innerHTML='<p style="font-size:13px;color:#605e5c;padding:12px 0;">No units are currently flagged for Remediation.</p>'; return; }
   // Group by line
   el.innerHTML = CONFIG.lines.map(line => {
@@ -6508,6 +6510,7 @@ function renderBoardUnitCard(u) {
     }
     actions+=`<button class="${u.held?'warn-btn':''}" onclick="quickHold('${u.id}')">${u.held?'&#8634; Remove hold':'&#9646; Hold'}</button>`;
     actions+=`<button class="${u.deviationNeeded?'danger':''}" onclick="toggleDeviation('${u.id}')">&#9888; ${u.deviationNeeded?'Deviation ('+u.deviations.length+') — Add another':'Deviation'}</button>`;
+    actions+=`<button class="${(u.remediationFlags||[]).length?'danger':''}" onclick="toggleRemediationFlag('${u.id}')">&#9888; ${(u.remediationFlags||[]).length?'Flagged for Remediation ('+u.remediationFlags.length+') — Add another':'Flag for Remediation'}</button>`;
     // REMEDIATION — full lifecycle now (Start → Finished → Release),
     // mirroring the Inspection roster exactly: any number of people can
     // independently start and stop their own remediation session on this
@@ -6611,7 +6614,7 @@ function renderBoardUnitCard(u) {
         ? `<div style="margin-top:8px;font-size:12px;font-weight:700;color:#A03033;background:#fdecea;border:1px solid #A03033;border-radius:6px;padding:7px 12px;display:flex;align-items:center;gap:6px;">&#9888; Checklist not yet complete.</div>`
         : `<div style="margin-top:8px;font-size:12px;font-weight:700;color:#7a5d00;background:#fff4ce;border:1px solid #7a5d00;border-radius:6px;padding:7px 12px;display:flex;align-items:center;gap:6px;">&#9888; Checklist has a Fail item — release requires a supervisor password and note.</div>`)
     : '';
-  const remediationActive = u.remediationNeeded && !u.remediationComplete;
+  const remediationActive = (u.remediationNeeded && !u.remediationComplete) || (u.remediationFlags||[]).length > 0;
   return `<div class="unit-card ${u.held?'held':''} ${u.completed?'completed':''} ${remediationActive?'remediation-alert':''}" style="${remediationActive?'border:3px solid #A03033;':(u.deviationNeeded||openFailOverrides.length?'border:2px solid #A03033;':'')}">
     <div class="unit-header"><div>${boardPill(u.id)}</div><div style="display:flex;gap:6px;align-items:center;">${deviationBadge}${failOverrideBadge}${statusBadge}</div></div>
     ${remedOrigin}
@@ -6657,7 +6660,7 @@ function ensureBoardTracked(unitId) {
   if (!u) {
     const line=CONFIG.lines.find(l=>l.columns.some(c=>c.units.includes(unitId)));
     const col=line?line.columns.find(c=>c.units.includes(unitId)):null;
-    u={id:unitId,line:line?line.id:activeLine,col:col?col.label:activeCol,held:false,completed:false,notes:'',esoNumber:'',gensetSerial:'',fuelTankSerial:'',location:'',mapX:null,mapY:null,solutionsEso:'',dueDate:'',leadCheckins:[],readyForInspection:false,inspectionStarted:false,inspectionComplete:false,weatherReadySignoffs:{},issueClosures:[],supervisorReleased:false,supervisorReleaseTs:'',deviationNeeded:false,deviationNote:'',deviationTs:'',deviations:[],remediationNeeded:false,remediationNote:'',remediationTs:'',remediations:[],remediationCheckins:[],remediationStarted:false,remediationComplete:false,issueClosingSessions:[],cleaningSessions:[],checklist:{},qcChecklist:{},checklistMeta:{},qcChecklistMeta:{},failOverrides:[],station2Tasks:{},stationTrackerTasks:{},history:[]};
+    u={id:unitId,line:line?line.id:activeLine,col:col?col.label:activeCol,held:false,completed:false,notes:'',esoNumber:'',gensetSerial:'',fuelTankSerial:'',location:'',mapX:null,mapY:null,solutionsEso:'',dueDate:'',leadCheckins:[],readyForInspection:false,inspectionStarted:false,inspectionComplete:false,weatherReadySignoffs:{},issueClosures:[],supervisorReleased:false,supervisorReleaseTs:'',deviationNeeded:false,deviationNote:'',deviationTs:'',deviations:[],remediationNeeded:false,remediationNote:'',remediationTs:'',remediations:[],remediationCheckins:[],remediationStarted:false,remediationComplete:false,remediationFlags:[],issueClosingSessions:[],cleaningSessions:[],checklist:{},qcChecklist:{},checklistMeta:{},qcChecklistMeta:{},failOverrides:[],station2Tasks:{},stationTrackerTasks:{},history:[]};
     boardUnits.push(u);
   }
   return u;
@@ -7534,7 +7537,7 @@ function eauAddAllUnits() {
   if (hasError) return;
   toAdd.forEach(u => {
     removeDeletedUnitId(u.id);
-    boardUnits.push({id:u.id,line:u.line,col:u.col,held:false,completed:false,notes:u.notes,esoNumber:'',gensetSerial:u.gensetSerial||'',fuelTankSerial:'',location:'',mapX:null,mapY:null,solutionsEso:u.solEso,dueDate:u.dueDate,leadCheckins:[],readyForInspection:false,inspectionStarted:false,inspectionComplete:false,weatherReadySignoffs:{},issueClosures:[],supervisorReleased:false,supervisorReleaseTs:'',deviationNeeded:false,deviationNote:'',deviationTs:'',deviations:[],remediationNeeded:false,remediationNote:'',remediationTs:'',remediations:[],remediationCheckins:[],remediationStarted:false,remediationComplete:false,issueClosingSessions:[],cleaningSessions:[],checklist:{},qcChecklist:{},checklistMeta:{},qcChecklistMeta:{},failOverrides:[],station2Tasks:{},stationTrackerTasks:{},history:[{action:'Added to '+u.col,ts:now(),notes:u.notes}]});
+    boardUnits.push({id:u.id,line:u.line,col:u.col,held:false,completed:false,notes:u.notes,esoNumber:'',gensetSerial:u.gensetSerial||'',fuelTankSerial:'',location:'',mapX:null,mapY:null,solutionsEso:u.solEso,dueDate:u.dueDate,leadCheckins:[],readyForInspection:false,inspectionStarted:false,inspectionComplete:false,weatherReadySignoffs:{},issueClosures:[],supervisorReleased:false,supervisorReleaseTs:'',deviationNeeded:false,deviationNote:'',deviationTs:'',deviations:[],remediationNeeded:false,remediationNote:'',remediationTs:'',remediations:[],remediationCheckins:[],remediationStarted:false,remediationComplete:false,remediationFlags:[],issueClosingSessions:[],cleaningSessions:[],checklist:{},qcChecklist:{},checklistMeta:{},qcChecklistMeta:{},failOverrides:[],station2Tasks:{},stationTrackerTasks:{},history:[{action:'Added to '+u.col,ts:now(),notes:u.notes}]});
   });
   err.textContent = '';
   document.getElementById('eau-rows').innerHTML = ''; eauRowCtr = 0; eauAddRow();
@@ -7835,7 +7838,7 @@ const PM_WIDGET_METRICS = [
   { id:'completed', label:'Completed', icon:'&#10003;', color:'#0e7c3a', filterFn: u=>u.completed },
   { id:'wip', label:'WIP', icon:'&#9889;', color:'#b45309', filterFn: u=>!u.completed&&!u.held },
   { id:'onHold', label:'On Hold', icon:'&#9208;', color:'#b45309', filterFn: u=>u.held&&!u.completed },
-  { id:'remediation', label:'In Remediation', icon:'&#9888;', color:'#A03033', filterFn: u=>u.remediationNeeded&&!u.remediationComplete },
+  { id:'remediation', label:'In Remediation', icon:'&#9888;', color:'#A03033', filterFn: u=>(u.remediationNeeded&&!u.remediationComplete)||(u.remediationFlags||[]).length>0 },
   { id:'rts', label:'Ready to Ship', icon:'&#9650;', color:'#0e7c3a', filterFn: u=>u.col==='Ready to Ship'||u.col==='RTS' },
   { id:'checklistPassRate', label:'Checklist Pass Rate', icon:'&#9989;', color:'#0e7c3a',
     compute: () => getChecklistStats().passRate+'%',
@@ -11520,6 +11523,85 @@ function openDeviationNoteModal(unitId) {
   overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
 }
 
+/* ---- Remediation FLAG (separate from the Start/Finish/Release
+   roster lifecycle above) ----
+   Mirrors Deviations exactly: a quick, no-name-required note logged
+   against the unit, purely informational — shows a badge, does NOT
+   block Release on its own. Deliberately kept in its own array
+   (remediationFlags) rather than reusing remediationCheckins/
+   remediations, which belong to the separate roster-based workflow that
+   DOES gate release. Two genuinely different things: "flagging that
+   something needs remediation" versus "actively working remediation
+   right now." */
+function syncRemediationFlagSummary(u) {
+  if (!Array.isArray(u.remediationFlags)) u.remediationFlags = [];
+}
+function toggleRemediationFlag(unitId) {
+  const u = ensureBoardTracked(unitId);
+  syncRemediationFlagSummary(u);
+  requireName(() => openRemediationFlagModal(unitId), 'Sign to flag Remediation');
+}
+function removeRemediationFlag(unitId, idx) {
+  requireName(() => {
+    const u = ensureBoardTracked(unitId);
+    syncRemediationFlagSummary(u);
+    const removed = u.remediationFlags[idx];
+    if (!removed) return;
+    if (!confirm('Remove this remediation flag?\n\n"'+removed.note+'"')) return;
+    u.remediationFlags.splice(idx, 1);
+    u.history.push({ action: 'Remediation flag removed', ts: now(), notes: removed.note });
+    pushBoard(); renderAll();
+  }, 'Sign to remove Remediation flag');
+}
+function openRemediationFlagModal(unitId) {
+  const existing = document.getElementById('remediation-flag-overlay');
+  if (existing) existing.remove();
+  const u = ensureBoardTracked(unitId);
+  syncRemediationFlagSummary(u);
+
+  const overlay = document.createElement('div');
+  overlay.id = 'remediation-flag-overlay';
+  overlay.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.55);z-index:9999;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(2px);';
+  const existingListHtml = u.remediationFlags.length ? `
+      <label style="font-size:11px;font-weight:700;color:#4a5568;text-transform:uppercase;letter-spacing:.3px;display:block;margin-bottom:5px;">Existing Flags (${u.remediationFlags.length})</label>
+      <div style="max-height:120px;overflow-y:auto;margin-bottom:14px;border:1px solid #e2e6ea;border-radius:8px;padding:6px;">
+        ${u.remediationFlags.map((d, idx) => `<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;font-size:12px;padding:6px 8px;border-bottom:1px solid #f0f2f5;">
+          <div><div style="color:#0f1923;">${d.note}</div><div style="color:#8a96a8;font-size:10px;margin-top:2px;">${d.ts}</div></div>
+          <button onclick="removeRemediationFlag('${unitId}',${idx})" title="Remove" style="border:none;background:transparent;color:#A03033;font-weight:900;cursor:pointer;font-size:14px;padding:0 2px;flex-shrink:0;">&times;</button>
+        </div>`).join('')}
+      </div>` : '';
+  overlay.innerHTML = `
+    <div style="background:#fff;border-radius:16px;padding:28px 32px;max-width:400px;width:94%;box-shadow:0 24px 64px rgba(0,0,0,.28);">
+      <h2 style="font-size:16px;font-weight:800;color:#0f1923;margin-bottom:12px;letter-spacing:-.3px;">&#9888; Flag for Remediation — ${unitId}</h2>
+      ${existingListHtml}
+      <label style="font-size:11px;font-weight:700;color:#4a5568;text-transform:uppercase;letter-spacing:.3px;display:block;margin-bottom:5px;">${u.remediationFlags.length ? 'Add Another Flag *' : 'What needs remediation? *'}</label>
+      <textarea id="remedflag-note-input" rows="3" placeholder="Describe the issue..." style="width:100%;font-size:13px;padding:9px 12px;border:2px solid #e2e6ea;border-radius:8px;margin-bottom:6px;color:#0f1923;"></textarea>
+      <div id="remedflag-note-err" style="color:#A03033;font-size:12px;min-height:16px;margin-bottom:10px;"></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+        <button id="remedflag-note-cancel" style="padding:10px;font-size:13px;font-weight:600;background:#f0f2f5;color:#4a5568;border:none;border-radius:8px;cursor:pointer;">Cancel</button>
+        <button id="remedflag-note-confirm" style="padding:10px;font-size:13px;font-weight:700;background:#A03033;color:#fff;border:none;border-radius:8px;cursor:pointer;">&#9888; ${u.remediationFlags.length ? 'Add Flag' : 'Flag for Remediation'}</button>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+
+  const textarea = overlay.querySelector('#remedflag-note-input');
+  setTimeout(() => textarea.focus(), 50);
+
+  overlay.querySelector('#remedflag-note-confirm').addEventListener('click', () => {
+    const note  = textarea.value.trim();
+    const errEl = overlay.querySelector('#remedflag-note-err');
+    if (!note) { errEl.textContent = 'A note is required.'; return; }
+    const u = ensureBoardTracked(unitId);
+    syncRemediationFlagSummary(u);
+    u.remediationFlags.push({ note: note, ts: now(), operator: getOperator().name });
+    u.history.push({ action: 'Flagged for remediation', ts: now(), notes: note });
+    pushBoard(); renderAll();
+    overlay.remove();
+  });
+  overlay.querySelector('#remedflag-note-cancel').addEventListener('click', () => overlay.remove());
+  overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
+}
+
 /* ---- INIT ---- */
 /* ============================================================
    VERSION CHECK — actively detects when a newer copy of this
@@ -11535,7 +11617,7 @@ function openDeviationNoteModal(unitId) {
    visible stamp every time a change is made, or version checks
    against a stale reference and never fires.
    ============================================================ */
-const BUILD_DATE = '2026-08-20-54';
+const BUILD_DATE = '2026-08-20-55';
 let updateBannerShown = false;
 function checkForNewVersion() {
   if (updateBannerShown) return;

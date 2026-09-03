@@ -995,7 +995,7 @@ label { font-size: 11px; font-weight: 600; color: var(--text-2); display: block;
 
 <!-- ============================================================ HEADER -->
 <div class="app-header">
-  <div id="build-stamp" title="If this looks out of date after an update was announced, hard-refresh with Ctrl+Shift+R (Cmd+Shift+R on Mac) to clear your browser's cached copy.">Build: <span id="build-stamp-text">2026-08-20-50</span></div>
+  <div id="build-stamp" title="If this looks out of date after an update was announced, hard-refresh with Ctrl+Shift+R (Cmd+Shift+R on Mac) to clear your browser's cached copy.">Build: <span id="build-stamp-text">2026-08-20-51</span></div>
   <div id="header-signed-in" style="position:absolute;top:26px;right:16px;font-size:11px;color:rgba(255,255,255,.75);white-space:nowrap;z-index:101;"></div>
   <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;flex:1;">
     <div style="background:#fff;border-radius:8px;padding:8px 14px;display:flex;align-items:center;box-shadow:0 1px 3px rgba(0,0,0,.15);">
@@ -5696,8 +5696,8 @@ function renderColCounts() {
   set('cnt-i3b',   allBoard.filter(u => u.col === 'I3B').length);
   set('cnt-lb',    allBoard.filter(u => u.col === 'Load Bank').length);
   set('cnt-i4s',   allBoard.filter(u => u.col === "I4's").length);
-  set('cnt-remed', allBoard.filter(u => u.col === 'Remediation').length);
-  set('cnt-insp-started', allBoard.filter(u => u.inspectionStarted && u.col !== 'Remediation' && !u.completed).length);
+  set('cnt-remed', allBoard.filter(u => u.remediationNeeded).length);
+  set('cnt-insp-started', allBoard.filter(u => u.inspectionStarted && !u.completed).length);
 
   // Inspection states
   const iip = allBoard.filter(u => u.inspectionStarted).length;
@@ -5972,7 +5972,7 @@ function renderUnifiedTabs() {
 
   // Top tab bar: Board | All Lines | Remediation | QC stations
   let html='<button class="tab-btn '+(trackerMode==='board'?'active':'')+'" style="'+(trackerMode==='board'?'color:#0078d4;border-bottom-color:#0078d4;font-weight:600;':'')+'" onclick="switchToBoard()">&#9776; All Lines</button>';
-  const remedCount = getAllBoardUnits().filter(u=>u.col==='Remediation'&&!u.completed).length;
+  const remedCount = getAllBoardUnits().filter(u=>u.remediationNeeded&&!u.completed).length;
   html+=`<button class="tab-btn ${trackerMode==='remed'?'active':''}" style="${trackerMode==='remed'?'color:#A03033;border-bottom-color:#A03033;font-weight:600;':''}" onclick="switchToRemed()">&#9888; Remediation${remedCount>0?'<span class="tab-count">'+remedCount+'</span>':''}</button>`;
   html+='<span style="display:inline-block;width:1px;height:20px;background:#edebe9;margin:0 8px;vertical-align:middle;"></span>';
   {
@@ -6046,8 +6046,11 @@ function renderBoardInspectionContent(el) {
 
 function renderRemedContent(el) {
   if (!el) return;
-  const allRemed = getAllBoardUnits().filter(u => u.col==='Remediation' && !u.completed);
-  if (!allRemed.length) { el.innerHTML='<p style="font-size:13px;color:#605e5c;padding:12px 0;">No units currently in Remediation.</p>'; return; }
+  // Remediation is a flag now (u.remediationNeeded), not a physical
+  // station a unit sits at, so this shows any unit currently flagged,
+  // wherever it actually is on the board — not filtered by column.
+  const allRemed = getAllBoardUnits().filter(u => u.remediationNeeded && !u.completed);
+  if (!allRemed.length) { el.innerHTML='<p style="font-size:13px;color:#605e5c;padding:12px 0;">No units are currently flagged for Remediation.</p>'; return; }
   // Group by line
   el.innerHTML = CONFIG.lines.map(line => {
     const lu = allRemed.filter(u => u.line===line.id);
@@ -6226,7 +6229,7 @@ function renderBoardUnitCard(u) {
   const nextCol=cols[colIdx+1]?cols[colIdx+1].label:null; const isLast=colIdx===cols.length-1;
   const last=u.history[u.history.length-1];
   let statusBadge=`<span class="badge badge-blue">${u.col}</span>`;
-  if (u.col==='Remediation') statusBadge=`<span class="badge badge-red">Remediation</span>`;
+  if (u.remediationNeeded) statusBadge=`<span class="badge badge-red">Remediation</span>`;
   if (CONFIG.boardInspectionCols.includes(u.col)&&!u.inspectionStarted&&!u.inspectionComplete) statusBadge=`<span class="badge badge-orange">Ready for Inspection</span>`;
   if (u.inspectionComplete&&!u.inspectionStarted) statusBadge=`<span class="badge badge-green">Ready for Release</span>`;
   if (u.inspectionStarted) statusBadge=`<span class="badge badge-purple">Inspecting</span>`;
@@ -7626,7 +7629,7 @@ function getPMAllUnits() {
     let pmStatus = 'Active';
     if (u.completed) pmStatus = 'Complete';
     else if (u.col === 'Ready to Ship' || u.col === 'RTS') pmStatus = 'Ready to Ship';
-    else if (u.col === 'Remediation') pmStatus = 'Remediation';
+    else if (u.remediationNeeded) pmStatus = 'Remediation';
     else if (u.held) pmStatus = 'On Hold';
     else if (u.inspectionStarted) pmStatus = 'Inspecting';
     else if (u.readyForInspection) pmStatus = 'Ready for Insp.';
@@ -7679,7 +7682,7 @@ const PM_WIDGET_METRICS = [
   { id:'completed', label:'Completed', icon:'&#10003;', color:'#0e7c3a', filterFn: u=>u.completed },
   { id:'wip', label:'WIP', icon:'&#9889;', color:'#b45309', filterFn: u=>!u.completed&&!u.held },
   { id:'onHold', label:'On Hold', icon:'&#9208;', color:'#b45309', filterFn: u=>u.held&&!u.completed },
-  { id:'remediation', label:'In Remediation', icon:'&#9888;', color:'#A03033', filterFn: u=>u.col==='Remediation' },
+  { id:'remediation', label:'In Remediation', icon:'&#9888;', color:'#A03033', filterFn: u=>u.remediationNeeded },
   { id:'rts', label:'Ready to Ship', icon:'&#9650;', color:'#0e7c3a', filterFn: u=>u.col==='Ready to Ship'||u.col==='RTS' },
   { id:'checklistPassRate', label:'Checklist Pass Rate', icon:'&#9989;', color:'#0e7c3a',
     compute: () => getChecklistStats().passRate+'%',
@@ -8235,7 +8238,7 @@ function renderPMLineProgress() {
     const lu = getAllBoardUnits().filter(u=>u.line===line.id);
     const done = lu.filter(u=>u.completed).length;
     const rts  = lu.filter(u=>u.col==='Ready to Ship'||u.col==='RTS').length;
-    const remed= lu.filter(u=>u.col==='Remediation').length;
+    const remed= lu.filter(u=>u.remediationNeeded).length;
     const total = lu.length||1;
     const pct = Math.round(done/total*100);
     return `<div style="margin-bottom:10px;">
@@ -9182,7 +9185,7 @@ function renderPMLineCards() {
     const total = lu.length||1;
     const done = lu.filter(u=>u.completed).length;
     const rts  = lu.filter(u=>u.col==='Ready to Ship'||u.col==='RTS').length;
-    const remed= lu.filter(u=>u.col==='Remediation').length;
+    const remed= lu.filter(u=>u.remediationNeeded).length;
     const held = lu.filter(u=>u.held&&!u.completed).length;
     const pct  = Math.round(done/total*100);
 
@@ -10424,7 +10427,7 @@ function exportSmartsheetBoard() {
     let status = 'Active';
     if (u.completed)                          status = 'Complete';
     else if (u.col==='Ready to Ship'||u.col==='RTS') status = 'Ready to Ship';
-    else if (u.col==='Remediation')           status = 'Remediation';
+    else if (u.remediationNeeded)              status = 'Remediation';
     else if (u.held)                          status = 'On Hold';
     else if (u.inspectionStarted)             status = 'Inspecting';
     else if (u.readyForInspection)            status = 'Ready for Inspection';
@@ -10440,7 +10443,7 @@ function exportSmartsheetBoard() {
       u.completed   ? 'true' : 'false',
       u.readyForInspection  ? 'true' : 'false',
       u.inspectionStarted   ? 'true' : 'false',
-      u.col==='Remediation' ? 'true' : 'false',
+      u.remediationNeeded ? 'true' : 'false',
       fti ? fti.loadDate      : '',
       fti ? fti.shipLooseDate : '',
       fti ? (daysUntil(fti.loadDate) ?? '') : '',
@@ -10545,7 +10548,7 @@ function exportSmartsheetRTS() {
     if (board) {
       if (board.completed)                          boardStatus = 'Complete';
       else if (board.col==='Ready to Ship'||board.col==='RTS') boardStatus = 'Ready to Ship';
-      else if (board.col==='Remediation')           boardStatus = 'Remediation';
+      else if (board.remediationNeeded)              boardStatus = 'Remediation';
       else if (board.held)                          boardStatus = 'On Hold';
       else if (board.inspectionStarted)             boardStatus = 'Inspecting';
       else                                          boardStatus = 'Active';
@@ -10652,7 +10655,7 @@ function renderFloorStats() {
   const active = units.filter(u => !u.completed);
   const done   = units.filter(u => u.completed).length;
   const rts    = active.filter(u => u.col==='Ready to Ship'||u.col==='RTS').length;
-  const remed  = active.filter(u => u.col==='Remediation').length;
+  const remed  = active.filter(u => u.remediationNeeded).length;
   const held   = active.filter(u => u.held).length;
   const total  = units.length;
   const pct    = total ? Math.round(done/total*100) : 0;
@@ -10725,8 +10728,8 @@ function renderFloorUnits() {
   const line = CONFIG.lines.find(l => l.id === floorActiveLine);
   const stationOrder = (line ? line.columns : []).map(c => c.label);
   units.sort((a,b) => {
-    if (a.col==='Remediation' && b.col!=='Remediation') return -1;
-    if (b.col==='Remediation' && a.col!=='Remediation') return 1;
+    if (a.remediationNeeded && !b.remediationNeeded) return -1;
+    if (b.remediationNeeded && !a.remediationNeeded) return 1;
     if (a.held && !b.held) return -1;
     if (b.held && !a.held) return 1;
     return stationOrder.indexOf(a.col) - stationOrder.indexOf(b.col);
@@ -10740,7 +10743,7 @@ function renderFloorCard(u, line) {
   const sid     = safeId(u.id);
   const last    = u.history[u.history.length-1];
   const fti     = getFTIForBoardUnit(u);
-  const isRemed = u.col === 'Remediation';
+  const isRemed = !!u.remediationNeeded;
   const isHeld  = u.held;
   const isRTS   = u.col==='Ready to Ship'||u.col==='RTS';
   const isInsp  = u.inspectionStarted;
@@ -11380,7 +11383,7 @@ function openRemediationNoteModal(unitId) {
    visible stamp every time a change is made, or version checks
    against a stale reference and never fires.
    ============================================================ */
-const BUILD_DATE = '2026-08-20-50';
+const BUILD_DATE = '2026-08-20-51';
 let updateBannerShown = false;
 function checkForNewVersion() {
   if (updateBannerShown) return;

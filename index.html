@@ -995,7 +995,7 @@ label { font-size: 11px; font-weight: 600; color: var(--text-2); display: block;
 
 <!-- ============================================================ HEADER -->
 <div class="app-header">
-  <div id="build-stamp" title="If this looks out of date after an update was announced, hard-refresh with Ctrl+Shift+R (Cmd+Shift+R on Mac) to clear your browser's cached copy.">Build: <span id="build-stamp-text">2026-08-20-57</span></div>
+  <div id="build-stamp" title="If this looks out of date after an update was announced, hard-refresh with Ctrl+Shift+R (Cmd+Shift+R on Mac) to clear your browser's cached copy.">Build: <span id="build-stamp-text">2026-08-20-58</span></div>
   <div id="header-signed-in" style="position:absolute;top:26px;right:16px;font-size:11px;color:rgba(255,255,255,.75);white-space:nowrap;z-index:101;"></div>
   <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;flex:1;">
     <div style="background:#fff;border-radius:8px;padding:8px 14px;display:flex;align-items:center;box-shadow:0 1px 3px rgba(0,0,0,.15);">
@@ -6377,16 +6377,18 @@ function renderBoardUnitCard(u) {
         <button class="sm" onclick="quickStartIssueClosing('${u.id}')">&#128295; Confirm Start</button>
       </div>`;
     }
-    // START CLEANING — the Cleaning station only. Same multi-person,
-    // time-logged pattern as Start Issue Closing above — independent
-    // start/stop per person, duration tracked in PM View — just scoped
-    // to this one specific station instead of every production station.
+    // START/FINISH CLEANING — the Cleaning station only. Same
+    // multi-person, time-logged pattern as Start Issue Closing above —
+    // independent start/finish per person, duration tracked in PM View —
+    // just scoped to this one specific station. "Finish" (not "Stop") —
+    // cleaning is a short, atomic task, so ending a session always means
+    // done, not a pause to resume later.
     if (u.col === 'Cleaning') {
       const openCleaners = (u.cleaningSessions||[]).map((c,i)=>({...c,idx:i})).filter(c => !c.endTs);
       actions += `<div style="width:100%;display:flex;flex-direction:column;gap:6px;">`;
       actions += openCleaners.map(c => `<div style="display:flex;justify-content:space-between;align-items:center;background:#e6f0fa;border:1px solid #0078d4;border-radius:8px;padding:6px 10px;gap:8px;">
         <span style="font-size:12px;font-weight:600;color:#0078d4;">&#129529; ${c.name} — Cleaning since ${c.startTs}</span>
-        <button class="warn-btn sm" onclick="quickStopCleaning('${u.id}',${c.idx})">&#9208; Stop</button>
+        <button class="success sm" onclick="quickFinishCleaning('${u.id}',${c.idx})">&#10003; Finish</button>
       </div>`).join('');
       actions += `<button onclick="togglePanel('bd-startclean-${sid}')">&#129529; Start Cleaning${openCleaners.length?' — add another':''}</button>`;
       actions += `</div>`;
@@ -7003,12 +7005,12 @@ function quickStartCleaning(unitId) {
   u.history.push({ action: name+' started cleaning at '+u.col, ts: now(), notes: '' });
   pushBoard(); renderAll();
 }
-function quickStopCleaning(unitId, idx) {
+function quickFinishCleaning(unitId, idx) {
   const u = ensureBoardTracked(unitId);
   if (!u.cleaningSessions || !u.cleaningSessions[idx]) return;
   const session = u.cleaningSessions[idx];
   session.endTs = now();
-  u.history.push({ action: session.name+' stopped cleaning at '+u.col, ts: now(), notes: '' });
+  u.history.push({ action: session.name+' finished cleaning at '+u.col, ts: now(), notes: '' });
   pushBoard(); renderAll();
 }
 // Undoes a mistaken Finish — brings a unit back out of "Ready for
@@ -11613,7 +11615,7 @@ function removeRemediationFlag(unitId, idx) {
    visible stamp every time a change is made, or version checks
    against a stale reference and never fires.
    ============================================================ */
-const BUILD_DATE = '2026-08-20-57';
+const BUILD_DATE = '2026-08-20-58';
 let updateBannerShown = false;
 function checkForNewVersion() {
   if (updateBannerShown) return;

@@ -985,7 +985,7 @@ label { font-size: 11px; font-weight: 600; color: var(--text-2); display: block;
 
 <!-- ============================================================ HEADER -->
 <div class="app-header">
-  <div id="build-stamp" title="If this looks out of date after an update was announced, hard-refresh with Ctrl+Shift+R (Cmd+Shift+R on Mac) to clear your browser's cached copy.">Build: <span id="build-stamp-text">2026-08-20-43</span></div>
+  <div id="build-stamp" title="If this looks out of date after an update was announced, hard-refresh with Ctrl+Shift+R (Cmd+Shift+R on Mac) to clear your browser's cached copy.">Build: <span id="build-stamp-text">2026-08-20-47</span></div>
   <div id="header-signed-in" style="position:absolute;top:26px;right:16px;font-size:11px;color:rgba(255,255,255,.75);white-space:nowrap;z-index:101;"></div>
   <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;flex:1;">
     <div style="background:#fff;border-radius:8px;padding:8px 14px;display:flex;align-items:center;box-shadow:0 1px 3px rgba(0,0,0,.15);">
@@ -1259,6 +1259,7 @@ label { font-size: 11px; font-weight: 600; color: var(--text-2); display: block;
   <!-- Time in Process by Unit -->
   <div class="chart-card" id="pm-time-chart" style="margin-bottom:14px;"></div>
   <div class="chart-card" id="pm-duedate-chart" style="margin-bottom:14px;"></div>
+  <div class="chart-card" id="pm-issue-closures" style="margin-bottom:14px;"></div>
   <div class="chart-card" id="pm-checklist-fails" style="margin-bottom:14px;"></div>
   <div class="chart-card" id="pm-inspector-summary" style="margin-bottom:14px;"></div>
   <div class="chart-card" id="pm-lead-checkins" style="margin-bottom:14px;"></div>
@@ -4510,6 +4511,7 @@ function requireName(callback, title) {
     'Sign to Resolve Fail Override': { desc: 'fail override resolution', button: 'Confirm Resolution' },
     'Sign to mark checklist item': { desc: 'checklist item', button: 'Confirm' },
     'Sign to mark QC checklist item': { desc: 'QC checklist item', button: 'Confirm' },
+    'Sign to log Issue Closure': { desc: 'issue closure', button: 'Confirm' },
   };
   const copy = SIGN_COPY[title] || { desc: 'station release', button: 'Confirm Release' };
 
@@ -4753,7 +4755,7 @@ function jsonpSave(tab, rows) {
   const header = tab==='QC'
     ? ['Serial','Type','Station','InspectionStarted','Held','Remediation','RemediationOrigin','Completed','Status','HistoryJSON']
     : tab==='Board'
-    ? ['UnitID','Line','Column','Held','Completed','Notes','ESONumber','GensetSerial','ReadyForInspection','InspectionStarted','HistoryJSON','SupervisorReleased','SupervisorReleaseTs','DeviationNeeded','DeviationNote','DeviationTs','ChecklistJSON','QCChecklistJSON','FailOverridesJSON','Station2TasksJSON','SolutionsESO','DueDate','LeadCheckinsJSON','StationTrackerTasksJSON','FuelTankSerial','Location','MapX','MapY','MapRotation','DeviationsJSON','InspectionComplete','WeatherReadySignoffsJSON','ChecklistMetaJSON','QCChecklistMetaJSON']
+    ? ['UnitID','Line','Column','Held','Completed','Notes','ESONumber','GensetSerial','ReadyForInspection','InspectionStarted','HistoryJSON','SupervisorReleased','SupervisorReleaseTs','DeviationNeeded','DeviationNote','DeviationTs','ChecklistJSON','QCChecklistJSON','FailOverridesJSON','Station2TasksJSON','SolutionsESO','DueDate','LeadCheckinsJSON','StationTrackerTasksJSON','FuelTankSerial','Location','MapX','MapY','MapRotation','DeviationsJSON','InspectionComplete','WeatherReadySignoffsJSON','ChecklistMetaJSON','QCChecklistMetaJSON','IssueClosuresJSON']
     : ['UnitID','Link','UpdatedAt'];
   const payload = JSON.stringify({action:'save', rows:[header,...rows]});
 
@@ -4841,13 +4843,14 @@ function syncFromSheetsViaGAS(onDone) {
           let weatherReadySignoffs={}; try{weatherReadySignoffs=JSON.parse(r[31]||'{}');}catch(e){}
           let checklistMeta={}; try{checklistMeta=JSON.parse(r[32]||'{}');}catch(e){}
           let qcChecklistMeta={}; try{qcChecklistMeta=JSON.parse(r[33]||'{}');}catch(e){}
+          let issueClosures=[]; try{issueClosures=JSON.parse(r[34]||'[]');}catch(e){}
           // Migrate a pre-existing single deviation (from before the deviations
           // list existed) into the list, so historical entries synced from an
           // older build aren't silently dropped the first time they're pulled.
           if (deviations.length===0 && (r[13]==='TRUE'||r[13]===true) && r[14]) deviations=[{note:r[14],ts:r[15]||'',operator:''}];
           return {id:r[0],line:r[1],col:r[2],held:r[3]==='TRUE'||r[3]===true,completed:r[4]==='TRUE'||r[4]===true,notes:r[5]||'',esoNumber:r[6]||'',gensetSerial:r[7]||'',readyForInspection:r[8]==='TRUE'||r[8]===true,inspectionStarted:r[9]==='TRUE'||r[9]===true,history,
             supervisorReleased:r[11]==='TRUE'||r[11]===true,supervisorReleaseTs:r[12]||'',
-            deviationNeeded:r[13]==='TRUE'||r[13]===true,deviationNote:r[14]||'',deviationTs:r[15]||'',checklist,qcChecklist,failOverrides,station2Tasks,solutionsEso:r[20]||'',dueDate:normalizeDueDate(r[21]),leadCheckins,stationTrackerTasks,fuelTankSerial:r[24]||'',location:r[25]||'',mapX:r[26]!==undefined&&r[26]!==''?parseFloat(r[26]):null,mapY:r[27]!==undefined&&r[27]!==''?parseFloat(r[27]):null,mapRotation:r[28]!==undefined&&r[28]!==''?parseFloat(r[28]):0,deviations,inspectionComplete:r[30]==='TRUE'||r[30]===true,weatherReadySignoffs,checklistMeta,qcChecklistMeta};
+            deviationNeeded:r[13]==='TRUE'||r[13]===true,deviationNote:r[14]||'',deviationTs:r[15]||'',checklist,qcChecklist,failOverrides,station2Tasks,solutionsEso:r[20]||'',dueDate:normalizeDueDate(r[21]),leadCheckins,stationTrackerTasks,fuelTankSerial:r[24]||'',location:r[25]||'',mapX:r[26]!==undefined&&r[26]!==''?parseFloat(r[26]):null,mapY:r[27]!==undefined&&r[27]!==''?parseFloat(r[27]):null,mapRotation:r[28]!==undefined&&r[28]!==''?parseFloat(r[28]):0,deviations,inspectionComplete:r[30]==='TRUE'||r[30]===true,weatherReadySignoffs,checklistMeta,qcChecklistMeta,issueClosures};
         });
       }
       jsonpCall(sheetsUrl+'?tab=Issues', function(err3, rows3) {
@@ -4888,7 +4891,7 @@ function proxySave(tab, rows) {
   const header = tab==='QC'
     ? ['Serial','Type','Station','InspectionStarted','Held','Remediation','RemediationOrigin','Completed','Status','HistoryJSON']
     : tab==='Board'
-    ? ['UnitID','Line','Column','Held','Completed','Notes','ESONumber','GensetSerial','ReadyForInspection','InspectionStarted','HistoryJSON','SupervisorReleased','SupervisorReleaseTs','DeviationNeeded','DeviationNote','DeviationTs','ChecklistJSON','QCChecklistJSON','FailOverridesJSON','Station2TasksJSON','SolutionsESO','DueDate','LeadCheckinsJSON','StationTrackerTasksJSON','FuelTankSerial','Location','MapX','MapY','MapRotation','DeviationsJSON','InspectionComplete','WeatherReadySignoffsJSON','ChecklistMetaJSON','QCChecklistMetaJSON']
+    ? ['UnitID','Line','Column','Held','Completed','Notes','ESONumber','GensetSerial','ReadyForInspection','InspectionStarted','HistoryJSON','SupervisorReleased','SupervisorReleaseTs','DeviationNeeded','DeviationNote','DeviationTs','ChecklistJSON','QCChecklistJSON','FailOverridesJSON','Station2TasksJSON','SolutionsESO','DueDate','LeadCheckinsJSON','StationTrackerTasksJSON','FuelTankSerial','Location','MapX','MapY','MapRotation','DeviationsJSON','InspectionComplete','WeatherReadySignoffsJSON','ChecklistMetaJSON','QCChecklistMetaJSON','IssueClosuresJSON']
     : ['UnitID','Link','UpdatedAt'];
   return proxyFetch('?action=save&tab='+tab, {
     method: 'POST',
@@ -5286,13 +5289,14 @@ function syncFromSheetsViaSmartsheet(onDone) {
           let weatherReadySignoffs={}; try{weatherReadySignoffs=JSON.parse(r[31]||'{}');}catch(e){}
           let checklistMeta={}; try{checklistMeta=JSON.parse(r[32]||'{}');}catch(e){}
           let qcChecklistMeta={}; try{qcChecklistMeta=JSON.parse(r[33]||'{}');}catch(e){}
+          let issueClosures=[]; try{issueClosures=JSON.parse(r[34]||'[]');}catch(e){}
           // Migrate a pre-existing single deviation (from before the deviations
           // list existed) into the list, so historical entries synced from an
           // older build aren't silently dropped the first time they're pulled.
           if (deviations.length===0 && (r[13]==='TRUE'||r[13]===true) && r[14]) deviations=[{note:r[14],ts:r[15]||'',operator:''}];
         return {id:r[0],line:r[1],col:r[2],held:r[3]==='TRUE'||r[3]===true,completed:r[4]==='TRUE'||r[4]===true,notes:r[5]||'',esoNumber:r[6]||'',gensetSerial:r[7]||'',readyForInspection:r[8]==='TRUE'||r[8]===true,inspectionStarted:r[9]==='TRUE'||r[9]===true,history,
           supervisorReleased:r[11]==='TRUE'||r[11]===true,supervisorReleaseTs:r[12]||'',
-          deviationNeeded:r[13]==='TRUE'||r[13]===true,deviationNote:r[14]||'',deviationTs:r[15]||'',checklist,qcChecklist,failOverrides,station2Tasks,solutionsEso:r[20]||'',dueDate:normalizeDueDate(r[21]),leadCheckins,stationTrackerTasks,fuelTankSerial:r[24]||'',location:r[25]||'',mapX:r[26]!==undefined&&r[26]!==''?parseFloat(r[26]):null,mapY:r[27]!==undefined&&r[27]!==''?parseFloat(r[27]):null,mapRotation:r[28]!==undefined&&r[28]!==''?parseFloat(r[28]):0,deviations,inspectionComplete:r[30]==='TRUE'||r[30]===true,weatherReadySignoffs,checklistMeta,qcChecklistMeta};
+          deviationNeeded:r[13]==='TRUE'||r[13]===true,deviationNote:r[14]||'',deviationTs:r[15]||'',checklist,qcChecklist,failOverrides,station2Tasks,solutionsEso:r[20]||'',dueDate:normalizeDueDate(r[21]),leadCheckins,stationTrackerTasks,fuelTankSerial:r[24]||'',location:r[25]||'',mapX:r[26]!==undefined&&r[26]!==''?parseFloat(r[26]):null,mapY:r[27]!==undefined&&r[27]!==''?parseFloat(r[27]):null,mapRotation:r[28]!==undefined&&r[28]!==''?parseFloat(r[28]):0,deviations,inspectionComplete:r[30]==='TRUE'||r[30]===true,weatherReadySignoffs,checklistMeta,qcChecklistMeta,issueClosures};
       });
     }
     if (rows3 && rows3.length>1) {
@@ -5359,7 +5363,7 @@ function loadLocalCache() {
    seen (via push OR pull) and padding any smaller push with blank rows up
    to that count guarantees every previously-used row gets overwritten
    with blanks, regardless of how the backend script writes the range. */
-const BOARD_COL_COUNT = 34;
+const BOARD_COL_COUNT = 35;
 const QC_COL_COUNT = 10;
 function bumpRowFloor(tab, count) {
   const key = 'push_row_floor_' + tab;
@@ -5410,7 +5414,7 @@ function pushBoard(force) {
   if (!force && isStaleRelativeToReset()) { syncFromSheets(); return Promise.resolve(false); }
   boardLastLocalEditAt = Date.now();
   saveLocalCache();
-  const rows = boardUnits.map(u=>[u.id,u.line,u.col,u.held,u.completed,u.notes,u.esoNumber||'',u.gensetSerial||'',u.readyForInspection||false,u.inspectionStarted||false,JSON.stringify(u.history),u.supervisorReleased||false,u.supervisorReleaseTs||'',u.deviationNeeded||false,u.deviationNote||'',u.deviationTs||'',JSON.stringify(u.checklist||{}),JSON.stringify(u.qcChecklist||{}),JSON.stringify(u.failOverrides||[]),JSON.stringify(u.station2Tasks||{}),u.solutionsEso||'',u.dueDate||'',JSON.stringify(u.leadCheckins||[]),JSON.stringify(u.stationTrackerTasks||{}),u.fuelTankSerial||'',u.location||'',u.mapX==null?'':u.mapX,u.mapY==null?'':u.mapY,u.mapRotation==null?'':u.mapRotation,JSON.stringify(u.deviations||[]),u.inspectionComplete||false,JSON.stringify(u.weatherReadySignoffs||{}),JSON.stringify(u.checklistMeta||{}),JSON.stringify(u.qcChecklistMeta||{})]);
+  const rows = boardUnits.map(u=>[u.id,u.line,u.col,u.held,u.completed,u.notes,u.esoNumber||'',u.gensetSerial||'',u.readyForInspection||false,u.inspectionStarted||false,JSON.stringify(u.history),u.supervisorReleased||false,u.supervisorReleaseTs||'',u.deviationNeeded||false,u.deviationNote||'',u.deviationTs||'',JSON.stringify(u.checklist||{}),JSON.stringify(u.qcChecklist||{}),JSON.stringify(u.failOverrides||[]),JSON.stringify(u.station2Tasks||{}),u.solutionsEso||'',u.dueDate||'',JSON.stringify(u.leadCheckins||[]),JSON.stringify(u.stationTrackerTasks||{}),u.fuelTankSerial||'',u.location||'',u.mapX==null?'':u.mapX,u.mapY==null?'':u.mapY,u.mapRotation==null?'':u.mapRotation,JSON.stringify(u.deviations||[]),u.inspectionComplete||false,JSON.stringify(u.weatherReadySignoffs||{}),JSON.stringify(u.checklistMeta||{}),JSON.stringify(u.qcChecklistMeta||{}),JSON.stringify(u.issueClosures||[])]);
   const padded = padRowsToFloor('Board', rows, BOARD_COL_COUNT);
   return syncTarget === 'smartsheet' ? proxySave('Board', padded) : jsonpSave('Board', padded);
 }
@@ -5762,7 +5766,7 @@ function _addAllBoardUnits() {
   if (hasError) return;
   toAdd.forEach(u => {
     removeDeletedUnitId(u.id);
-    boardUnits.push({id:u.id,line:u.line,col:u.col,held:false,completed:false,notes:u.notes,esoNumber:'',gensetSerial:u.gensetSerial||'',fuelTankSerial:'',location:'',mapX:null,mapY:null,solutionsEso:u.solEso||'',dueDate:u.dueDate||'',leadCheckins:[],readyForInspection:false,inspectionStarted:false,inspectionComplete:false,weatherReadySignoffs:{},supervisorReleased:false,supervisorReleaseTs:'',deviationNeeded:false,deviationNote:'',deviationTs:'',deviations:[],checklist:{},qcChecklist:{},checklistMeta:{},qcChecklistMeta:{},failOverrides:[],station2Tasks:{},stationTrackerTasks:{},history:[{action:'Added to '+u.col,ts:now(),notes:u.notes}]});
+    boardUnits.push({id:u.id,line:u.line,col:u.col,held:false,completed:false,notes:u.notes,esoNumber:'',gensetSerial:u.gensetSerial||'',fuelTankSerial:'',location:'',mapX:null,mapY:null,solutionsEso:u.solEso||'',dueDate:u.dueDate||'',leadCheckins:[],readyForInspection:false,inspectionStarted:false,inspectionComplete:false,weatherReadySignoffs:{},issueClosures:[],supervisorReleased:false,supervisorReleaseTs:'',deviationNeeded:false,deviationNote:'',deviationTs:'',deviations:[],checklist:{},qcChecklist:{},checklistMeta:{},qcChecklistMeta:{},failOverrides:[],station2Tasks:{},stationTrackerTasks:{},history:[{action:'Added to '+u.col,ts:now(),notes:u.notes}]});
   });
   err.textContent=''; document.getElementById('board-add-form').style.display='none';
   pushBoard(); renderAll();
@@ -5780,7 +5784,7 @@ function getAllBoardUnits() {
         if (deleted.includes(uid)) return; // tombstoned — don't resurrect from the static seed
         if (!merged.find(u=>u.id===uid)) {
           const tracked=boardUnits.find(u=>u.id===uid);
-          merged.push(tracked||{id:uid,line:line.id,col:col.label,held:false,completed:false,notes:'',esoNumber:'',gensetSerial:'',fuelTankSerial:'',location:'',mapX:null,mapY:null,solutionsEso:'',dueDate:'',leadCheckins:[],readyForInspection:false,inspectionStarted:false,inspectionComplete:false,weatherReadySignoffs:{},supervisorReleased:false,supervisorReleaseTs:'',deviationNeeded:false,deviationNote:'',deviationTs:'',deviations:[],checklist:{},qcChecklist:{},checklistMeta:{},qcChecklistMeta:{},failOverrides:[],station2Tasks:{},stationTrackerTasks:{},history:[]});
+          merged.push(tracked||{id:uid,line:line.id,col:col.label,held:false,completed:false,notes:'',esoNumber:'',gensetSerial:'',fuelTankSerial:'',location:'',mapX:null,mapY:null,solutionsEso:'',dueDate:'',leadCheckins:[],readyForInspection:false,inspectionStarted:false,inspectionComplete:false,weatherReadySignoffs:{},issueClosures:[],supervisorReleased:false,supervisorReleaseTs:'',deviationNeeded:false,deviationNote:'',deviationTs:'',deviations:[],checklist:{},qcChecklist:{},checklistMeta:{},qcChecklistMeta:{},failOverrides:[],station2Tasks:{},stationTrackerTasks:{},history:[]});
         }
       });
     });
@@ -5938,6 +5942,13 @@ function renderUnifiedTabs() {
     const inspectionCount = getBoardReadyForInspectionUnits().length + getBoardInspectingUnits().length + getBoardReadyForReleaseUnits().length;
     const inspectionActive = trackerMode==='board-inspection';
     html+=`<button class="tab-btn ${inspectionActive?'active':''}" style="${inspectionActive?'color:#4b3a9e;border-bottom-color:#4b3a9e;font-weight:700;':''}" onclick="switchToBoardInspection()" title="Units ready for inspection or currently being inspected">&#128270; Inspection${inspectionCount>0?`<span class="tab-count" style="background:#4b3a9e;">${inspectionCount}</span>`:''}</button>`;
+    // Weather Ready — its own dedicated tab right next to Inspection, so
+    // only units actually sitting at that specific station show up here,
+    // instead of needing to scroll through the general Board view to
+    // find them.
+    const weatherReadyCount = getAllBoardUnits().filter(u => !u.completed && u.col === 'Weather Ready').length;
+    const weatherReadyActive = trackerMode==='board-weatherready';
+    html+=`<button class="tab-btn ${weatherReadyActive?'active':''}" style="${weatherReadyActive?'color:#0078d4;border-bottom-color:#0078d4;font-weight:700;':''}" onclick="switchToBoardWeatherReady()" title="Units currently at the Weather Ready station">&#9925; Weather Ready${weatherReadyCount>0?`<span class="tab-count" style="background:#0078d4;">${weatherReadyCount}</span>`:''}</button>`;
   }
   bar.innerHTML=html;
 }
@@ -5954,12 +5965,22 @@ function switchToBoardInspection() {
   trackerMode='board-inspection';
   renderUnifiedTabs(); renderUnifiedContent(); updateAddBtns();
 }
+function switchToBoardWeatherReady() {
+  trackerMode='board-weatherready';
+  renderUnifiedTabs(); renderUnifiedContent(); updateAddBtns();
+}
 
 function renderUnifiedContent() {
   const el=document.getElementById('unified-content'); if(!el) return;
   if (trackerMode==='board-inspection') { renderBoardInspectionContent(el); }
+  else if (trackerMode==='board-weatherready') { renderBoardWeatherReadyContent(el); }
   else if (trackerMode==='remed') { renderRemedContent(el); }
   else { renderAllLinesContent(el); }
+}
+function renderBoardWeatherReadyContent(el) {
+  const units = getAllBoardUnits().filter(u => !u.completed && u.col === 'Weather Ready');
+  if (!units.length) { el.innerHTML = '<p style="font-size:13px;color:#605e5c;padding:8px 0;">No units are currently at Weather Ready.</p>'; return; }
+  el.innerHTML = units.map(u=>renderBoardUnitCard(u)).join('');
 }
 function renderBoardInspectionContent(el) {
   // Actively-inspecting units first (most time-sensitive), then units
@@ -6396,6 +6417,13 @@ function renderBoardUnitCard(u) {
     }
     actions+=`<button class="${u.held?'warn-btn':''}" onclick="quickHold('${u.id}')">${u.held?'&#8634; Remove hold':'&#9646; Hold'}</button>`;
     actions+=`<button class="${u.deviationNeeded?'danger':''}" onclick="toggleDeviation('${u.id}')">&#9888; ${u.deviationNeeded?'Deviation ('+u.deviations.length+') — Add another':'Deviation'}</button>`;
+    // Issue Closure — inspection stations only (M1, M2, M3 EOL, I3A, I3B,
+    // I4's, Load Bank). A simple log, not a full open/close lifecycle —
+    // just records that this operator closed out an issue on this unit,
+    // with a note, for later tracking in PM View.
+    if (isInspectionCol) {
+      actions+=`<button onclick="quickIssueClosure('${u.id}')">&#10003; Issue Closure${(u.issueClosures||[]).length?' ('+u.issueClosures.length+')':''}</button>`;
+    }
   }
   if (u.history.length) actions+=`<button class="subtle" onclick="togglePanel('bd-hist-${sid}')">History (${u.history.length})</button>`;
   const historyDurations = getStationDurations(u); // parallel array — one entry per Added-to/Moved-to history row, in order
@@ -6495,6 +6523,7 @@ function switchCol(label) {
 function updateAddBtns() {
   const lbl=document.getElementById('tracker-context-label');
   if (trackerMode==='board-inspection') { if(lbl) lbl.textContent='Board — Inspection'; return; }
+  if (trackerMode==='board-weatherready') { if(lbl) lbl.textContent='Board — Weather Ready'; return; }
   const line=CONFIG.lines.find(l=>l.id===activeLine);
   if(lbl) lbl.textContent=line?line.name+' — '+activeCol:'All Lines';
 }
@@ -6504,7 +6533,7 @@ function ensureBoardTracked(unitId) {
   if (!u) {
     const line=CONFIG.lines.find(l=>l.columns.some(c=>c.units.includes(unitId)));
     const col=line?line.columns.find(c=>c.units.includes(unitId)):null;
-    u={id:unitId,line:line?line.id:activeLine,col:col?col.label:activeCol,held:false,completed:false,notes:'',esoNumber:'',gensetSerial:'',fuelTankSerial:'',location:'',mapX:null,mapY:null,solutionsEso:'',dueDate:'',leadCheckins:[],readyForInspection:false,inspectionStarted:false,inspectionComplete:false,weatherReadySignoffs:{},supervisorReleased:false,supervisorReleaseTs:'',deviationNeeded:false,deviationNote:'',deviationTs:'',deviations:[],checklist:{},qcChecklist:{},checklistMeta:{},qcChecklistMeta:{},failOverrides:[],station2Tasks:{},stationTrackerTasks:{},history:[]};
+    u={id:unitId,line:line?line.id:activeLine,col:col?col.label:activeCol,held:false,completed:false,notes:'',esoNumber:'',gensetSerial:'',fuelTankSerial:'',location:'',mapX:null,mapY:null,solutionsEso:'',dueDate:'',leadCheckins:[],readyForInspection:false,inspectionStarted:false,inspectionComplete:false,weatherReadySignoffs:{},issueClosures:[],supervisorReleased:false,supervisorReleaseTs:'',deviationNeeded:false,deviationNote:'',deviationTs:'',deviations:[],checklist:{},qcChecklist:{},checklistMeta:{},qcChecklistMeta:{},failOverrides:[],station2Tasks:{},stationTrackerTasks:{},history:[]};
     boardUnits.push(u);
   }
   return u;
@@ -6795,6 +6824,25 @@ function quickReopenInspection(unitId) {
   u.inspectionComplete = false;
   u.history.push({ action: 'Re-opened for inspection at '+u.col+' (Finish undone)', ts: now(), notes: '' });
   pushBoard(); renderAll();
+}
+// Issue Closure — a simple log, not a full open/close lifecycle. Records
+// that this operator closed out an issue on this unit at this inspection
+// station, with a note describing what it was. Requires signing in (or
+// uses whoever's already signed in on this device) for attribution, same
+// as every other action in the app — this is what makes "who's doing
+// issue closures on that unit" trackable in the first place.
+function quickIssueClosure(unitId) {
+  requireName(() => {
+    const note = prompt('What issue was closed?');
+    if (note === null) return; // cancelled
+    if (!note.trim()) { alert('A note is required.'); return; }
+    const u = ensureBoardTracked(unitId);
+    if (!u.issueClosures) u.issueClosures = [];
+    const operator = getOperator();
+    u.issueClosures.push({ name: operator.name, ts: now(), notes: note.trim(), station: u.col });
+    u.history.push({ action: 'Issue closure at '+u.col+' — '+operator.name, ts: now(), notes: note.trim() });
+    pushBoard(); renderAll();
+  }, 'Sign to log Issue Closure');
 }
 // Weather Ready sign-offs — requires the entering password to actually
 // belong to a supervisor tagged with the matching role (see
@@ -7277,7 +7325,7 @@ function eauAddAllUnits() {
   if (hasError) return;
   toAdd.forEach(u => {
     removeDeletedUnitId(u.id);
-    boardUnits.push({id:u.id,line:u.line,col:u.col,held:false,completed:false,notes:u.notes,esoNumber:'',gensetSerial:u.gensetSerial||'',fuelTankSerial:'',location:'',mapX:null,mapY:null,solutionsEso:u.solEso,dueDate:u.dueDate,leadCheckins:[],readyForInspection:false,inspectionStarted:false,inspectionComplete:false,weatherReadySignoffs:{},supervisorReleased:false,supervisorReleaseTs:'',deviationNeeded:false,deviationNote:'',deviationTs:'',deviations:[],checklist:{},qcChecklist:{},checklistMeta:{},qcChecklistMeta:{},failOverrides:[],station2Tasks:{},stationTrackerTasks:{},history:[{action:'Added to '+u.col,ts:now(),notes:u.notes}]});
+    boardUnits.push({id:u.id,line:u.line,col:u.col,held:false,completed:false,notes:u.notes,esoNumber:'',gensetSerial:u.gensetSerial||'',fuelTankSerial:'',location:'',mapX:null,mapY:null,solutionsEso:u.solEso,dueDate:u.dueDate,leadCheckins:[],readyForInspection:false,inspectionStarted:false,inspectionComplete:false,weatherReadySignoffs:{},issueClosures:[],supervisorReleased:false,supervisorReleaseTs:'',deviationNeeded:false,deviationNote:'',deviationTs:'',deviations:[],checklist:{},qcChecklist:{},checklistMeta:{},qcChecklistMeta:{},failOverrides:[],station2Tasks:{},stationTrackerTasks:{},history:[{action:'Added to '+u.col,ts:now(),notes:u.notes}]});
   });
   err.textContent = '';
   document.getElementById('eau-rows').innerHTML = ''; eauRowCtr = 0; eauAddRow();
@@ -7549,6 +7597,7 @@ function renderPMPage() {
   renderPMLineProgress();
   renderPMTimeChart();
   renderPMDueDateChart();
+  renderPMIssueClosures();
   renderPMChecklistFails();
   renderPMInspectorSummary();
   renderPMLeadCheckins();
@@ -8368,6 +8417,56 @@ function pmGetChecklistItemLog(onlyFails) {
   });
   rows.sort((a, b) => new Date(b.ts) - new Date(a.ts));
   return rows;
+}
+// Every operator's issue closures across every unit, tracking who's
+// closing issues, where, and how often — a simple log, not a lifecycle
+// tracker, matching how quickIssueClosure records them.
+function pmGetIssueClosures() {
+  const rows = [];
+  getAllBoardUnits().forEach(u => {
+    (u.issueClosures || []).forEach(c => rows.push({ unitId: u.id, ...c }));
+  });
+  rows.sort((a, b) => new Date(b.ts) - new Date(a.ts));
+  return rows;
+}
+function renderPMIssueClosures() {
+  const el = document.getElementById('pm-issue-closures'); if (!el) return;
+  const closures = pmGetIssueClosures();
+  if (!closures.length) {
+    el.innerHTML = `<div class="chart-title">Issue Closures <span class="chart-subtitle">Who's closing issues at inspection stations, and where</span></div><p style="font-size:13px;color:#605e5c;">No issue closures logged yet.</p>`;
+    return;
+  }
+  // Per-operator totals, so it's easy to see at a glance who's doing the
+  // most issue closures, not just a flat chronological list.
+  const byOperator = {};
+  closures.forEach(c => { byOperator[c.name] = (byOperator[c.name] || 0) + 1; });
+  const operatorPills = Object.entries(byOperator).sort((a,b) => b[1]-a[1]).map(([name, count]) =>
+    `<span style="font-size:11px;background:#e6f0fa;color:#0078d4;border-radius:20px;padding:3px 10px;font-weight:700;margin:0 6px 6px 0;display:inline-block;">${name}: ${count}</span>`
+  ).join('');
+
+  const recent = closures.slice(0, 25);
+  const rows = recent.map(c => `<tr>
+    <td style="padding:6px 10px;font-size:12px;font-weight:600;">${c.unitId}</td>
+    <td style="padding:6px 10px;font-size:12px;">${c.station}</td>
+    <td style="padding:6px 10px;font-size:12px;">${c.notes}</td>
+    <td style="padding:6px 10px;font-size:12px;">${c.name}</td>
+    <td style="padding:6px 10px;font-size:11px;color:var(--text-3,#8a96a8);">${c.ts}</td>
+  </tr>`).join('');
+
+  el.innerHTML = `<div class="chart-title">Issue Closures <span class="chart-subtitle">${closures.length} logged${closures.length>25?' · showing 25 most recent':''}</span></div>
+    <div style="margin-bottom:12px;">${operatorPills}</div>
+    <div style="overflow-x:auto;">
+      <table style="width:100%;border-collapse:collapse;">
+        <thead><tr style="border-bottom:2px solid #edebe9;text-align:left;">
+          <th style="padding:6px 10px;font-size:11px;color:var(--text-3,#8a96a8);text-transform:uppercase;">Unit</th>
+          <th style="padding:6px 10px;font-size:11px;color:var(--text-3,#8a96a8);text-transform:uppercase;">Station</th>
+          <th style="padding:6px 10px;font-size:11px;color:var(--text-3,#8a96a8);text-transform:uppercase;">Issue Closed</th>
+          <th style="padding:6px 10px;font-size:11px;color:var(--text-3,#8a96a8);text-transform:uppercase;">By</th>
+          <th style="padding:6px 10px;font-size:11px;color:var(--text-3,#8a96a8);text-transform:uppercase;">When</th>
+        </tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>`;
 }
 function renderPMChecklistFails() {
   const el = document.getElementById('pm-checklist-fails'); if (!el) return;
@@ -11057,7 +11156,7 @@ function openDeviationNoteModal(unitId) {
    visible stamp every time a change is made, or version checks
    against a stale reference and never fires.
    ============================================================ */
-const BUILD_DATE = '2026-08-20-43';
+const BUILD_DATE = '2026-08-20-47';
 let updateBannerShown = false;
 function checkForNewVersion() {
   if (updateBannerShown) return;

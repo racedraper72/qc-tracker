@@ -995,7 +995,7 @@ label { font-size: 11px; font-weight: 600; color: var(--text-2); display: block;
 
 <!-- ============================================================ HEADER -->
 <div class="app-header">
-  <div id="build-stamp" title="If this looks out of date after an update was announced, hard-refresh with Ctrl+Shift+R (Cmd+Shift+R on Mac) to clear your browser's cached copy.">Build: <span id="build-stamp-text">2026-08-20-59</span></div>
+  <div id="build-stamp" title="If this looks out of date after an update was announced, hard-refresh with Ctrl+Shift+R (Cmd+Shift+R on Mac) to clear your browser's cached copy.">Build: <span id="build-stamp-text">2026-08-20-61</span></div>
   <div id="header-signed-in" style="position:absolute;top:26px;right:16px;font-size:11px;color:rgba(255,255,255,.75);white-space:nowrap;z-index:101;"></div>
   <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;flex:1;">
     <div style="background:#fff;border-radius:8px;padding:8px 14px;display:flex;align-items:center;box-shadow:0 1px 3px rgba(0,0,0,.15);">
@@ -6377,18 +6377,17 @@ function renderBoardUnitCard(u) {
         <button class="sm" onclick="quickStartIssueClosing('${u.id}')">&#128295; Confirm Start</button>
       </div>`;
     }
-    // START/FINISH CLEANING — the Cleaning station only. Same
-    // multi-person, time-logged pattern as Start Issue Closing above —
-    // independent start/finish per person, duration tracked in PM View —
-    // just scoped to this one specific station. "Finish" (not "Stop") —
-    // cleaning is a short, atomic task, so ending a session always means
-    // done, not a pause to resume later.
+    // START/STOP CLEANING — the Cleaning station only. Same multi-person,
+    // time-logged pattern as Start Issue Closing above — independent
+    // start/stop per person, duration tracked in PM View. Each open
+    // session's row (name + "Cleaning since [time]") serves as the
+    // visible status indicator while it's running.
     if (u.col === 'Cleaning') {
       const openCleaners = (u.cleaningSessions||[]).map((c,i)=>({...c,idx:i})).filter(c => !c.endTs);
       actions += `<div style="width:100%;display:flex;flex-direction:column;gap:6px;">`;
       actions += openCleaners.map(c => `<div style="display:flex;justify-content:space-between;align-items:center;background:#e6f0fa;border:1px solid #0078d4;border-radius:8px;padding:6px 10px;gap:8px;">
         <span style="font-size:12px;font-weight:600;color:#0078d4;">&#129529; ${c.name} — Cleaning since ${c.startTs}</span>
-        <button class="success sm" onclick="quickFinishCleaning('${u.id}',${c.idx})">&#10003; Finish</button>
+        <button class="warn-btn sm" onclick="quickStopCleaning('${u.id}',${c.idx})">&#9208; Stop</button>
       </div>`).join('');
       actions += `<button onclick="togglePanel('bd-startclean-${sid}')">&#129529; Start Cleaning${openCleaners.length?' — add another':''}</button>`;
       actions += `</div>`;
@@ -6475,15 +6474,14 @@ function renderBoardUnitCard(u) {
       // Weather Ready additionally requires all three role sign-offs
       // before it can be released, regardless of checklist state.
       const weatherReadyOK = u.col !== 'Weather Ready' || SUPERVISOR_ROLES.every(r => (u.weatherReadySignoffs||{})[r]);
-      // Remediation blocks release the same way as an active inspection —
-      // once started, release stays blocked until every remediator has
-      // finished (u.remediationComplete). A unit that's never needed
-      // remediation is completely unaffected (remediationNeeded false).
-      const remediationOK = !u.remediationNeeded || u.remediationComplete;
-      const showRelease = (!isInspectionCol || u.inspectionComplete) && weatherReadyOK && remediationOK;
+      // Remediation no longer blocks release — a unit can move to
+      // another station at any point, even while remediation is
+      // actively in progress. The Start/Finish roster still tracks who's
+      // working it and for how long (see the dedicated boxes above),
+      // it just doesn't gate movement the way an active inspection does.
+      const showRelease = (!isInspectionCol || u.inspectionComplete) && weatherReadyOK;
       const weatherLockAttr = (u.col === 'Weather Ready' && !weatherReadyOK) ? 'disabled title="All three sign-offs (Production, Quality, Material) are required first"' : '';
-      const remediationLockAttr = !remediationOK ? 'disabled title="Remediation must be marked Finished first"' : '';
-      if (showRelease && isLast) { actions+=`<button class="success" ${lockAttr}${weatherLockAttr}${remediationLockAttr} onclick="quickComplete('${u.id}')">&#10003; Mark complete</button>`; }
+      if (showRelease && isLast) { actions+=`<button class="success" ${lockAttr}${weatherLockAttr} onclick="quickComplete('${u.id}')">&#10003; Mark complete</button>`; }
       // A "release to a chosen station" dropdown is always visible directly
       // on the card (not hidden behind a click) — so a unit can be routed
       // to an overflow/alternate station instead of strictly following the
@@ -6495,7 +6493,7 @@ function renderBoardUnitCard(u) {
         const destOpts = otherCols.map(c => `<option value="${c.label}" ${c.label===defaultDest?'selected':''}>${c.label}</option>`).join('');
         actions+=`<div style="display:flex;gap:6px;align-items:center;">
           <select id="bd-fwd-dest-${sid}" style="font-size:12px;padding:6px 8px;max-width:160px;">${destOpts}</select>
-          <button class="success sm" ${lockAttr}${weatherLockAttr}${remediationLockAttr} onclick="quickRelease('${u.id}')">&#8594; Release</button>
+          <button class="success sm" ${lockAttr}${weatherLockAttr} onclick="quickRelease('${u.id}')">&#8594; Release</button>
         </div>`;
       }
       // Weather Ready explains itself even before you try to release —
@@ -6505,9 +6503,6 @@ function renderBoardUnitCard(u) {
       if (u.col === 'Weather Ready' && !weatherReadyOK) {
         const missing = SUPERVISOR_ROLES.filter(r => !(u.weatherReadySignoffs||{})[r]);
         actions += `<div style="width:100%;font-size:11px;color:#A03033;">&#9888; Waiting on: ${missing.join(', ')}</div>`;
-      }
-      if (!remediationOK) {
-        actions += `<div style="width:100%;font-size:11px;color:#A03033;">&#9888; Waiting on remediation to be marked Finished</div>`;
       }
     }
     actions+=`<button class="${u.held?'warn-btn':''}" onclick="quickHold('${u.id}')">${u.held?'&#8634; Remove hold':'&#9646; Hold'}</button>`;
@@ -6550,7 +6545,7 @@ function renderBoardUnitCard(u) {
       </div>`).join('');
       if (u.remediationComplete && !currentRemediators.length) {
         actions += `<div style="display:flex;gap:6px;align-items:center;">
-          <span class="badge" style="background:#e6f7ed;color:#0e7c3a;border:1px solid #0e7c3a;font-weight:800;flex:1;text-align:center;padding:6px;">&#10003; Remediation complete — ready to release</span>
+          <span class="badge" style="background:#e6f7ed;color:#0e7c3a;border:1px solid #0e7c3a;font-weight:800;flex:1;text-align:center;padding:6px;">&#10003; Remediation complete</span>
           <button class="subtle sm" onclick="quickReopenRemediation('${u.id}')" title="Finished by mistake? Undo it and bring back Start Remediation.">&#8634; Re-open</button>
         </div>`;
       } else {
@@ -7005,12 +7000,12 @@ function quickStartCleaning(unitId) {
   u.history.push({ action: name+' started cleaning at '+u.col, ts: now(), notes: '' });
   pushBoard(); renderAll();
 }
-function quickFinishCleaning(unitId, idx) {
+function quickStopCleaning(unitId, idx) {
   const u = ensureBoardTracked(unitId);
   if (!u.cleaningSessions || !u.cleaningSessions[idx]) return;
   const session = u.cleaningSessions[idx];
   session.endTs = now();
-  u.history.push({ action: session.name+' finished cleaning at '+u.col, ts: now(), notes: '' });
+  u.history.push({ action: session.name+' stopped cleaning at '+u.col, ts: now(), notes: '' });
   pushBoard(); renderAll();
 }
 // Undoes a mistaken Finish — brings a unit back out of "Ready for
@@ -11625,7 +11620,7 @@ function removeRemediationFlag(unitId, idx) {
    visible stamp every time a change is made, or version checks
    against a stale reference and never fires.
    ============================================================ */
-const BUILD_DATE = '2026-08-20-59';
+const BUILD_DATE = '2026-08-20-61';
 let updateBannerShown = false;
 function checkForNewVersion() {
   if (updateBannerShown) return;

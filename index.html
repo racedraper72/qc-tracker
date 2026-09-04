@@ -995,7 +995,7 @@ label { font-size: 11px; font-weight: 600; color: var(--text-2); display: block;
 
 <!-- ============================================================ HEADER -->
 <div class="app-header">
-  <div id="build-stamp" title="If this looks out of date after an update was announced, hard-refresh with Ctrl+Shift+R (Cmd+Shift+R on Mac) to clear your browser's cached copy.">Build: <span id="build-stamp-text">2026-08-20-65</span></div>
+  <div id="build-stamp" title="If this looks out of date after an update was announced, hard-refresh with Ctrl+Shift+R (Cmd+Shift+R on Mac) to clear your browser's cached copy.">Build: <span id="build-stamp-text">2026-08-20-66</span></div>
   <div id="header-signed-in" style="position:absolute;top:26px;right:16px;font-size:11px;color:rgba(255,255,255,.75);white-space:nowrap;z-index:101;"></div>
   <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;flex:1;">
     <div style="background:#fff;border-radius:8px;padding:8px 14px;display:flex;align-items:center;box-shadow:0 1px 3px rgba(0,0,0,.15);">
@@ -7895,6 +7895,11 @@ const PM_WIDGET_METRICS = [
   { id:'longestInProcess', label:'Longest in Process', icon:'&#9201;', color:'#A03033',
     compute: () => { const list=getAllBoardUnits().filter(u=>!u.completed).map(u=>getStationDurations(u).reduce((s,d)=>s+(d.hours||0),0)).filter(h=>h>0); return list.length?formatDuration(Math.max(...list)):'—'; },
     breakdown: () => CONFIG.lines.map(l => { const list=getLineUnits(l.id).filter(u=>!u.completed).map(u=>getStationDurations(u).reduce((s,d)=>s+(d.hours||0),0)).filter(h=>h>0); return { label:l.name, value:list.length?Math.round(Math.max(...list)*10)/10:0, suffix:'h', color:l.headerColor }; }) },
+  { id:'avgCleaningTime', label:'Avg Cleaning Time', icon:'&#129529;', color:'#0078d4',
+    compute: () => { const sessions=pmGetCleaningSessions(); if(!sessions.length) return '—'; const avgMs=sessions.reduce((s,x)=>s+x.durationMs,0)/sessions.length; return pmFormatDuration(avgMs); },
+    breakdown: () => { const sessions=pmGetCleaningSessions(); const byLine={};
+      sessions.forEach(s => { const u=getAllBoardUnits().find(x=>x.id===s.unitId); if(!u) return; if(!byLine[u.line]) byLine[u.line]=[]; byLine[u.line].push(s.durationMs); });
+      return CONFIG.lines.map(l => { const list=byLine[l.id]||[]; const avgMin=list.length?Math.round(list.reduce((s,x)=>s+x,0)/list.length/60000):0; return { label:l.name, value:avgMin, suffix:'m', color:l.headerColor }; }); } },
   { id:'activeLines', label:'Active Lines', icon:'&#9632;', color:'#006A8E', compute: () => CONFIG.lines.length, noBreakdown:true },
   { id:'shipThisWeek', label:'Shipping This Week', icon:'&#128666;', color:'#0e7c3a',
     compute: () => { const today=new Date(); today.setHours(0,0,0,0); const weekOut=new Date(today); weekOut.setDate(weekOut.getDate()+7);
@@ -11670,7 +11675,7 @@ function removeRemediationFlag(unitId, idx) {
    visible stamp every time a change is made, or version checks
    against a stale reference and never fires.
    ============================================================ */
-const BUILD_DATE = '2026-08-20-65';
+const BUILD_DATE = '2026-08-20-66';
 let updateBannerShown = false;
 function checkForNewVersion() {
   if (updateBannerShown) return;

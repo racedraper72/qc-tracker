@@ -995,7 +995,7 @@ label { font-size: 11px; font-weight: 600; color: var(--text-2); display: block;
 
 <!-- ============================================================ HEADER -->
 <div class="app-header">
-  <div id="build-stamp" title="If this looks out of date after an update was announced, hard-refresh with Ctrl+Shift+R (Cmd+Shift+R on Mac) to clear your browser's cached copy.">Build: <span id="build-stamp-text">2026-08-20-64</span></div>
+  <div id="build-stamp" title="If this looks out of date after an update was announced, hard-refresh with Ctrl+Shift+R (Cmd+Shift+R on Mac) to clear your browser's cached copy.">Build: <span id="build-stamp-text">2026-08-20-65</span></div>
   <div id="header-signed-in" style="position:absolute;top:26px;right:16px;font-size:11px;color:rgba(255,255,255,.75);white-space:nowrap;z-index:101;"></div>
   <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;flex:1;">
     <div style="background:#fff;border-radius:8px;padding:8px 14px;display:flex;align-items:center;box-shadow:0 1px 3px rgba(0,0,0,.15);">
@@ -10904,7 +10904,13 @@ function floorSignOut() {
 
 function renderFloorLineSel() {
   const el = document.getElementById('floor-line-selector'); if (!el) return;
-  el.innerHTML = CONFIG.lines.map(line => {
+  const allActive = floorActiveLine === 'ALL';
+  const allCount = getAllBoardUnits().filter(u => !u.completed).length;
+  let html = `<button class="floor-line-btn ${allActive?'active':''}"
+    onclick="floorSelectLine('ALL')"
+    style="${allActive?'border-color:#4b3a9e;background:#4b3a9e;':''}"
+  >All Lines <span style="opacity:.7;font-size:11px;">(${allCount})</span></button>`;
+  html += CONFIG.lines.map(line => {
     const units = getAllBoardUnits().filter(u => u.line === line.id && !u.completed);
     const active = line.id === floorActiveLine;
     return `<button class="floor-line-btn ${active?'active':''}"
@@ -10912,6 +10918,7 @@ function renderFloorLineSel() {
       style="${active?'border-color:'+line.headerColor+';background:'+line.headerColor+';':''}"
     >${line.name} <span style="opacity:.7;font-size:11px;">(${units.length})</span></button>`;
   }).join('');
+  el.innerHTML = html;
 }
 
 function floorSelectLine(lineId) {
@@ -10925,8 +10932,8 @@ function floorSelectLine(lineId) {
 
 function renderFloorStats() {
   const el = document.getElementById('floor-stats-bar'); if (!el) return;
-  const line  = CONFIG.lines.find(l => l.id === floorActiveLine);
-  const units = getAllBoardUnits().filter(u => u.line === floorActiveLine);
+  const isAll = floorActiveLine === 'ALL';
+  const units = isAll ? getAllBoardUnits() : getAllBoardUnits().filter(u => u.line === floorActiveLine);
   const active = units.filter(u => !u.completed);
   const done   = units.filter(u => u.completed).length;
   const rts    = active.filter(u => u.col==='Ready to Ship'||u.col==='RTS').length;
@@ -10950,10 +10957,26 @@ function renderFloorStats() {
 
 function renderFloorStationStrip() {
   const el = document.getElementById('floor-station-strip'); if (!el) return;
-  const line = CONFIG.lines.find(l => l.id === floorActiveLine);
-  if (!line) return;
+  const isAll = floorActiveLine === 'ALL';
 
-  const allUnits = getAllBoardUnits().filter(u => u.line === floorActiveLine && !u.completed);
+  // "All Lines" — build a unified station list (the union of every
+  // column across every line, in first-seen order) rather than tying the
+  // strip to one specific line's columns, since different lines can have
+  // different stations configured.
+  let columns;
+  if (isAll) {
+    const seen = new Set();
+    columns = [];
+    CONFIG.lines.forEach(l => l.columns.forEach(c => { if (!seen.has(c.label)) { seen.add(c.label); columns.push(c); } }));
+  } else {
+    const line = CONFIG.lines.find(l => l.id === floorActiveLine);
+    if (!line) return;
+    columns = line.columns;
+  }
+
+  const allUnits = isAll
+    ? getAllBoardUnits().filter(u => !u.completed)
+    : getAllBoardUnits().filter(u => u.line === floorActiveLine && !u.completed);
   const stationCounts = {};
   allUnits.forEach(u => { stationCounts[u.col] = (stationCounts[u.col]||0)+1; });
 
@@ -10964,7 +10987,7 @@ function renderFloorStationStrip() {
   </button>`;
 
   // Station tabs
-  line.columns.forEach(col => {
+  columns.forEach(col => {
     const cnt = stationCounts[col.label] || 0;
     const isActive = floorActiveStation === col.label;
     html += `<button class="floor-station-btn ${isActive?'active':''}" onclick="floorSelectStation('${jsq(col.label)}')">
@@ -10984,7 +11007,10 @@ function floorSelectStation(station) {
 
 function renderFloorUnits() {
   const el = document.getElementById('floor-units-grid'); if (!el) return;
-  let units = getAllBoardUnits().filter(u => u.line === floorActiveLine && !u.completed);
+  const isAll = floorActiveLine === 'ALL';
+  let units = isAll
+    ? getAllBoardUnits().filter(u => !u.completed)
+    : getAllBoardUnits().filter(u => u.line === floorActiveLine && !u.completed);
 
   if (floorActiveStation) {
     units = units.filter(u => u.col === floorActiveStation);
@@ -10999,16 +11025,20 @@ function renderFloorUnits() {
     return;
   }
 
-  // Sort: remed first, then held, then by station order
-  const line = CONFIG.lines.find(l => l.id === floorActiveLine);
-  const stationOrder = (line ? line.columns : []).map(c => c.label);
-  units.sort((a,b) => {
+  // Sort: remed first, then held, then by station order. For "All
+  // Lines", station order isn't well-defined across differently
+  // configured lines, so this sorts by line first (grouped, with a
+  // header per line below) and falls back to each unit's own line's
+  // column order within that group.
+  const sortWithinLine = (a, b) => {
     if (a.remediationNeeded && !b.remediationNeeded) return -1;
     if (b.remediationNeeded && !a.remediationNeeded) return 1;
     if (a.held && !b.held) return -1;
     if (b.held && !a.held) return 1;
-    return stationOrder.indexOf(a.col) - stationOrder.indexOf(b.col);
-  });
+    const aLine = CONFIG.lines.find(l => l.id === a.line);
+    const order = (aLine ? aLine.columns : []).map(c => c.label);
+    return order.indexOf(a.col) - order.indexOf(b.col);
+  };
 
   // Reuses the exact same card the Tracker page uses (renderBoardUnitCard)
   // instead of the old, separate renderFloorCard implementation below.
@@ -11020,7 +11050,17 @@ function renderFloorUnits() {
   // cause of the Cleaning unit not showing correctly here. Reusing the
   // Tracker's card directly means there's now exactly one place that
   // needs updating when a new station action gets added, not two.
-  el.innerHTML = units.map(u => renderBoardUnitCard(u)).join('');
+  if (isAll) {
+    el.innerHTML = CONFIG.lines.map(line => {
+      const lineUnits = units.filter(u => u.line === line.id).sort(sortWithinLine);
+      if (!lineUnits.length) return '';
+      return `<div style="grid-column:1/-1;font-size:13px;font-weight:800;color:${line.headerColor};padding:10px 4px 4px;border-top:2px solid ${line.headerColor};margin-top:6px;">${line.name}</div>
+        ${lineUnits.map(u => renderBoardUnitCard(u)).join('')}`;
+    }).join('');
+  } else {
+    units.sort(sortWithinLine);
+    el.innerHTML = units.map(u => renderBoardUnitCard(u)).join('');
+  }
 }
 
 function renderFloorCard(u, line) {
@@ -11630,7 +11670,7 @@ function removeRemediationFlag(unitId, idx) {
    visible stamp every time a change is made, or version checks
    against a stale reference and never fires.
    ============================================================ */
-const BUILD_DATE = '2026-08-20-64';
+const BUILD_DATE = '2026-08-20-65';
 let updateBannerShown = false;
 function checkForNewVersion() {
   if (updateBannerShown) return;

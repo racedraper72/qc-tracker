@@ -995,7 +995,7 @@ label { font-size: 11px; font-weight: 600; color: var(--text-2); display: block;
 
 <!-- ============================================================ HEADER -->
 <div class="app-header">
-  <div id="build-stamp" title="If this looks out of date after an update was announced, hard-refresh with Ctrl+Shift+R (Cmd+Shift+R on Mac) to clear your browser's cached copy.">Build: <span id="build-stamp-text">2026-08-20-61</span></div>
+  <div id="build-stamp" title="If this looks out of date after an update was announced, hard-refresh with Ctrl+Shift+R (Cmd+Shift+R on Mac) to clear your browser's cached copy.">Build: <span id="build-stamp-text">2026-08-20-62</span></div>
   <div id="header-signed-in" style="position:absolute;top:26px;right:16px;font-size:11px;color:rgba(255,255,255,.75);white-space:nowrap;z-index:101;"></div>
   <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;flex:1;">
     <div style="background:#fff;border-radius:8px;padding:8px 14px;display:flex;align-items:center;box-shadow:0 1px 3px rgba(0,0,0,.15);">
@@ -6382,7 +6382,13 @@ function renderBoardUnitCard(u) {
     // start/stop per person, duration tracked in PM View. Each open
     // session's row (name + "Cleaning since [time]") serves as the
     // visible status indicator while it's running.
-    if (u.col === 'Cleaning') {
+    // Matches any station whose name contains "clean" (case-insensitive)
+    // rather than one exact string — the actual station name turned out
+    // to be "Cleaners", not "Cleaning" as originally assumed, which
+    // silently broke this section entirely until caught. Matching
+    // loosely here means a future rename (or a different line naming it
+    // slightly differently) can't cause the same silent breakage again.
+    if (/clean/i.test(u.col)) {
       const openCleaners = (u.cleaningSessions||[]).map((c,i)=>({...c,idx:i})).filter(c => !c.endTs);
       actions += `<div style="width:100%;display:flex;flex-direction:column;gap:6px;">`;
       actions += openCleaners.map(c => `<div style="display:flex;justify-content:space-between;align-items:center;background:#e6f0fa;border:1px solid #0078d4;border-radius:8px;padding:6px 10px;gap:8px;">
@@ -11620,7 +11626,7 @@ function removeRemediationFlag(unitId, idx) {
    visible stamp every time a change is made, or version checks
    against a stale reference and never fires.
    ============================================================ */
-const BUILD_DATE = '2026-08-20-61';
+const BUILD_DATE = '2026-08-20-62';
 let updateBannerShown = false;
 function checkForNewVersion() {
   if (updateBannerShown) return;

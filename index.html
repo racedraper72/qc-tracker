@@ -995,7 +995,7 @@ label { font-size: 11px; font-weight: 600; color: var(--text-2); display: block;
 
 <!-- ============================================================ HEADER -->
 <div class="app-header">
-  <div id="build-stamp" title="If this looks out of date after an update was announced, hard-refresh with Ctrl+Shift+R (Cmd+Shift+R on Mac) to clear your browser's cached copy.">Build: <span id="build-stamp-text">2026-08-20-62</span></div>
+  <div id="build-stamp" title="If this looks out of date after an update was announced, hard-refresh with Ctrl+Shift+R (Cmd+Shift+R on Mac) to clear your browser's cached copy.">Build: <span id="build-stamp-text">2026-08-20-63</span></div>
   <div id="header-signed-in" style="position:absolute;top:26px;right:16px;font-size:11px;color:rgba(255,255,255,.75);white-space:nowrap;z-index:101;"></div>
   <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;flex:1;">
     <div style="background:#fff;border-radius:8px;padding:8px 14px;display:flex;align-items:center;box-shadow:0 1px 3px rgba(0,0,0,.15);">
@@ -6396,12 +6396,16 @@ function renderBoardUnitCard(u) {
         <button class="warn-btn sm" onclick="quickStopCleaning('${u.id}',${c.idx})">&#9208; Stop</button>
       </div>`).join('');
       actions += `<button onclick="togglePanel('bd-startclean-${sid}')">&#129529; Start Cleaning${openCleaners.length?' — add another':''}</button>`;
-      actions += `</div>`;
-      panels += `<div class="action-group" id="bd-startclean-${sid}">
+      // Embedded directly in the actions flow, right below the Start
+      // Cleaning button — not in the separate panels section, which
+      // renders everything together at the very bottom of the card
+      // regardless of which button was actually clicked.
+      actions += `<div class="action-group" id="bd-startclean-${sid}" style="width:100%;">
         <label>Name</label>
         <input id="bd-startclean-name-${sid}" type="text" placeholder="Their name" />
         <button class="sm" onclick="quickStartCleaning('${u.id}')">&#129529; Confirm Start</button>
       </div>`;
+      actions += `</div>`;
     }
     // Inspection cols — a persistent, always-visible roster of everyone
     // currently inspecting this unit, shown immediately on arrival — no
@@ -11626,7 +11630,7 @@ function removeRemediationFlag(unitId, idx) {
    visible stamp every time a change is made, or version checks
    against a stale reference and never fires.
    ============================================================ */
-const BUILD_DATE = '2026-08-20-62';
+const BUILD_DATE = '2026-08-20-63';
 let updateBannerShown = false;
 function checkForNewVersion() {
   if (updateBannerShown) return;

@@ -345,6 +345,22 @@ label { font-size: 11px; font-weight: 600; color: var(--text-2); display: block;
 .tab-btn.active { color: var(--blue); border-bottom-color: var(--blue); font-weight: 700; background: transparent; }
 .tab-btn.remed-tab { color: var(--red); }
 .tab-btn.remed-tab.active { border-bottom-color: var(--red); }
+.pm-tab-btn {
+  border: none;
+  border-bottom: 3px solid transparent;
+  border-radius: 0;
+  background: transparent;
+  color: var(--text-2);
+  padding: 10px 18px;
+  font-size: 13px;
+  font-weight: 500;
+  font-family: var(--font);
+  margin-bottom: -2px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: color .15s;
+}
+.pm-tab-btn:hover { background: rgba(0,0,0,.03); }
 .tab-count {
   background: var(--red);
   color: #fff;
@@ -995,7 +1011,7 @@ label { font-size: 11px; font-weight: 600; color: var(--text-2); display: block;
 
 <!-- ============================================================ HEADER -->
 <div class="app-header">
-  <div id="build-stamp" title="If this looks out of date after an update was announced, hard-refresh with Ctrl+Shift+R (Cmd+Shift+R on Mac) to clear your browser's cached copy.">Build: <span id="build-stamp-text">2026-08-20-66</span></div>
+  <div id="build-stamp" title="If this looks out of date after an update was announced, hard-refresh with Ctrl+Shift+R (Cmd+Shift+R on Mac) to clear your browser's cached copy.">Build: <span id="build-stamp-text">2026-08-20-68</span></div>
   <div id="header-signed-in" style="position:absolute;top:26px;right:16px;font-size:11px;color:rgba(255,255,255,.75);white-space:nowrap;z-index:101;"></div>
   <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;flex:1;">
     <div style="background:#fff;border-radius:8px;padding:8px 14px;display:flex;align-items:center;box-shadow:0 1px 3px rgba(0,0,0,.15);">
@@ -1147,166 +1163,186 @@ label { font-size: 11px; font-weight: 600; color: var(--text-2); display: block;
 <!-- ============================================================ PM DASHBOARD PAGE -->
 <div id="page-pm" class="app-body" style="display:none;">
 
-  <!-- Smartsheet / Live Excel Sync Panel -->
-  <div class="smartsheet-panel">
-    <div class="smartsheet-title">
-      <span>&#9889;</span>
-      <span>Live Data Sync</span>
-      <span id="live-sync-badge" class="live-excel-badge" style="display:none;"><span class="pulse-dot"></span> Live</span>
-      <span id="ss-status-txt" style="font-size:11px;color:#7a5d00;font-weight:400;margin-left:auto;"></span>
-    </div>
-    <div class="sync-options">
-      <div class="sync-option" id="sync-opt-sheets" onclick="selectSyncOption('sheets')">
-        <div class="sync-option-title">&#9889; Smartsheet (Live)</div>
-        <div class="sync-option-desc">Auto-sync every 30s via a secure proxy Worker. Best for shared team access. Already configured in Admin.</div>
-      </div>
-      <div class="sync-option" id="sync-opt-excel" onclick="selectSyncOption('excel')">
-        <div class="sync-option-title">&#128196; Export to Excel (.xlsx)</div>
-        <div class="sync-option-desc">Download a snapshot of all units, ESO numbers, genset serials, and status. Re-import daily.</div>
-      </div>
-      <div class="sync-option" id="sync-opt-smartsheet" onclick="selectSyncOption('smartsheet')">
-        <div class="sync-option-title">&#128203; Smartsheet Integration</div>
-        <div class="sync-option-desc">Use Smartsheet's Data Shuttle to pull from your Google Sheet every hour automatically.</div>
-      </div>
-    </div>
-    <div id="sync-detail-area"></div>
+  <!-- PM View tabs -->
+  <div style="display:flex;gap:0;border-bottom:2px solid #e2e6ea;margin-bottom:16px;overflow-x:auto;">
+    <button id="pmtab-btn-overview" onclick="switchPMTab('overview')" class="pm-tab-btn">&#128200; Overview</button>
+    <button id="pmtab-btn-schedule" onclick="switchPMTab('schedule')" class="pm-tab-btn">&#128197; Schedule</button>
+    <button id="pmtab-btn-activity" onclick="switchPMTab('activity')" class="pm-tab-btn">&#128203; Activity Logs</button>
+    <button id="pmtab-btn-units" onclick="switchPMTab('units')" class="pm-tab-btn">&#9632; Units</button>
   </div>
 
-  <!-- FTI Ship Schedule Panel — Gantt / Calendar / Table -->
-  <div class="ship-doc-panel" id="ship-doc-panel">
-    <!-- Header -->
-    <div class="ship-doc-header">
-      <div class="ship-doc-title">
-        <span>&#128197;</span> RTS / Ship Schedule — FTI
-        <span style="font-size:11px;font-weight:400;padding:2px 8px;border-radius:2px;background:#dff6dd;color:#0b6a0b;border:1px solid #107c10;">&#10003; Live</span>
-        <span class="live-excel-badge"><span class="pulse-dot"></span> Auto-refresh 5min</span>
+  <!-- ===== TAB: OVERVIEW ===== -->
+  <div id="pmtab-overview">
+    <!-- My Dashboard — pick-your-own widgets -->
+    <div class="chart-card" id="pm-custom-dashboard" style="margin-bottom:20px;"></div>
+
+    <!-- PM KPI Hero Row -->
+    <div class="pm-hero" id="pm-kpi-row"></div>
+
+    <!-- Two-column layout -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px;">
+      <!-- Left: Status donut chart -->
+      <div class="chart-card" id="pm-status-chart"></div>
+      <!-- Right: Line progress -->
+      <div class="chart-card" id="pm-line-progress"></div>
+    </div>
+
+    <!-- Time in Process by Unit -->
+    <div class="chart-card" id="pm-time-chart" style="margin-bottom:14px;"></div>
+    <div class="chart-card" id="pm-duedate-chart" style="margin-bottom:14px;"></div>
+  </div>
+
+  <!-- ===== TAB: SCHEDULE ===== -->
+  <div id="pmtab-schedule" style="display:none;">
+    <!-- Smartsheet / Live Excel Sync Panel -->
+    <div class="smartsheet-panel">
+      <div class="smartsheet-title">
+        <span>&#9889;</span>
+        <span>Live Data Sync</span>
+        <span id="live-sync-badge" class="live-excel-badge" style="display:none;"><span class="pulse-dot"></span> Live</span>
+        <span id="ss-status-txt" style="font-size:11px;color:#7a5d00;font-weight:400;margin-left:auto;"></span>
       </div>
-      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
-        <span id="fti-fetch-status" style="font-size:11px;color:#605e5c;"></span>
-        <button class="sm" onclick="fetchFTIData(false)" style="border-color:#4b3a9e;color:#4b3a9e;">&#8635; Refresh</button>
-        <a id="fti-open-link" href="https://docs.google.com/spreadsheets/d/16paNl3SgyhWe-o1E1atc37mT3LYh5xleE6Kp3asJ1q0/edit?gid=1788286932" target="_blank"
-           style="font-size:12px;padding:4px 10px;border:1px solid #4b3a9e;color:#4b3a9e;border-radius:2px;text-decoration:none;font-weight:600;background:#fff;">
-          &#128279; Open Sheet
-        </a>
-        <button class="sm" onclick="exportFTIScheduleCsv()" style="border-color:#4b3a9e;color:#4b3a9e;">&#8595; CSV</button>
+      <div class="sync-options">
+        <div class="sync-option" id="sync-opt-sheets" onclick="selectSyncOption('sheets')">
+          <div class="sync-option-title">&#9889; Smartsheet (Live)</div>
+          <div class="sync-option-desc">Auto-sync every 30s via a secure proxy Worker. Best for shared team access. Already configured in Admin.</div>
+        </div>
+        <div class="sync-option" id="sync-opt-excel" onclick="selectSyncOption('excel')">
+          <div class="sync-option-title">&#128196; Export to Excel (.xlsx)</div>
+          <div class="sync-option-desc">Download a snapshot of all units, ESO numbers, genset serials, and status. Re-import daily.</div>
+        </div>
+        <div class="sync-option" id="sync-opt-smartsheet" onclick="selectSyncOption('smartsheet')">
+          <div class="sync-option-title">&#128203; Smartsheet Integration</div>
+          <div class="sync-option-desc">Use Smartsheet's Data Shuttle to pull from your Google Sheet every hour automatically.</div>
+        </div>
       </div>
+      <div id="sync-detail-area"></div>
     </div>
 
-    <!-- Sheet tab selector -->
-    <div style="background:#f3f2f1;border-bottom:1px solid #ddd;padding:6px 16px;display:flex;gap:4px;flex-wrap:wrap;align-items:center;">
-      <span style="font-size:10px;font-weight:700;color:#605e5c;text-transform:uppercase;letter-spacing:0.4px;margin-right:4px;">Sheet:</span>
-      <div id="fti-sheet-tabs" style="display:flex;gap:3px;flex-wrap:wrap;"></div>
-    </div>
+    <!-- FTI Ship Schedule Panel — Gantt / Calendar / Table -->
+    <div class="ship-doc-panel" id="ship-doc-panel">
+      <!-- Header -->
+      <div class="ship-doc-header">
+        <div class="ship-doc-title">
+          <span>&#128197;</span> RTS / Ship Schedule — FTI
+          <span style="font-size:11px;font-weight:400;padding:2px 8px;border-radius:2px;background:#dff6dd;color:#0b6a0b;border:1px solid #107c10;">&#10003; Live</span>
+          <span class="live-excel-badge"><span class="pulse-dot"></span> Auto-refresh 5min</span>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+          <span id="fti-fetch-status" style="font-size:11px;color:#605e5c;"></span>
+          <button class="sm" onclick="fetchFTIData(false)" style="border-color:#4b3a9e;color:#4b3a9e;">&#8635; Refresh</button>
+          <a id="fti-open-link" href="https://docs.google.com/spreadsheets/d/16paNl3SgyhWe-o1E1atc37mT3LYh5xleE6Kp3asJ1q0/edit?gid=1788286932" target="_blank"
+             style="font-size:12px;padding:4px 10px;border:1px solid #4b3a9e;color:#4b3a9e;border-radius:2px;text-decoration:none;font-weight:600;background:#fff;">
+            &#128279; Open Sheet
+          </a>
+          <button class="sm" onclick="exportFTIScheduleCsv()" style="border-color:#4b3a9e;color:#4b3a9e;">&#8595; CSV</button>
+        </div>
+      </div>
 
-    <!-- View tabs -->
-    <div style="display:flex;gap:0;border-bottom:2px solid #c4b8f3;background:#f9f8ff;padding:0 16px;overflow-x:auto;">
-      <button id="fti-tab-calendar" onclick="switchFTITab('calendar')" style="border:none;border-bottom:3px solid #4b3a9e;border-radius:0;background:transparent;color:#4b3a9e;font-weight:700;padding:9px 18px;font-size:13px;cursor:pointer;white-space:nowrap;">&#128197; Calendar</button>
-      <button id="fti-tab-table"    onclick="switchFTITab('table')"    style="border:none;border-bottom:3px solid transparent;border-radius:0;background:transparent;color:#605e5c;font-weight:500;padding:9px 18px;font-size:13px;cursor:pointer;white-space:nowrap;">&#9776; Table</button>
-    </div>
+      <!-- Sheet tab selector -->
+      <div style="background:#f3f2f1;border-bottom:1px solid #ddd;padding:6px 16px;display:flex;gap:4px;flex-wrap:wrap;align-items:center;">
+        <span style="font-size:10px;font-weight:700;color:#605e5c;text-transform:uppercase;letter-spacing:0.4px;margin-right:4px;">Sheet:</span>
+        <div id="fti-sheet-tabs" style="display:flex;gap:3px;flex-wrap:wrap;"></div>
+      </div>
 
-    <!-- CALENDAR VIEW -->
-    <div id="fti-view-calendar" style="padding:16px;">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px;">
-        <div style="display:flex;gap:2px;align-items:center;flex-wrap:wrap;">
-          <!-- View mode -->
-          <div style="display:flex;gap:2px;background:#f0eeff;border-radius:4px;padding:3px;margin-right:8px;">
-            <button id="cv-week"  onclick="setCalView('week')"  style="border:none;border-radius:3px;padding:5px 12px;font-size:12px;font-weight:500;background:transparent;color:#4b3a9e;cursor:pointer;">Week</button>
-            <button id="cv-month" onclick="setCalView('month')" style="border:none;border-radius:3px;padding:5px 12px;font-size:12px;font-weight:600;background:#4b3a9e;color:#fff;cursor:pointer;">Month</button>
-            <button id="cv-year"  onclick="setCalView('year')"  style="border:none;border-radius:3px;padding:5px 12px;font-size:12px;font-weight:500;background:transparent;color:#4b3a9e;cursor:pointer;">Year</button>
+      <!-- View tabs -->
+      <div style="display:flex;gap:0;border-bottom:2px solid #c4b8f3;background:#f9f8ff;padding:0 16px;overflow-x:auto;">
+        <button id="fti-tab-calendar" onclick="switchFTITab('calendar')" style="border:none;border-bottom:3px solid #4b3a9e;border-radius:0;background:transparent;color:#4b3a9e;font-weight:700;padding:9px 18px;font-size:13px;cursor:pointer;white-space:nowrap;">&#128197; Calendar</button>
+        <button id="fti-tab-table"    onclick="switchFTITab('table')"    style="border:none;border-bottom:3px solid transparent;border-radius:0;background:transparent;color:#605e5c;font-weight:500;padding:9px 18px;font-size:13px;cursor:pointer;white-space:nowrap;">&#9776; Table</button>
+      </div>
+
+      <!-- CALENDAR VIEW -->
+      <div id="fti-view-calendar" style="padding:16px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px;">
+          <div style="display:flex;gap:2px;align-items:center;flex-wrap:wrap;">
+            <!-- View mode -->
+            <div style="display:flex;gap:2px;background:#f0eeff;border-radius:4px;padding:3px;margin-right:8px;">
+              <button id="cv-week"  onclick="setCalView('week')"  style="border:none;border-radius:3px;padding:5px 12px;font-size:12px;font-weight:500;background:transparent;color:#4b3a9e;cursor:pointer;">Week</button>
+              <button id="cv-month" onclick="setCalView('month')" style="border:none;border-radius:3px;padding:5px 12px;font-size:12px;font-weight:600;background:#4b3a9e;color:#fff;cursor:pointer;">Month</button>
+              <button id="cv-year"  onclick="setCalView('year')"  style="border:none;border-radius:3px;padding:5px 12px;font-size:12px;font-weight:500;background:transparent;color:#4b3a9e;cursor:pointer;">Year</button>
+            </div>
+            <!-- Nav -->
+            <button onclick="calNav(-1)" style="padding:4px 10px;font-size:14px;">&#8592;</button>
+            <span id="cal-month-label" style="font-size:14px;font-weight:700;min-width:160px;text-align:center;"></span>
+            <button onclick="calNav(1)"  style="padding:4px 10px;font-size:14px;">&#8594;</button>
+            <button onclick="calNav(0)"  class="sm" style="margin-left:4px;">Today</button>
           </div>
-          <!-- Nav -->
-          <button onclick="calNav(-1)" style="padding:4px 10px;font-size:14px;">&#8592;</button>
-          <span id="cal-month-label" style="font-size:14px;font-weight:700;min-width:160px;text-align:center;"></span>
-          <button onclick="calNav(1)"  style="padding:4px 10px;font-size:14px;">&#8594;</button>
-          <button onclick="calNav(0)"  class="sm" style="margin-left:4px;">Today</button>
+          <div style="display:flex;gap:10px;font-size:11px;flex-wrap:wrap;">
+            <span><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#4b3a9e;margin-right:4px;vertical-align:middle;"></span>Load Date</span>
+            <span><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#107c10;margin-right:4px;vertical-align:middle;"></span>Ship Date</span>
+          </div>
         </div>
-        <div style="display:flex;gap:10px;font-size:11px;flex-wrap:wrap;">
-          <span><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#4b3a9e;margin-right:4px;vertical-align:middle;"></span>Load Date</span>
-          <span><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#107c10;margin-right:4px;vertical-align:middle;"></span>Ship Date</span>
-        </div>
+        <div id="cal-grid"></div>
       </div>
-      <div id="cal-grid"></div>
-    </div>
 
-    <!-- TABLE VIEW -->
-    <div id="fti-view-table" style="display:none;padding:16px;">
-      <div style="display:flex;justify-content:flex-end;gap:6px;margin-bottom:10px;flex-wrap:wrap;">
-        <select id="fti-filter" onchange="renderFTISchedule()" style="font-size:12px;padding:3px 8px;width:auto;">
-          <option value="all">All units</option>
-          <option value="upcoming">Load in next 30d</option>
-          <option value="overdue">Overdue</option>
-          <option value="nodate">No load date</option>
-        </select>
-      </div>
-      <div style="overflow-x:auto;">
-        <table class="pm-table">
-          <thead><tr id="fti-table-head">
-            <th>Unit</th><th>SOL ESO</th><th>Genset Serial</th>
-            <th>EXC RTS</th><th>Load / Ship Date</th><th>Ship Loose</th><th>Board Unit</th>
-          </tr></thead>
-          <tbody id="fti-schedule-body"></tbody>
-        </table>
+      <!-- TABLE VIEW -->
+      <div id="fti-view-table" style="display:none;padding:16px;">
+        <div style="display:flex;justify-content:flex-end;gap:6px;margin-bottom:10px;flex-wrap:wrap;">
+          <select id="fti-filter" onchange="renderFTISchedule()" style="font-size:12px;padding:3px 8px;width:auto;">
+            <option value="all">All units</option>
+            <option value="upcoming">Load in next 30d</option>
+            <option value="overdue">Overdue</option>
+            <option value="nodate">No load date</option>
+          </select>
+        </div>
+        <div style="overflow-x:auto;">
+          <table class="pm-table">
+            <thead><tr id="fti-table-head">
+              <th>Unit</th><th>SOL ESO</th><th>Genset Serial</th>
+              <th>EXC RTS</th><th>Load / Ship Date</th><th>Ship Loose</th><th>Board Unit</th>
+            </tr></thead>
+            <tbody id="fti-schedule-body"></tbody>
+          </table>
+        </div>
       </div>
     </div>
   </div>
 
-
-
-  <!-- My Dashboard — pick-your-own widgets -->
-  <div class="chart-card" id="pm-custom-dashboard" style="margin-bottom:20px;"></div>
-
-  <!-- PM KPI Hero Row -->
-  <div class="pm-hero" id="pm-kpi-row"></div>
-
-  <!-- Two-column layout -->
-  <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px;">
-    <!-- Left: Status donut chart -->
-    <div class="chart-card" id="pm-status-chart"></div>
-    <!-- Right: Line progress -->
-    <div class="chart-card" id="pm-line-progress"></div>
+  <!-- ===== TAB: ACTIVITY LOGS ===== -->
+  <div id="pmtab-activity" style="display:none;">
+    <div class="chart-card" id="pm-cleaning-time" style="margin-bottom:14px;"></div>
+    <div class="chart-card" id="pm-issue-closing-time" style="margin-bottom:14px;"></div>
+    <div class="chart-card" id="pm-issue-closures" style="margin-bottom:14px;"></div>
+    <div class="chart-card" id="pm-checklist-fails" style="margin-bottom:14px;"></div>
+    <div class="chart-card" id="pm-inspector-summary" style="margin-bottom:14px;"></div>
+    <div class="chart-card" id="pm-lead-checkins" style="margin-bottom:14px;"></div>
+    <div class="chart-card" id="pm-fail-overrides" style="margin-bottom:14px;"></div>
+    <div class="chart-card" id="pm-inspector-activity" style="margin-bottom:14px;"></div>
+    <div class="chart-card" id="pm-clocked-in" style="margin-bottom:14px;"></div>
   </div>
 
-  <!-- Time in Process by Unit -->
-  <div class="chart-card" id="pm-time-chart" style="margin-bottom:14px;"></div>
-  <div class="chart-card" id="pm-duedate-chart" style="margin-bottom:14px;"></div>
-  <div class="chart-card" id="pm-cleaning-time" style="margin-bottom:14px;"></div>
-  <div class="chart-card" id="pm-issue-closing-time" style="margin-bottom:14px;"></div>
-  <div class="chart-card" id="pm-issue-closures" style="margin-bottom:14px;"></div>
-  <div class="chart-card" id="pm-checklist-fails" style="margin-bottom:14px;"></div>
-  <div class="chart-card" id="pm-inspector-summary" style="margin-bottom:14px;"></div>
-  <div class="chart-card" id="pm-lead-checkins" style="margin-bottom:14px;"></div>
-  <div class="chart-card" id="pm-fail-overrides" style="margin-bottom:14px;"></div>
-  <div class="chart-card" id="pm-inspector-activity" style="margin-bottom:14px;"></div>
-  <div class="chart-card" id="pm-clocked-in" style="margin-bottom:14px;"></div>
+  <!-- ===== TAB: UNITS ===== -->
+  <div id="pmtab-units" style="display:none;">
+    <!-- Ready to Ship Panel -->
+    <div class="rts-panel" id="pm-rts-panel"></div>
 
-  <!-- Ready to Ship Panel -->
-  <div class="rts-panel" id="pm-rts-panel"></div>
-
-  <!-- Full PM Unit Table -->
-  <div class="chart-card">
-    <div class="chart-title">
-      All Units — PM Summary
-      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
-        <select id="pm-filter-line" onchange="renderPMPage()" style="font-size:12px;padding:4px 8px;width:auto;">
-          <option value="All">All lines</option>
-        </select>
-        <select id="pm-filter-status" onchange="renderPMPage()" style="font-size:12px;padding:4px 8px;width:auto;">
-          <option value="All">All statuses</option>
-          <option value="rts">Ready to Ship</option>
-          <option value="remed">Remediation</option>
-          <option value="held">On Hold</option>
-          <option value="inspecting">Inspecting</option>
-          <option value="active">Active</option>
-          <option value="complete">Complete</option>
-        </select>
-        <button class="sm" onclick="exportPMCsv()">&#8595; Export CSV</button>
+    <!-- Full PM Unit Table -->
+    <div class="chart-card">
+      <div class="chart-title">
+        All Units — PM Summary
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+          <select id="pm-filter-line" onchange="renderPMPage()" style="font-size:12px;padding:4px 8px;width:auto;">
+            <option value="All">All lines</option>
+          </select>
+          <select id="pm-filter-status" onchange="renderPMPage()" style="font-size:12px;padding:4px 8px;width:auto;">
+            <option value="All">All statuses</option>
+            <option value="rts">Ready to Ship</option>
+            <option value="remed">Remediation</option>
+            <option value="held">On Hold</option>
+            <option value="inspecting">Inspecting</option>
+            <option value="active">Active</option>
+            <option value="complete">Complete</option>
+          </select>
+          <button class="sm" onclick="exportPMCsv()">&#8595; Export CSV</button>
+        </div>
       </div>
+      <div id="pm-unit-table-wrap" style="overflow-x:auto;"></div>
     </div>
-    <div id="pm-unit-table-wrap" style="overflow-x:auto;"></div>
   </div>
 
 </div>
 <!-- ============================================================ END PM PAGE -->
+
 
 <!-- ============================================================ UNIFIED TRACKER -->
 <div id="page-tracker" class="app-body" style="display:none;">
@@ -1351,222 +1387,250 @@ label { font-size: 11px; font-weight: 600; color: var(--text-2); display: block;
 <!-- ============================================================ TIME CLOCK -->
 <!-- ============================================================ ADMIN -->
 <div id="page-admin" class="app-body" style="display:none;">
-  <div class="api-config">
-    <h3>&#9881; Sync configuration <span id="api-status-badge" class="api-status local">Local mode</span></h3>
-    <p style="font-size:12px;color:#7a5d00;margin-bottom:10px;">Choose which system is the live sync target. The Production Board and QC Tracker sync through whichever one is selected below.</p>
-    <div class="form-grid2">
-      <div><label>Sync target</label>
-        <select id="cfg-target" onchange="onSyncTargetChange()">
-          <option value="sheets">Google Sheets (Apps Script)</option>
-          <option value="smartsheet">Smartsheet (proxy)</option>
-        </select>
+
+  <!-- Admin tabs -->
+  <div style="display:flex;gap:0;border-bottom:2px solid #e2e6ea;margin-bottom:16px;overflow-x:auto;">
+    <button id="admintab-btn-sync" onclick="switchAdminTab('sync')" class="pm-tab-btn">&#9889; Sync &amp; Data</button>
+    <button id="admintab-btn-workflow" onclick="switchAdminTab('workflow')" class="pm-tab-btn">&#128736; Workflow Config</button>
+    <button id="admintab-btn-people" onclick="switchAdminTab('people')" class="pm-tab-btn">&#128100; People &amp; Access</button>
+    <button id="admintab-btn-dashboard" onclick="switchAdminTab('dashboard')" class="pm-tab-btn">&#128200; Dashboard</button>
+    <button id="admintab-btn-danger" onclick="switchAdminTab('danger')" class="pm-tab-btn" style="color:#A03033;">&#9888; Danger Zone</button>
+  </div>
+
+  <!-- ===== TAB: SYNC & DATA ===== -->
+  <div id="admintab-sync">
+    <div class="api-config">
+      <h3>&#9881; Sync configuration <span id="api-status-badge" class="api-status local">Local mode</span></h3>
+      <p style="font-size:12px;color:#7a5d00;margin-bottom:10px;">Choose which system is the live sync target. The Production Board and QC Tracker sync through whichever one is selected below.</p>
+      <div class="form-grid2">
+        <div><label>Sync target</label>
+          <select id="cfg-target" onchange="onSyncTargetChange()">
+            <option value="sheets">Google Sheets (Apps Script)</option>
+            <option value="smartsheet">Smartsheet (proxy)</option>
+          </select>
+        </div>
+        <div><label>Auto-sync interval</label><select id="cfg-interval"><option value="0">Off</option><option value="30" selected>30 seconds</option><option value="60">60 seconds</option><option value="300">5 minutes</option></select></div>
       </div>
-      <div><label>Auto-sync interval</label><select id="cfg-interval"><option value="0">Off</option><option value="30" selected>30 seconds</option><option value="60">60 seconds</option><option value="300">5 minutes</option></select></div>
-    </div>
-    <div class="form-grid2" id="cfg-sheets-row">
-      <div style="grid-column:1/-1;"><label>Google Sheets Web App URL</label><input id="cfg-url-sheets" type="text" placeholder="https://script.google.com/macros/s/YOUR_ID/exec" /></div>
-    </div>
-    <div class="form-grid2" id="cfg-smartsheet-row" style="display:none;">
-      <div style="grid-column:1/-1;"><label>Smartsheet Proxy URL</label><input id="cfg-url-smartsheet" type="text" placeholder="https://your-proxy.vercel.app/api/smartsheet" /></div>
-    </div>
-    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:4px;">
-      <button class="primary sm" onclick="saveSheetConfig()">Save &amp; connect</button>
-      <button class="sm" onclick="syncFromSheets()">&#8635; Sync now</button>
-      <button class="sm danger" onclick="clearSheetConfig()">Clear config</button>
-    </div>
-    <div id="api-test-msg" style="font-size:12px;margin-top:8px;min-height:16px;"></div>
-    <div id="sync-error-help" style="display:none;margin-top:10px;font-size:12px;background:#fff4ce;border:1px solid #f0c95c;border-radius:6px;padding:10px 12px;color:#602020;"></div>
-  </div>
-  <!-- SUPERVISOR ACCESS -->
-  <div class="card">
-    <div class="section-title">&#128274; Supervisor access</div>
-    <p style="font-size:12px;color:#605e5c;margin-bottom:12px;">Each supervisor has their own password — entering it identifies exactly who authorized a supervisor-only action (Admin access, resolving a Fail Override, the full data reset, etc.), instead of everyone sharing one password. Syncs to every connected device.</p>
-    <div id="supervisor-list-body" style="margin-bottom:14px;"></div>
-    <div style="display:grid;grid-template-columns:1fr 1fr 32px;gap:8px;align-items:end;max-width:460px;">
-      <div><label>Name</label><input id="sup-new-name" type="text" placeholder="e.g. Maria Garcia" /></div>
-      <div><label>Password</label><input id="sup-new-pw" type="password" placeholder="Choose a password" autocomplete="off" /></div>
-      <button class="primary" onclick="adminAddSupervisor()" style="padding:7px 10px;">&#10003;</button>
-    </div>
-    <div id="sup-pw-admin-msg" style="font-size:12px;margin-top:8px;min-height:16px;"></div>
-    <div style="margin-top:10px;padding-top:10px;border-top:1px solid #edebe9;">
-      <button class="subtle sm" onclick="adminResetSupervisorPassword()" style="font-size:11px;">Locked out of everything? Reset to one default password</button>
-    </div>
-  </div>
-  <!-- CHECKLIST EDITOR -->
-  <div class="card">
-    <div class="section-title">&#9989; Checklist editor</div>
-    <p style="font-size:12px;color:#605e5c;margin-bottom:12px;">Edit checklist item text or add new items per station — no code changes needed. Syncs to every device.</p>
-    <div id="checklist-editor-body"></div>
-  </div>
-  <!-- STATION TRACKER EDITOR -->
-  <div class="card">
-    <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:10px;margin-bottom:4px;">
-      <div class="section-title" style="margin:0;">&#128736; Station Tracker editor</div>
-      <div style="display:flex;gap:8px;">
-        <input type="file" id="ste-import-file" accept=".xlsx,.xls,.csv" style="display:none;" onchange="steHandleImport(event)" />
-        <button class="subtle sm" onclick="document.getElementById('ste-import-file').click()">&#8593; Import from Excel</button>
-        <button class="subtle sm" onclick="steTogglePasteArea()">&#128203; Paste from Excel</button>
+      <div class="form-grid2" id="cfg-sheets-row">
+        <div style="grid-column:1/-1;"><label>Google Sheets Web App URL</label><input id="cfg-url-sheets" type="text" placeholder="https://script.google.com/macros/s/YOUR_ID/exec" /></div>
       </div>
-    </div>
-    <div id="ste-paste-area" style="display:none;margin-bottom:12px;">
-      <p style="font-size:11px;color:#605e5c;margin-bottom:6px;">Select cells in Excel (including the header row — Station, Project, Task, and optionally Link), copy (Ctrl+C), click below, then paste (Ctrl+V).</p>
-      <textarea id="ste-paste-input" rows="4" placeholder="Paste copied Excel cells here..." style="width:100%;font-size:12px;font-family:monospace;padding:8px;margin-bottom:8px;"></textarea>
-      <button class="primary sm" onclick="steHandlePaste()">Import Pasted Data</button>
-    </div>
-    <p style="font-size:12px;color:#605e5c;margin-bottom:12px;">Add, edit, or remove tasks tracked at Stations 1, 2, 3, 4, 5, 6, 7, 8, and 9 — no code changes needed. Syncs to every device.</p>
-    <div id="ste-import-status" style="font-size:12px;margin-bottom:12px;"></div>
-    <div id="station-tracker-editor-body"></div>
-  </div>
-  <!-- DASHBOARD CARDS -->
-  <div class="card">
-    <div class="section-title">&#128200; Dashboard cards</div>
-    <p style="font-size:12px;color:#605e5c;margin-bottom:12px;">Add, remove, and reorder metric cards on the main Dashboard. This is shared — every device sees the same cards, unlike PM View's personal My Dashboard.</p>
-
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
-      <div style="font-size:11px;font-weight:700;color:var(--text-3,#8a96a8);text-transform:uppercase;letter-spacing:.3px;">Section order</div>
-      <button class="subtle sm" onclick="resetDashboardOrder()" title="Restore default section order">&#8635; Reset order</button>
-    </div>
-    <p style="font-size:11px;color:#605e5c;margin-bottom:10px;">Drag a row, or use the arrows, to change the order the sections appear in on the main Dashboard.</p>
-    <div id="admin-section-order-body" style="margin-bottom:20px;"></div>
-
-    <div id="admin-dashboard-cards-body"></div>
-  </div>
-  <!-- LINE EDITOR -->
-  <div class="card">
-    <div class="section-title">&#128268; Line editor</div>
-    <p style="font-size:12px;color:#605e5c;margin-bottom:12px;">Add, edit, remove, and reorder production lines and their stations — no code changes needed. Syncs to every device.</p>
-    <div id="line-editor-body"></div>
-  </div>
-  <!-- PROJECT EDITOR -->
-  <div class="card">
-    <div class="section-title">&#127991; Project editor</div>
-    <p style="font-size:12px;color:#605e5c;margin-bottom:12px;">Add or remove the project codes used for color-coding and Station Tracker task lists (SAT82, CYS43, COMPASS, etc.). Syncs to every device.</p>
-    <div id="project-editor-body"></div>
-  </div>
-  <!-- OPERATOR MANAGEMENT -->
-  <div class="card">
-    <div class="section-title">&#128100; Operator management</div>
-    <p style="font-size:12px;color:#605e5c;margin-bottom:12px;">Add, edit or remove operators. Changes take effect immediately and are saved in this browser.</p>
-    <div id="operator-list"></div>
-    <div style="display:grid;grid-template-columns:1fr 1fr 32px;gap:8px;margin-top:10px;align-items:end;" id="new-op-row">
-      <div><label>Name</label><input id="new-op-name" type="text" placeholder="e.g. Maria S." /></div>
-      <div><label>Employee ID</label><input id="new-op-emp" type="text" placeholder="e.g. EMP-047" /></div>
-      <button class="primary" onclick="addOperator()" style="padding:7px 10px;align-self:end;">+</button>
-    </div>
-    <div id="op-err" style="color:#A03033;font-size:12px;min-height:16px;margin-top:4px;"></div>
-  </div>
-
-  <div class="card">
-    <div class="section-title">&#128269; Board Inspection Stations</div>
-    <p style="font-size:12px;color:#605e5c;margin-bottom:12px;">Check which Board stations (across every line) require an inspection — this controls where "Ready for Inspection", Start/Stop Inspection, and "Send to Remediation" appear, and which units count toward the Tracker's Ready/Inspecting totals. Renaming a station in the Line Editor below keeps this in sync automatically.</p>
-    <div id="board-inspection-col-editor-body" style="max-height:280px;overflow-y:auto;"></div>
-  </div>
-  <div class="card">
-    <div class="section-title">Board unit overrides</div>
-    <div id="admin-deleted-units-note" style="margin-bottom:10px;"></div>
-    <div id="admin-board-list"></div>
-  </div>
-  <div class="card" style="border:2px solid #A03033;background:#fdecea;">
-    <div class="section-title" style="color:#A03033;">&#9888; Danger Zone — Reset All Unit Data</div>
-    <p style="font-size:12px;color:#602020;margin-bottom:10px;">
-      Permanently deletes <strong>every unit</strong> — locally in this browser <em>and</em> in your connected Google Sheet / Smartsheet (Board and QC tabs). This does not touch your lines, stations, checklists, or any other configuration — only unit data. <strong>This cannot be undone.</strong> Only use this to start completely fresh, e.g. clearing test data before going live.
-    </p>
-    <label style="display:block;font-size:12px;font-weight:600;color:#602020;margin-bottom:6px;">Type <strong>RESET</strong> to enable the button below</label>
-    <div style="display:flex;gap:8px;align-items:center;">
-      <input id="reset-confirm-input" type="text" placeholder="Type RESET" oninput="resetConfirmInputChanged()" style="max-width:180px;" />
-      <button id="reset-all-units-btn" class="danger" disabled onclick="resetAllUnitData()">&#9888; Reset All Unit Data</button>
-    </div>
-    <div id="reset-all-units-status" style="font-size:12px;margin-top:8px;"></div>
-  </div>
-  <div class="card" id="setup-guide">
-    <div class="section-title">Smartsheet sync setup guide</div>
-    <p style="font-size:12px;color:#605e5c;margin-bottom:8px;">Smartsheet's API can't be called directly from a browser (no CORS support), so a small Cloudflare Worker sits in between and holds your API token securely. See the <code>worker.js</code> + setup instructions provided alongside this app.</p>
-    <ol style="font-size:12px;color:#323130;padding-left:18px;line-height:2.2;">
-      <li>In Smartsheet, create 3 sheets: <strong>QC</strong>, <strong>Board</strong>, <strong>Issues</strong>, with column titles matching those listed in <code>worker.js</code></li>
-      <li>Generate a Smartsheet API access token: <strong>Account → Personal Settings → API Access</strong></li>
-      <li>Deploy <code>worker.js</code> as a Cloudflare Worker (free tier is fine)</li>
-      <li>In the Worker's settings, add secrets: <strong>SMARTSHEET_TOKEN</strong>, <strong>QC_SHEET_ID</strong>, <strong>BOARD_SHEET_ID</strong>, <strong>ISSUES_SHEET_ID</strong>, <strong>ALLOWED_ORIGIN</strong></li>
-      <li>Copy your Worker's URL (e.g. <code>https://your-worker.workers.dev</code>) and paste it above as the sync URL</li>
-    </ol>
-  </div>
-  <!-- SMARTSHEET EXPORT -->
-  <div class="card" id="smartsheet-export-card">
-    <div class="section-title">&#128203; Smartsheet Export</div>
-    <p style="font-size:12px;color:var(--text-2);margin-bottom:16px;line-height:1.6;">
-      Generate perfectly formatted exports ready to import directly into Smartsheet.
-      Each export maps to a standard Smartsheet sheet structure with the correct column types.
-    </p>
-
-    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px;margin-bottom:16px;">
-
-      <!-- Export 1: Production Board -->
-      <div style="border:1px solid var(--border);border-radius:var(--r-md);padding:16px;background:var(--surface-2);display:flex;flex-direction:column;gap:10px;">
-        <div style="display:flex;align-items:center;gap:8px;">
-          <span style="font-size:20px;">🏭</span>
-          <div>
-            <div style="font-size:13px;font-weight:700;color:var(--text-1);">Production Board</div>
-            <div style="font-size:11px;color:var(--text-2);">All board units — station, status, ESO, genset, history</div>
-          </div>
-        </div>
-        <div id="board-export-cols-hint" style="font-size:11px;color:var(--text-3);background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:8px 10px;font-family:monospace;line-height:1.8;">
-          Unit ID · Line · Station · Status · ESO # · Genset Serial · On Hold · Completed · Ready for Insp · Inspection Started · Last Action · Last Operator · Last Updated · History Count · Load Date · Ship Date
-        </div>
-        <button class="primary sm" onclick="exportSmartsheetBoard()" style="align-self:flex-start;">&#8595; Download Board Export</button>
+      <div class="form-grid2" id="cfg-smartsheet-row" style="display:none;">
+        <div style="grid-column:1/-1;"><label>Smartsheet Proxy URL</label><input id="cfg-url-smartsheet" type="text" placeholder="https://your-proxy.vercel.app/api/smartsheet" /></div>
       </div>
-
-      <!-- Export 2: QC Tracker -->
-      <div style="border:1px solid var(--border);border-radius:var(--r-md);padding:16px;background:var(--surface-2);display:flex;flex-direction:column;gap:10px;">
-        <div style="display:flex;align-items:center;gap:8px;">
-          <span style="font-size:20px;">🔬</span>
-          <div>
-            <div style="font-size:13px;font-weight:700;color:var(--text-1);">QC Tracker</div>
-            <div style="font-size:11px;color:var(--text-2);">All QC units — station, inspection status, remediation</div>
-          </div>
-        </div>
-        <div style="font-size:11px;color:var(--text-3);background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:8px 10px;font-family:monospace;line-height:1.8;">
-          Serial # · Product Type · Category · QC Station · Status · Inspection Started · On Hold · Remediation · Remediation Origin · Completed · Last Action · Last Inspector · Last Updated · History Count
-        </div>
-        <button class="primary sm" onclick="exportSmartsheetQC()" style="align-self:flex-start;">&#8595; Download QC Export</button>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:4px;">
+        <button class="primary sm" onclick="saveSheetConfig()">Save &amp; connect</button>
+        <button class="sm" onclick="syncFromSheets()">&#8635; Sync now</button>
+        <button class="sm danger" onclick="clearSheetConfig()">Clear config</button>
       </div>
-
-      <!-- Export 3: RTS / Ship Schedule -->
-      <div style="border:1px solid var(--border);border-radius:var(--r-md);padding:16px;background:var(--surface-2);display:flex;flex-direction:column;gap:10px;">
-        <div style="display:flex;align-items:center;gap:8px;">
-          <span style="font-size:20px;">🚚</span>
-          <div>
-            <div style="font-size:13px;font-weight:700;color:var(--text-1);">RTS / Ship Schedule</div>
-            <div style="font-size:11px;color:var(--text-2);">FTI schedule merged with board unit status</div>
-          </div>
-        </div>
-        <div style="font-size:11px;color:var(--text-3);background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:8px 10px;font-family:monospace;line-height:1.8;">
-          FTI # · Project · SOL ESO · CAT ESO · Genset Serial · EXC RTS · Load Date · Ship Date · Days Until Load · Board Unit · Board Station · Board Status · Finalized
-        </div>
-        <button class="primary sm" onclick="exportSmartsheetRTS()" style="align-self:flex-start;">&#8595; Download RTS Export</button>
-      </div>
-
+      <div id="api-test-msg" style="font-size:12px;margin-top:8px;min-height:16px;"></div>
+      <div id="sync-error-help" style="display:none;margin-top:10px;font-size:12px;background:#fff4ce;border:1px solid #f0c95c;border-radius:6px;padding:10px 12px;color:#602020;"></div>
     </div>
-
-    <!-- Smartsheet import instructions -->
-    <div style="background:linear-gradient(135deg,#f0f9ff,#fff);border:1px solid #bae0fd;border-radius:var(--r-md);padding:14px 16px;">
-      <div style="font-size:12px;font-weight:700;color:#0369a1;margin-bottom:10px;">&#9432; How to import into Smartsheet</div>
-      <ol style="font-size:12px;color:var(--text-2);padding-left:18px;line-height:2.2;">
-        <li>Download the export file above</li>
-        <li>In Smartsheet → click <strong>+</strong> (New) → <strong>Import</strong> → <strong>CSV / Excel</strong></li>
-        <li>Select your downloaded file → click <strong>Next</strong></li>
-        <li>Smartsheet auto-detects column types — verify dates are <strong>Date</strong> type, checkboxes are <strong>Checkbox</strong></li>
-        <li>Click <strong>Import</strong> — your sheet is ready</li>
-        <li>For <strong>auto-refresh</strong>: use <strong>Data Shuttle</strong> (Smartsheet Business/Enterprise) to schedule hourly imports from your Google Sheet</li>
+    <div class="card" id="setup-guide">
+      <div class="section-title">Smartsheet sync setup guide</div>
+      <p style="font-size:12px;color:#605e5c;margin-bottom:8px;">Smartsheet's API can't be called directly from a browser (no CORS support), so a small Cloudflare Worker sits in between and holds your API token securely. See the <code>worker.js</code> + setup instructions provided alongside this app.</p>
+      <ol style="font-size:12px;color:#323130;padding-left:18px;line-height:2.2;">
+        <li>In Smartsheet, create 3 sheets: <strong>QC</strong>, <strong>Board</strong>, <strong>Issues</strong>, with column titles matching those listed in <code>worker.js</code></li>
+        <li>Generate a Smartsheet API access token: <strong>Account → Personal Settings → API Access</strong></li>
+        <li>Deploy <code>worker.js</code> as a Cloudflare Worker (free tier is fine)</li>
+        <li>In the Worker's settings, add secrets: <strong>SMARTSHEET_TOKEN</strong>, <strong>QC_SHEET_ID</strong>, <strong>BOARD_SHEET_ID</strong>, <strong>ISSUES_SHEET_ID</strong>, <strong>ALLOWED_ORIGIN</strong></li>
+        <li>Copy your Worker's URL (e.g. <code>https://your-worker.workers.dev</code>) and paste it above as the sync URL</li>
       </ol>
-      <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;">
-        <a href="https://help.smartsheet.com/articles/2476166-import-files-to-smartsheet" target="_blank"
-           style="font-size:11px;padding:5px 12px;border:1px solid #0369a1;color:#0369a1;border-radius:20px;text-decoration:none;font-weight:600;background:#fff;">
-          &#128279; Import docs
-        </a>
-        <a href="https://help.smartsheet.com/articles/2476697-data-shuttle-overview" target="_blank"
-           style="font-size:11px;padding:5px 12px;border:1px solid #0369a1;color:#0369a1;border-radius:20px;text-decoration:none;font-weight:600;background:#fff;">
-          &#128279; Data Shuttle docs
-        </a>
+    </div>
+    <!-- SMARTSHEET EXPORT -->
+    <div class="card" id="smartsheet-export-card">
+      <div class="section-title">&#128203; Smartsheet Export</div>
+      <p style="font-size:12px;color:var(--text-2);margin-bottom:16px;line-height:1.6;">
+        Generate perfectly formatted exports ready to import directly into Smartsheet.
+        Each export maps to a standard Smartsheet sheet structure with the correct column types.
+      </p>
+
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px;margin-bottom:16px;">
+
+        <!-- Export 1: Production Board -->
+        <div style="border:1px solid var(--border);border-radius:var(--r-md);padding:16px;background:var(--surface-2);display:flex;flex-direction:column;gap:10px;">
+          <div style="display:flex;align-items:center;gap:8px;">
+            <span style="font-size:20px;">🏭</span>
+            <div>
+              <div style="font-size:13px;font-weight:700;color:var(--text-1);">Production Board</div>
+              <div style="font-size:11px;color:var(--text-2);">All board units — station, status, ESO, genset, history</div>
+            </div>
+          </div>
+          <div id="board-export-cols-hint" style="font-size:11px;color:var(--text-3);background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:8px 10px;font-family:monospace;line-height:1.8;">
+            Unit ID · Line · Station · Status · ESO # · Genset Serial · On Hold · Completed · Ready for Insp · Inspection Started · Last Action · Last Operator · Last Updated · History Count · Load Date · Ship Date
+          </div>
+          <button class="primary sm" onclick="exportSmartsheetBoard()" style="align-self:flex-start;">&#8595; Download Board Export</button>
+        </div>
+
+        <!-- Export 2: QC Tracker -->
+        <div style="border:1px solid var(--border);border-radius:var(--r-md);padding:16px;background:var(--surface-2);display:flex;flex-direction:column;gap:10px;">
+          <div style="display:flex;align-items:center;gap:8px;">
+            <span style="font-size:20px;">🔬</span>
+            <div>
+              <div style="font-size:13px;font-weight:700;color:var(--text-1);">QC Tracker</div>
+              <div style="font-size:11px;color:var(--text-2);">All QC units — station, inspection status, remediation</div>
+            </div>
+          </div>
+          <div style="font-size:11px;color:var(--text-3);background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:8px 10px;font-family:monospace;line-height:1.8;">
+            Serial # · Product Type · Category · QC Station · Status · Inspection Started · On Hold · Remediation · Remediation Origin · Completed · Last Action · Last Inspector · Last Updated · History Count
+          </div>
+          <button class="primary sm" onclick="exportSmartsheetQC()" style="align-self:flex-start;">&#8595; Download QC Export</button>
+        </div>
+
+        <!-- Export 3: RTS / Ship Schedule -->
+        <div style="border:1px solid var(--border);border-radius:var(--r-md);padding:16px;background:var(--surface-2);display:flex;flex-direction:column;gap:10px;">
+          <div style="display:flex;align-items:center;gap:8px;">
+            <span style="font-size:20px;">🚚</span>
+            <div>
+              <div style="font-size:13px;font-weight:700;color:var(--text-1);">RTS / Ship Schedule</div>
+              <div style="font-size:11px;color:var(--text-2);">FTI schedule merged with board unit status</div>
+            </div>
+          </div>
+          <div style="font-size:11px;color:var(--text-3);background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:8px 10px;font-family:monospace;line-height:1.8;">
+            FTI # · Project · SOL ESO · CAT ESO · Genset Serial · EXC RTS · Load Date · Ship Date · Days Until Load · Board Unit · Board Station · Board Status · Finalized
+          </div>
+          <button class="primary sm" onclick="exportSmartsheetRTS()" style="align-self:flex-start;">&#8595; Download RTS Export</button>
+        </div>
+
       </div>
+
+      <!-- Smartsheet import instructions -->
+      <div style="background:linear-gradient(135deg,#f0f9ff,#fff);border:1px solid #bae0fd;border-radius:var(--r-md);padding:14px 16px;">
+        <div style="font-size:12px;font-weight:700;color:#0369a1;margin-bottom:10px;">&#9432; How to import into Smartsheet</div>
+        <ol style="font-size:12px;color:var(--text-2);padding-left:18px;line-height:2.2;">
+          <li>Download the export file above</li>
+          <li>In Smartsheet → click <strong>+</strong> (New) → <strong>Import</strong> → <strong>CSV / Excel</strong></li>
+          <li>Select your downloaded file → click <strong>Next</strong></li>
+          <li>Smartsheet auto-detects column types — verify dates are <strong>Date</strong> type, checkboxes are <strong>Checkbox</strong></li>
+          <li>Click <strong>Import</strong> — your sheet is ready</li>
+          <li>For <strong>auto-refresh</strong>: use <strong>Data Shuttle</strong> (Smartsheet Business/Enterprise) to schedule hourly imports from your Google Sheet</li>
+        </ol>
+        <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;">
+          <a href="https://help.smartsheet.com/articles/2476166-import-files-to-smartsheet" target="_blank"
+             style="font-size:11px;padding:5px 12px;border:1px solid #0369a1;color:#0369a1;border-radius:20px;text-decoration:none;font-weight:600;background:#fff;">
+            &#128279; Import docs
+          </a>
+          <a href="https://help.smartsheet.com/articles/2476697-data-shuttle-overview" target="_blank"
+             style="font-size:11px;padding:5px 12px;border:1px solid #0369a1;color:#0369a1;border-radius:20px;text-decoration:none;font-weight:600;background:#fff;">
+            &#128279; Data Shuttle docs
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== TAB: WORKFLOW CONFIG ===== -->
+  <div id="admintab-workflow" style="display:none;">
+    <!-- CHECKLIST EDITOR -->
+    <div class="card">
+      <div class="section-title">&#9989; Checklist editor</div>
+      <p style="font-size:12px;color:#605e5c;margin-bottom:12px;">Edit checklist item text or add new items per station — no code changes needed. Syncs to every device.</p>
+      <div id="checklist-editor-body"></div>
+    </div>
+    <!-- STATION TRACKER EDITOR -->
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:10px;margin-bottom:4px;">
+        <div class="section-title" style="margin:0;">&#128736; Station Tracker editor</div>
+        <div style="display:flex;gap:8px;">
+          <input type="file" id="ste-import-file" accept=".xlsx,.xls,.csv" style="display:none;" onchange="steHandleImport(event)" />
+          <button class="subtle sm" onclick="document.getElementById('ste-import-file').click()">&#8593; Import from Excel</button>
+          <button class="subtle sm" onclick="steTogglePasteArea()">&#128203; Paste from Excel</button>
+        </div>
+      </div>
+      <div id="ste-paste-area" style="display:none;margin-bottom:12px;">
+        <p style="font-size:11px;color:#605e5c;margin-bottom:6px;">Select cells in Excel (including the header row — Station, Project, Task, and optionally Link), copy (Ctrl+C), click below, then paste (Ctrl+V).</p>
+        <textarea id="ste-paste-input" rows="4" placeholder="Paste copied Excel cells here..." style="width:100%;font-size:12px;font-family:monospace;padding:8px;margin-bottom:8px;"></textarea>
+        <button class="primary sm" onclick="steHandlePaste()">Import Pasted Data</button>
+      </div>
+      <p style="font-size:12px;color:#605e5c;margin-bottom:12px;">Add, edit, or remove tasks tracked at Stations 1, 2, 3, 4, 5, 6, 7, 8, and 9 — no code changes needed. Syncs to every device.</p>
+      <div id="ste-import-status" style="font-size:12px;margin-bottom:12px;"></div>
+      <div id="station-tracker-editor-body"></div>
+    </div>
+    <!-- LINE EDITOR -->
+    <div class="card">
+      <div class="section-title">&#128268; Line editor</div>
+      <p style="font-size:12px;color:#605e5c;margin-bottom:12px;">Add, edit, remove, and reorder production lines and their stations — no code changes needed. Syncs to every device.</p>
+      <div id="line-editor-body"></div>
+    </div>
+    <!-- PROJECT EDITOR -->
+    <div class="card">
+      <div class="section-title">&#127991; Project editor</div>
+      <p style="font-size:12px;color:#605e5c;margin-bottom:12px;">Add or remove the project codes used for color-coding and Station Tracker task lists (SAT82, CYS43, COMPASS, etc.). Syncs to every device.</p>
+      <div id="project-editor-body"></div>
+    </div>
+    <div class="card">
+      <div class="section-title">&#128269; Board Inspection Stations</div>
+      <p style="font-size:12px;color:#605e5c;margin-bottom:12px;">Check which Board stations (across every line) require an inspection — this controls where "Ready for Inspection", Start/Stop Inspection, and "Send to Remediation" appear, and which units count toward the Tracker's Ready/Inspecting totals. Renaming a station in the Line Editor below keeps this in sync automatically.</p>
+      <div id="board-inspection-col-editor-body" style="max-height:280px;overflow-y:auto;"></div>
+    </div>
+  </div>
+
+  <!-- ===== TAB: PEOPLE & ACCESS ===== -->
+  <div id="admintab-people" style="display:none;">
+    <!-- SUPERVISOR ACCESS -->
+    <div class="card">
+      <div class="section-title">&#128274; Supervisor access</div>
+      <p style="font-size:12px;color:#605e5c;margin-bottom:12px;">Each supervisor has their own password — entering it identifies exactly who authorized a supervisor-only action (Admin access, resolving a Fail Override, the full data reset, etc.), instead of everyone sharing one password. Syncs to every connected device.</p>
+      <div id="supervisor-list-body" style="margin-bottom:14px;"></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 32px;gap:8px;align-items:end;max-width:460px;">
+        <div><label>Name</label><input id="sup-new-name" type="text" placeholder="e.g. Maria Garcia" /></div>
+        <div><label>Password</label><input id="sup-new-pw" type="password" placeholder="Choose a password" autocomplete="off" /></div>
+        <button class="primary" onclick="adminAddSupervisor()" style="padding:7px 10px;">&#10003;</button>
+      </div>
+      <div id="sup-pw-admin-msg" style="font-size:12px;margin-top:8px;min-height:16px;"></div>
+      <div style="margin-top:10px;padding-top:10px;border-top:1px solid #edebe9;">
+        <button class="subtle sm" onclick="adminResetSupervisorPassword()" style="font-size:11px;">Locked out of everything? Reset to one default password</button>
+      </div>
+    </div>
+    <!-- OPERATOR MANAGEMENT -->
+    <div class="card">
+      <div class="section-title">&#128100; Operator management</div>
+      <p style="font-size:12px;color:#605e5c;margin-bottom:12px;">Add, edit or remove operators. Changes take effect immediately and are saved in this browser.</p>
+      <div id="operator-list"></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 32px;gap:8px;margin-top:10px;align-items:end;" id="new-op-row">
+        <div><label>Name</label><input id="new-op-name" type="text" placeholder="e.g. Maria S." /></div>
+        <div><label>Employee ID</label><input id="new-op-emp" type="text" placeholder="e.g. EMP-047" /></div>
+        <button class="primary" onclick="addOperator()" style="padding:7px 10px;align-self:end;">+</button>
+      </div>
+      <div id="op-err" style="color:#A03033;font-size:12px;min-height:16px;margin-top:4px;"></div>
+    </div>
+  </div>
+
+  <!-- ===== TAB: DASHBOARD ===== -->
+  <div id="admintab-dashboard" style="display:none;">
+    <!-- DASHBOARD CARDS -->
+    <div class="card">
+      <div class="section-title">&#128200; Dashboard cards</div>
+      <p style="font-size:12px;color:#605e5c;margin-bottom:12px;">Add, remove, and reorder metric cards on the main Dashboard. This is shared — every device sees the same cards, unlike PM View's personal My Dashboard.</p>
+
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+        <div style="font-size:11px;font-weight:700;color:var(--text-3,#8a96a8);text-transform:uppercase;letter-spacing:.3px;">Section order</div>
+        <button class="subtle sm" onclick="resetDashboardOrder()" title="Restore default section order">&#8635; Reset order</button>
+      </div>
+      <p style="font-size:11px;color:#605e5c;margin-bottom:10px;">Drag a row, or use the arrows, to change the order the sections appear in on the main Dashboard.</p>
+      <div id="admin-section-order-body" style="margin-bottom:20px;"></div>
+
+      <div id="admin-dashboard-cards-body"></div>
+    </div>
+  </div>
+
+  <!-- ===== TAB: DANGER ZONE ===== -->
+  <div id="admintab-danger" style="display:none;">
+    <div class="card">
+      <div class="section-title">Board unit overrides</div>
+      <div id="admin-deleted-units-note" style="margin-bottom:10px;"></div>
+      <div id="admin-board-list"></div>
+    </div>
+    <div class="card" style="border:2px solid #A03033;background:#fdecea;">
+      <div class="section-title" style="color:#A03033;">&#9888; Danger Zone — Reset All Unit Data</div>
+      <p style="font-size:12px;color:#602020;margin-bottom:10px;">
+        Permanently deletes <strong>every unit</strong> — locally in this browser <em>and</em> in your connected Google Sheet / Smartsheet (Board and QC tabs). This does not touch your lines, stations, checklists, or any other configuration — only unit data. <strong>This cannot be undone.</strong> Only use this to start completely fresh, e.g. clearing test data before going live.
+      </p>
+      <label style="display:block;font-size:12px;font-weight:600;color:#602020;margin-bottom:6px;">Type <strong>RESET</strong> to enable the button below</label>
+      <div style="display:flex;gap:8px;align-items:center;">
+        <input id="reset-confirm-input" type="text" placeholder="Type RESET" oninput="resetConfirmInputChanged()" style="max-width:180px;" />
+        <button id="reset-all-units-btn" class="danger" disabled onclick="resetAllUnitData()">&#9888; Reset All Unit Data</button>
+      </div>
+      <div id="reset-all-units-status" style="font-size:12px;margin-top:8px;"></div>
     </div>
   </div>
 
@@ -5530,6 +5594,7 @@ function _showPage(page) {
   if (page==='editunit') { renderEditUnitPage(); }
   if (page==='masterschedule') { renderMasterSchedulePage(); }
   if (page==='admin') {
+    switchAdminTab(adminActiveTab);
     renderAdminBoard(); renderOperatorList(); renderChecklistEditor(); renderStationTrackerEditor(); renderAdminDashboardCardManager(); renderAdminSectionOrder(); renderLineEditor(); renderBoardInspectionColEditor(); renderProjectEditor(); renderSupervisorList();
     document.getElementById('cfg-target').value = syncTarget;
     document.getElementById('cfg-url-sheets').value = sheetsUrl;
@@ -5692,7 +5757,7 @@ function renderAll() {
   applyDashboardCardOrder();
   if (currentPage==='tracker') { renderUnifiedTabs(); renderUnifiedContent(); }
   if (currentPage==='floor') { renderFloorPage(); }
-  if (currentPage==='pm') { renderPMPage(); }
+  if (currentPage==='pm') { switchPMTab(pmActiveTab); renderPMPage(); }
   if (currentPage==='tv') { renderTVMode(); }
   if (currentPage==='station2') { renderStation2Tracker(); }
   if (currentPage==='cat') { renderCatDashboard(); }
@@ -7841,6 +7906,38 @@ function getPMAllUnits() {
   return units;
 }
 
+let pmActiveTab = 'overview';
+function switchPMTab(tab) {
+  pmActiveTab = tab;
+  ['overview','schedule','activity','units'].forEach(t => {
+    const panel = document.getElementById('pmtab-'+t);
+    const btn = document.getElementById('pmtab-btn-'+t);
+    if (panel) panel.style.display = (t === tab) ? '' : 'none';
+    if (btn) {
+      btn.style.borderBottomColor = (t === tab) ? '#4b3a9e' : 'transparent';
+      btn.style.color = (t === tab) ? '#4b3a9e' : '#605e5c';
+      btn.style.fontWeight = (t === tab) ? '700' : '500';
+    }
+  });
+}
+let adminActiveTab = 'sync';
+function switchAdminTab(tab) {
+  adminActiveTab = tab;
+  ['sync','workflow','people','dashboard','danger'].forEach(t => {
+    const panel = document.getElementById('admintab-'+t);
+    const btn = document.getElementById('admintab-btn-'+t);
+    if (panel) panel.style.display = (t === tab) ? '' : 'none';
+    if (btn) {
+      // Danger Zone keeps its red text even when inactive — everything
+      // else fades to the neutral inactive color.
+      const activeColor = (t === 'danger') ? '#A03033' : '#4b3a9e';
+      const inactiveColor = (t === 'danger') ? '#A03033' : '#605e5c';
+      btn.style.borderBottomColor = (t === tab) ? activeColor : 'transparent';
+      btn.style.color = (t === tab) ? activeColor : inactiveColor;
+      btn.style.fontWeight = (t === tab) ? '700' : '500';
+    }
+  });
+}
 function renderPMPage() {
   renderPMCustomDashboard();
   renderPMKpis();
@@ -11675,7 +11772,7 @@ function removeRemediationFlag(unitId, idx) {
    visible stamp every time a change is made, or version checks
    against a stale reference and never fires.
    ============================================================ */
-const BUILD_DATE = '2026-08-20-66';
+const BUILD_DATE = '2026-08-20-68';
 let updateBannerShown = false;
 function checkForNewVersion() {
   if (updateBannerShown) return;

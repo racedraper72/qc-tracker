@@ -1003,6 +1003,26 @@ label { font-size: 11px; font-weight: 600; color: var(--text-2); display: block;
   .floor-sec-btn     { min-height: 48px; }
   .floor-line-btn    { min-height: 44px; }
 }
+/* Cleaner Dashboard — built for a phone in someone's hand while walking
+   the floor, not a desktop. Generously large tap targets throughout, and
+   input font-size is deliberately >=16px specifically to stop iOS
+   Safari from auto-zooming the page in when a field gets focused, which
+   is jarring and easy to trigger by accident on a form this simple. */
+.cleaner-input {
+  width: 100%;
+  font-size: 17px;
+  padding: 14px 16px;
+  min-height: 52px;
+  border: 2px solid var(--border);
+  border-radius: 10px;
+  box-sizing: border-box;
+}
+.cleaner-big-btn {
+  min-height: 60px;
+  font-size: 17px;
+  font-weight: 700;
+  border-radius: 12px;
+}
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
@@ -1011,7 +1031,7 @@ label { font-size: 11px; font-weight: 600; color: var(--text-2); display: block;
 
 <!-- ============================================================ HEADER -->
 <div class="app-header">
-  <div id="build-stamp" title="If this looks out of date after an update was announced, hard-refresh with Ctrl+Shift+R (Cmd+Shift+R on Mac) to clear your browser's cached copy.">Build: <span id="build-stamp-text">2026-08-20-68</span></div>
+  <div id="build-stamp" title="If this looks out of date after an update was announced, hard-refresh with Ctrl+Shift+R (Cmd+Shift+R on Mac) to clear your browser's cached copy.">Build: <span id="build-stamp-text">2026-08-20-72</span></div>
   <div id="header-signed-in" style="position:absolute;top:26px;right:16px;font-size:11px;color:rgba(255,255,255,.75);white-space:nowrap;z-index:101;"></div>
   <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;flex:1;">
     <div style="background:#fff;border-radius:8px;padding:8px 14px;display:flex;align-items:center;box-shadow:0 1px 3px rgba(0,0,0,.15);">
@@ -1026,7 +1046,7 @@ label { font-size: 11px; font-weight: 600; color: var(--text-2); display: block;
   </div>
   <div class="header-nav">
     <button class="nav-btn active" draggable="true" ondragstart="navDragStart('nav-dashboard')" ondragover="event.preventDefault()" ondrop="navDrop('nav-dashboard')" id="nav-dashboard" onclick="showPage('dashboard')">&#9632; Dashboard</button>
-    <button class="nav-btn" draggable="true" ondragstart="navDragStart('nav-cat')" ondragover="event.preventDefault()" ondrop="navDrop('nav-cat')" id="nav-cat" onclick="showPage('cat')">&#128663; Cat Dashboard</button>
+    <button class="nav-btn" draggable="true" ondragstart="navDragStart('nav-cleaner')" ondragover="event.preventDefault()" ondrop="navDrop('nav-cleaner')" id="nav-cleaner" onclick="showPage('cleaner')">&#129529; Cleaner Dashboard</button>
     <button class="nav-btn" draggable="true" ondragstart="navDragStart('nav-floormap')" ondragover="event.preventDefault()" ondrop="navDrop('nav-floormap')" id="nav-floormap" onclick="showPage('floormap')">&#128506; Floor Map</button>
     <button class="nav-btn" draggable="true" ondragstart="navDragStart('nav-editunit')" ondragover="event.preventDefault()" ondrop="navDrop('nav-editunit')" id="nav-editunit" onclick="showPage('editunit')">&#9998; Edit/Add Unit</button>
     <button class="nav-btn" draggable="true" ondragstart="navDragStart('nav-masterschedule')" ondragover="event.preventDefault()" ondrop="navDrop('nav-masterschedule')" id="nav-masterschedule" onclick="showPage('masterschedule')">&#128197; Master Schedule</button>
@@ -1796,14 +1816,14 @@ label { font-size: 11px; font-weight: 600; color: var(--text-2); display: block;
 
 
 <!-- ============================================================ CAT DASHBOARD PAGE -->
-<div id="page-cat" class="app-body" style="display:none;">
+<div id="page-cleaner" class="app-body" style="display:none;">
   <div style="margin-bottom:16px;">
-    <h2 style="font-size:16px;font-weight:800;letter-spacing:-.3px;">&#128663; Cat Dashboard</h2>
-    <p style="font-size:12px;color:var(--text-2);margin-top:3px;">Read-only view — Unit # and Solutions ESO # only, by line and station.</p>
+    <h2 style="font-size:16px;font-weight:800;letter-spacing:-.3px;">&#129529; Cleaner Dashboard <span style="font-weight:400;color:var(--text-2);">/ Panel de Limpieza</span></h2>
+    <p style="font-size:12px;color:var(--text-2);margin-top:3px;">Sign in, then time in/out on units as you clean them. &#8226; Inicie sesión y marque entrada/salida en las unidades mientras las limpia.</p>
   </div>
-  <div id="cat-dashboard-body" style="display:flex;flex-direction:column;gap:16px;"></div>
+  <div id="cleaner-dashboard-body"></div>
 </div>
-<!-- ============================================================ END CAT DASHBOARD PAGE -->
+<!-- ============================================================ END CLEANER DASHBOARD PAGE -->
 
 <!-- ============================================================ FLOOR MAP PAGE -->
 <div id="page-floormap" class="app-body" style="display:none;">
@@ -5552,17 +5572,18 @@ function pushIssues() {
 let trackerMode = 'board'; // 'board' or 'qc'
 
 /* ---- PAGE NAV ---- */
-/* Kiosk-style restricted view: when the page is loaded with ?view=cat in
-   the URL, the app locks to ONLY the Cat Dashboard — every other page
-   (including Admin) is forced back to it, and the nav bar hides
-   everything else. This is meant for a link given directly to an
-   external party (like Cat) who should only ever see unit locations and
-   Solutions ESO numbers, never the full production tracker or any admin
-   controls — without needing a real login system to enforce it. */
-const RESTRICTED_TO_CAT_VIEW = new URLSearchParams(window.location.search).get('view') === 'cat';
+/* Kiosk-style restricted view: when the page is loaded with ?view=cleaner
+   in the URL, the app locks to ONLY the Cleaner Dashboard — every other
+   page (including Admin) is forced back to it, and the nav bar hides
+   everything else. This is meant for a link given directly to cleaning
+   staff who should only ever see the time in/out dashboard, never the
+   full production tracker or any admin controls — without needing a
+   real login system to enforce it. (Previously the Cat Dashboard —
+   fully replaced, same restricted-link pattern, new purpose.) */
+const RESTRICTED_TO_CLEANER_VIEW = new URLSearchParams(window.location.search).get('view') === 'cleaner';
 
 function showPage(page) {
-  if (RESTRICTED_TO_CAT_VIEW) { _showPage('cat'); return; }
+  if (RESTRICTED_TO_CLEANER_VIEW) { _showPage('cleaner'); return; }
   if (page === 'admin' && currentPage !== 'admin') {
     requireSupervisorPassword(() => _showPage(page));
     return; // don't navigate until the password is confirmed
@@ -5572,7 +5593,7 @@ function showPage(page) {
 function _showPage(page) {
   currentPage=page;
   const STATION_TRACKER_PAGE_IDS = STATION_TRACKER_STATIONS.map(s => 'stationtracker_' + s.replace(/\s+/g,''));
-  ['dashboard','floor','pm','tracker','history','admin','tv','station2','cat','editunit','masterschedule','floormap', ...STATION_TRACKER_PAGE_IDS].forEach(p => {
+  ['dashboard','floor','pm','tracker','history','admin','tv','station2','cleaner','editunit','masterschedule','floormap', ...STATION_TRACKER_PAGE_IDS].forEach(p => {
     const el=document.getElementById('page-'+p); if(el) el.style.display=p===page?'block':'none';
     const btn=document.getElementById('nav-'+p); if(btn) btn.classList.toggle('active',p===page);
   });
@@ -5589,7 +5610,7 @@ function _showPage(page) {
     renderStationTracker(stationKey); startS2Ticker(stationKey);
   }
   else                    { stopS2Ticker(); }
-  if (page==='cat')      { renderCatDashboard(); }
+  if (page==='cleaner')  { renderCleanerDashboard(); }
   if (page==='floormap') { renderFloorMap(); }
   if (page==='editunit') { renderEditUnitPage(); }
   if (page==='masterschedule') { renderMasterSchedulePage(); }
@@ -5760,7 +5781,7 @@ function renderAll() {
   if (currentPage==='pm') { switchPMTab(pmActiveTab); renderPMPage(); }
   if (currentPage==='tv') { renderTVMode(); }
   if (currentPage==='station2') { renderStation2Tracker(); }
-  if (currentPage==='cat') { renderCatDashboard(); }
+  if (currentPage==='cleaner') { renderCleanerDashboard(); }
 }
 
 /* ---- STAT CARD COUNTS ---- */
@@ -6005,32 +6026,171 @@ function renderLineSummary() {
   }).join('');
 }
 
-function renderCatDashboard() {
-  const el=document.getElementById('cat-dashboard-body'); if(!el) return;
-  el.innerHTML=CONFIG.lines.map(line => {
-    const lu=getLineUnits(line.id);
-    const chips=line.columns.map(col => {
-      const cu=getColUnits(line.id,col.label);
-      const shortLabel=col.label.replace('Station ','Stn ').replace('In the Hole','Hole').replace('On Deck','Deck').replace('Ready to Ship','✓ RTS').replace('Holding ','Hold.').replace('Load Bank','LB');
-      const rows = cu.map(u => `<div style="display:flex;justify-content:space-between;gap:8px;font-size:11px;padding:2px 0;">
-        <span style="font-weight:700;color:var(--text-1,#323130);">${u.id}</span>
-        <span style="color:${u.solutionsEso?'#006A8E':'#c8c6c4'};">${u.solutionsEso||'—'}</span>
-      </div>`).join('');
-      return `<div class="station-chip has-units" style="cursor:default;text-align:left;">
-        <div class="station-chip-header">${shortLabel}</div>
-        <div class="station-chip-body" style="text-align:left;">
-          ${rows || '<div style="font-size:11px;color:#c8c6c4;">No units</div>'}
-        </div>
-      </div>`;
-    }).join('');
-    return `<div class="line-summary-card">
-      <div class="line-summary-header" style="background:${line.bgColor};border-left:4px solid ${line.headerColor};">
-        <span style="font-size:14px;font-weight:700;color:#fff;">${line.name}</span>
-        <span style="font-size:12px;color:rgba(255,255,255,.8);margin-left:8px;">${lu.length} unit${lu.length!==1?'s':''}</span>
+/* ---- CLEANER DASHBOARD ----
+   Fully replaces the old Cat Dashboard, same restricted-link pattern
+   (?view=cleaner), new purpose entirely: individual cleaners sign in
+   with their name + employee number, then tap Time In/Out on any active
+   unit as they clean it — reusing the exact same cleaningSessions data
+   model the Tracker card's Start/Stop Cleaning already writes to, so
+   this is just a second, purpose-built entry point into the same data,
+   not a separate system. Bilingual (English/Spanish) throughout, and
+   there's no registered operator list to validate against — same as
+   everywhere else in this app, whatever name+number someone enters
+   becomes their identity for that session. */
+// Prompted directly on the unit being timed into, every time — no
+// global "signed in as X" state for the whole dashboard, since multiple
+// people share this device throughout a shift and need to time in
+// independently without one person's sign-in accidentally attributing
+// someone else's work to them. Same lightweight prompt style as
+// requireName elsewhere, just scoped to a single action instead of
+// persisting.
+function cleanerTimeIn(unitId) {
+  const existing = document.getElementById('cleaner-timein-overlay');
+  if (existing) existing.remove();
+
+  const overlay = document.createElement('div');
+  overlay.id = 'cleaner-timein-overlay';
+  overlay.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.55);z-index:9999;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(2px);';
+  overlay.innerHTML = `
+    <div style="background:#fff;border-radius:16px;padding:26px 22px;max-width:380px;width:92%;box-shadow:0 24px 64px rgba(0,0,0,.28);text-align:center;">
+      <div style="font-size:44px;margin-bottom:8px;">&#129529;</div>
+      <h3 style="font-size:18px;font-weight:800;margin-bottom:2px;">${unitId}</h3>
+      <p style="font-size:13px;color:#605e5c;margin-bottom:16px;">Who's timing in? / ¿Quién está marcando entrada?</p>
+      <label style="font-size:13px;font-weight:600;text-align:left;display:block;margin-bottom:4px;">Name / Nombre</label>
+      <input id="cleaner-name-input" type="text" placeholder="Your name / Su nombre" class="cleaner-input" style="margin-bottom:12px;" />
+      <label style="font-size:13px;font-weight:600;text-align:left;display:block;margin-bottom:4px;">Employee Number / Número de Empleado</label>
+      <input id="cleaner-emp-input" type="text" inputmode="numeric" placeholder="e.g. EMP-047" class="cleaner-input" style="margin-bottom:8px;" />
+      <div id="cleaner-signin-err" style="color:#A03033;font-size:13px;min-height:18px;margin-bottom:8px;"></div>
+      <button class="primary cleaner-big-btn" style="width:100%;">&#9654; Time In / Marcar Entrada</button>
+    </div>`;
+  document.body.appendChild(overlay);
+  const nameEl = overlay.querySelector('#cleaner-name-input');
+  setTimeout(() => nameEl.focus(), 50);
+
+  const doTimeIn = () => {
+    const name = overlay.querySelector('#cleaner-name-input').value.trim();
+    const emp  = overlay.querySelector('#cleaner-emp-input').value.trim();
+    const errEl = overlay.querySelector('#cleaner-signin-err');
+    if (!name || !emp) {
+      errEl.textContent = 'Enter both your name and employee number. / Ingrese su nombre y número de empleado.';
+      return;
+    }
+    const u = ensureBoardTracked(unitId);
+    if (!u.cleaningSessions) u.cleaningSessions = [];
+    u.cleaningSessions.push({ station: u.col, name, emp, startTs: now(), endTs: '' });
+    u.history.push({ action: name+' started cleaning at '+u.col, ts: now(), notes: '' });
+    pushBoard();
+    overlay.remove();
+    renderCleanerDashboard();
+  };
+  overlay.querySelector('button.primary').addEventListener('click', doTimeIn);
+  overlay.querySelectorAll('input').forEach(inp => inp.addEventListener('keydown', e => { if (e.key === 'Enter') doTimeIn(); }));
+}
+function cleanerTimeOut(unitId, idx) {
+  const u = ensureBoardTracked(unitId);
+  if (!u.cleaningSessions || !u.cleaningSessions[idx]) return;
+  const session = u.cleaningSessions[idx];
+  session.endTs = now();
+  u.history.push({ action: session.name+' stopped cleaning at '+u.col, ts: now(), notes: '' });
+  pushBoard(); renderCleanerDashboard();
+}
+// Supervisor-gated — lets a supervisor correct a session's start/end
+// time (or close out one someone forgot to time out of) directly from
+// this dashboard, without needing to go anywhere else.
+function cleanerAdjustTimes() {
+  requireSupervisorPassword(() => openCleanerAdjustModal());
+}
+function openCleanerAdjustModal() {
+  const existing = document.getElementById('cleaner-adjust-overlay');
+  if (existing) existing.remove();
+
+  const rows = [];
+  getAllBoardUnits().filter(u => !u.completed).forEach(u => {
+    (u.cleaningSessions||[]).forEach((s, idx) => rows.push({ unitId: u.id, u, idx, s }));
+  });
+  rows.sort((a,b) => (b.s.endTs?new Date(b.s.endTs):new Date()) - (a.s.endTs?new Date(a.s.endTs):new Date()));
+
+  const overlay = document.createElement('div');
+  overlay.id = 'cleaner-adjust-overlay';
+  overlay.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.55);z-index:9999;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(2px);';
+  const rowsHtml = rows.length ? rows.slice(0,40).map(r => `
+    <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:end;padding:10px 0;border-bottom:1px solid #f0f2f5;font-size:12px;">
+      <div style="min-width:90px;"><strong>${r.unitId}</strong><div style="font-size:10px;color:#8a96a8;">${r.s.name}</div>
+        <div style="font-size:10px;color:${r.s.endTs?'#0e7c3a':'#b45309'};">${r.s.endTs?'Closed':'&#9888; Still open'}</div></div>
+      <div style="flex:1;min-width:140px;"><label style="font-size:9px;">Start / Inicio</label><input type="datetime-local" id="cadj-start-${r.unitId}-${r.idx}" value="${toDatetimeLocal(r.s.startTs)}" style="width:100%;font-size:13px;padding:8px;box-sizing:border-box;" /></div>
+      <div style="flex:1;min-width:140px;"><label style="font-size:9px;">End / Fin</label><input type="datetime-local" id="cadj-end-${r.unitId}-${r.idx}" value="${toDatetimeLocal(r.s.endTs)}" style="width:100%;font-size:13px;padding:8px;box-sizing:border-box;" /></div>
+      <button class="primary" onclick="cleanerSaveAdjustedTime('${r.unitId}',${r.idx})" style="min-height:44px;padding:8px 16px;">Save</button>
+    </div>`).join('') : '<p style="font-size:13px;color:#8a96a8;">No cleaning sessions recorded yet. / No hay sesiones de limpieza registradas todavía.</p>';
+
+  overlay.innerHTML = `
+    <div style="background:#fff;border-radius:16px;padding:24px 28px;max-width:640px;width:94%;max-height:80vh;overflow-y:auto;box-shadow:0 24px 64px rgba(0,0,0,.28);">
+      <h2 style="font-size:16px;font-weight:800;color:#0f1923;margin-bottom:4px;">&#9203; Adjust Cleaning Times <span style="font-weight:400;color:#605e5c;">/ Ajustar Horarios de Limpieza</span></h2>
+      <p style="font-size:12px;color:#605e5c;margin-bottom:14px;">Fix a time someone forgot to log, or close out a session still showing open. / Corrija un horario que alguien olvidó registrar, o cierre una sesión que sigue abierta.</p>
+      ${rowsHtml}
+      <button class="subtle" style="margin-top:16px;" onclick="document.getElementById('cleaner-adjust-overlay').remove()">Close / Cerrar</button>
+    </div>`;
+  document.body.appendChild(overlay);
+  overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
+}
+function toDatetimeLocal(tsString) {
+  if (!tsString) return '';
+  const d = new Date(tsString);
+  if (isNaN(d)) return '';
+  const pad = n => String(n).padStart(2,'0');
+  return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+function cleanerSaveAdjustedTime(unitId, idx) {
+  const u = ensureBoardTracked(unitId);
+  if (!u.cleaningSessions || !u.cleaningSessions[idx]) return;
+  const startEl = document.getElementById('cadj-start-'+unitId+'-'+idx);
+  const endEl = document.getElementById('cadj-end-'+unitId+'-'+idx);
+  const startVal = startEl.value ? new Date(startEl.value) : null;
+  const endVal = endEl.value ? new Date(endEl.value) : null;
+  if (!startVal) { alert('Start time is required. / Se requiere la hora de inicio.'); return; }
+  if (endVal && endVal < startVal) { alert('End time cannot be before start time. / La hora de fin no puede ser anterior a la de inicio.'); return; }
+  const session = u.cleaningSessions[idx];
+  const oldStart = session.startTs, oldEnd = session.endTs;
+  session.startTs = startVal.toLocaleString('en-US', { month:'short', day:'numeric', year:'numeric', hour:'numeric', minute:'2-digit', hour12:true });
+  session.endTs = endVal ? endVal.toLocaleString('en-US', { month:'short', day:'numeric', year:'numeric', hour:'numeric', minute:'2-digit', hour12:true }) : '';
+  u.history.push({ action: 'Supervisor adjusted cleaning time for '+session.name+' — '+getOperator().name, ts: now(), notes: `Was: ${oldStart} → ${oldEnd||'(open)'}. Now: ${session.startTs} → ${session.endTs||'(open)'}` });
+  pushBoard();
+  openCleanerAdjustModal(); // re-render the modal with fresh data
+  renderCleanerDashboard();
+}
+
+function renderCleanerDashboard() {
+  const el = document.getElementById('cleaner-dashboard-body'); if (!el) return;
+
+  const units = getAllBoardUnits().filter(u => !u.completed).sort((a,b) => a.id.localeCompare(b.id));
+  // Every currently-active session on the unit gets its own row with its
+  // own Time Out button — multiple people can be timed in on the same
+  // unit at once, each independent of the others (one person timing out
+  // doesn't affect anyone else still working it), same pattern as the
+  // Inspectors/Remediation rosters elsewhere in this app. Time In stays
+  // available the whole time too, so another person can join in at any
+  // point, not just before anyone else has started.
+  const unitRows = units.map(u => {
+    const activeSessions = (u.cleaningSessions||[]).map((s,idx)=>({...s,idx})).filter(s => !s.endTs);
+    const activeRowsHtml = activeSessions.map(s => `<div style="display:flex;justify-content:space-between;align-items:center;background:#e6f0fa;border:1px solid #0078d4;border-radius:10px;padding:10px 12px;margin-bottom:8px;">
+      <span style="font-size:13px;font-weight:700;color:#0078d4;">&#129529; ${s.name}</span>
+      <button class="warn-btn" onclick="cleanerTimeOut('${u.id}',${s.idx})" style="min-height:44px;padding:8px 16px;font-size:13px;">&#9208; Time Out <span style="font-weight:400;opacity:.85;">/ Salida</span></button>
+    </div>`).join('');
+    return `<div style="background:#fff;border:1px solid #e2e6ea;border-radius:14px;padding:14px 16px;margin-bottom:10px;">
+      <div style="margin-bottom:10px;">
+        <div style="font-size:17px;font-weight:800;">${u.id}</div>
+        <div style="font-size:12px;color:#8a96a8;margin-top:2px;">${u.col}</div>
       </div>
-      <div class="line-summary-body"><div class="station-chips">${chips}</div></div>
+      ${activeRowsHtml}
+      <button class="primary cleaner-big-btn" onclick="cleanerTimeIn('${u.id}')" style="width:100%;">&#9654; Time In${activeSessions.length?' — add another / agregar otro':''} <span style="font-weight:400;opacity:.85;">${activeSessions.length?'':'/ Marcar Entrada'}</span></button>
     </div>`;
   }).join('');
+
+  const headerHtml = `<div style="display:flex;justify-content:flex-end;background:#f0f2f5;border:1px solid #e2e6ea;border-radius:12px;padding:10px 14px;margin-bottom:16px;">
+    <button class="subtle" onclick="cleanerAdjustTimes()" style="min-height:44px;padding:8px 14px;font-size:13px;">&#9203; Adjust Times <span style="font-weight:400;">/ Ajustar Horarios</span></button>
+  </div>`;
+
+  el.innerHTML = headerHtml +
+    (units.length ? unitRows : '<p style="font-size:14px;color:#8a96a8;">No active units. / No hay unidades activas.</p>');
 }
 
 function renderBoardCompleted() {
@@ -11772,7 +11932,7 @@ function removeRemediationFlag(unitId, idx) {
    visible stamp every time a change is made, or version checks
    against a stale reference and never fires.
    ============================================================ */
-const BUILD_DATE = '2026-08-20-68';
+const BUILD_DATE = '2026-08-20-72';
 let updateBannerShown = false;
 function checkForNewVersion() {
   if (updateBannerShown) return;
@@ -11816,14 +11976,14 @@ function init() {
   // Admin's password gate doesn't apply since this never routes through showPage('admin').
   // .../?dashboard=1 still opens the old landing page if someone specifically wants it.
   const params = new URLSearchParams(window.location.search);
-  const landingPage = RESTRICTED_TO_CAT_VIEW ? 'cat' : params.get('tv') === '1' ? 'tv' : params.get('dashboard') === '1' ? 'dashboard' : 'station2';
+  const landingPage = RESTRICTED_TO_CLEANER_VIEW ? 'cleaner' : params.get('tv') === '1' ? 'tv' : params.get('dashboard') === '1' ? 'dashboard' : 'station2';
   showPage(landingPage);
-  if (RESTRICTED_TO_CAT_VIEW) {
+  if (RESTRICTED_TO_CLEANER_VIEW) {
     // Nothing else to navigate to in this mode, so the rest of the nav
     // bar (and the drag-to-reorder handles on it) just gets in the way —
     // hide it entirely and leave a plain, uneditable label instead.
     const navEl = document.querySelector('.header-nav');
-    if (navEl) navEl.innerHTML = '<span style="color:#fff;font-weight:700;font-size:14px;">&#128663; Cat Dashboard</span>';
+    if (navEl) navEl.innerHTML = '<span style="color:#fff;font-weight:700;font-size:14px;">&#129529; Cleaner Dashboard</span>';
   }
   renderAll();
   const hintEl = document.getElementById('board-export-cols-hint');

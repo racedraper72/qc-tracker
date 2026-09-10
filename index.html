@@ -1041,7 +1041,7 @@ label { font-size: 11px; font-weight: 600; color: var(--text-2); display: block;
 
 <!-- ============================================================ HEADER -->
 <div class="app-header">
-  <div id="build-stamp" title="If this looks out of date after an update was announced, hard-refresh with Ctrl+Shift+R (Cmd+Shift+R on Mac) to clear your browser's cached copy.">Build: <span id="build-stamp-text">2026-08-20-75</span></div>
+  <div id="build-stamp" title="If this looks out of date after an update was announced, hard-refresh with Ctrl+Shift+R (Cmd+Shift+R on Mac) to clear your browser's cached copy.">Build: <span id="build-stamp-text">2026-08-20-76</span></div>
   <div id="header-signed-in" style="position:absolute;top:26px;right:16px;font-size:11px;color:rgba(255,255,255,.75);white-space:nowrap;z-index:101;"></div>
   <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;flex:1;">
     <div style="background:#fff;border-radius:8px;padding:8px 14px;display:flex;align-items:center;box-shadow:0 1px 3px rgba(0,0,0,.15);">
@@ -5637,10 +5637,18 @@ function _showPage(page) {
   }
 }
 
-function jumpToLine(lineId) {
+// Optional column param sets BOTH activeLine and activeCol together
+// before the single showPage('tracker') call, rather than the old
+// pattern of calling showPage() first and then a second, separately-
+// timed switchCol() 50ms later — that relied on the page's own render
+// finishing within that window, which isn't guaranteed on a slower
+// device/connection, and could lose the race and silently land on the
+// wrong (default) column instead of the one actually clicked.
+function jumpToLine(lineId, col) {
   trackerMode='board'; activeLine=lineId;
   const line=CONFIG.lines.find(l=>l.id===lineId);
-  activeCol=line?line.columns[0].label:''; showPage('tracker');
+  activeCol = col || (line?line.columns[0].label:'');
+  showPage('tracker');
 }
 
 /* ---- UNIFIED TABS ---- */
@@ -5776,6 +5784,26 @@ function secOrderDrop(e, id) {
 }
 
 /* ---- RENDER ALL ---- */
+// Rebuilding a unit card's HTML (renderUnifiedContent, floor mode,
+// Cleaner Dashboard) wholesale resets any inline form on it back to
+// closed and wipes whatever's been typed into it — including the
+// Start Inspection / Start Remediation / Start Cleaning name fields.
+// That's fine when it's the direct result of someone's own action
+// (they just clicked Confirm, so the field isn't focused anymore
+// anyway), but it was also happening silently every 30 seconds from
+// the background auto-sync timer, which could wipe out someone's
+// half-typed name before they finished — genuinely not enough time to
+// enter it, exactly as reported. Guarding specifically on "is a text
+// field inside a unit card currently focused" means the guard only
+// ever blocks exactly the disruptive case, not a normal render
+// following the user's own click (which moves focus off the field).
+function isTypingInUnitCard() {
+  const el = document.activeElement;
+  if (!el) return false;
+  const tag = el.tagName;
+  if (tag !== 'INPUT' && tag !== 'TEXTAREA') return false;
+  return !!el.closest('.unit-card');
+}
 function renderAll() {
   applyChecklistOverrides();
   applyStationTrackerOverrides();
@@ -5789,12 +5817,13 @@ function renderAll() {
   renderChecklistKPI();
   renderDashboardCards();
   applyDashboardCardOrder();
-  if (currentPage==='tracker') { renderUnifiedTabs(); renderUnifiedContent(); }
-  if (currentPage==='floor') { renderFloorPage(); }
+  const typing = isTypingInUnitCard();
+  if (currentPage==='tracker' && !typing) { renderUnifiedTabs(); renderUnifiedContent(); }
+  if (currentPage==='floor' && !typing) { renderFloorPage(); }
   if (currentPage==='pm') { switchPMTab(pmActiveTab); renderPMPage(); }
   if (currentPage==='tv') { renderTVMode(); }
   if (currentPage==='station2') { renderStation2Tracker(); }
-  if (currentPage==='cleaner') { renderCleanerDashboard(); }
+  if (currentPage==='cleaner' && !typing) { renderCleanerDashboard(); }
 }
 
 /* ---- STAT CARD COUNTS ---- */
@@ -6006,7 +6035,7 @@ function renderLineSummary() {
         const locTag = u.location ? `<div style="font-size:9px;color:#006A8E;font-weight:600;">&#128205; ${u.location}</div>` : '';
         return `<div style="color:${color};font-weight:${weight};">${u.id}${dueTag}${locTag}</div>`;
       }).join('');
-      return `<div class="station-chip ${cls}" onclick="event.stopPropagation();jumpToLine('${jsq(line.id)}');setTimeout(()=>switchCol('${jsq(col.label)}'),50)">
+      return `<div class="station-chip ${cls}" onclick="event.stopPropagation();jumpToLine('${jsq(line.id)}','${jsq(col.label)}')">
         <div class="station-chip-header">${shortLabel}</div>
         <div class="station-chip-body">
           <div class="station-chip-count" style="color:${count>0?'#006A8E':'#c8c6c4'}">${count||'—'}</div>
@@ -12041,7 +12070,7 @@ function openMaterialHoldReleaseModal(unitId) {
    visible stamp every time a change is made, or version checks
    against a stale reference and never fires.
    ============================================================ */
-const BUILD_DATE = '2026-08-20-75';
+const BUILD_DATE = '2026-08-20-76';
 let updateBannerShown = false;
 function checkForNewVersion() {
   if (updateBannerShown) return;

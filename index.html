@@ -30,6 +30,31 @@
 .material-hold-alert {
   animation: material-hold-blink 1.4s ease-in-out infinite;
 }
+/* Per-unit-name styling inside a Dashboard chip's unit list (a chip can
+   hold several units, each potentially in a different state, so these
+   apply per name rather than to the whole chip). Text-color animations
+   rather than border animations, since these are plain inline labels,
+   not bordered boxes.
+   - Regular Hold: solid yellow text, no animation — a simple, calmer
+     signal since a plain Hold is common and not urgent.
+   - Material Hold: blinking yellow text — needs supervisor attention,
+     so it's more attention-grabbing than a plain Hold.
+   - Remediation: blinking red text — the most urgent state.
+   - Deviation: static red outline box around the name, not blinking or
+     colored text — a quieter "flagged" signal, distinct from the
+     blinking states. */
+.unit-name-held { color: #b45309; font-weight: 700; }
+@keyframes unit-name-mathold-blink {
+  0%, 100% { color: #b45309; }
+  50% { color: #f4a942; }
+}
+.unit-name-mathold { animation: unit-name-mathold-blink 1.4s ease-in-out infinite; font-weight: 700; }
+@keyframes unit-name-remediation-blink {
+  0%, 100% { color: #A03033; }
+  50% { color: #ff6b6b; }
+}
+.unit-name-remediation { animation: unit-name-remediation-blink 1.4s ease-in-out infinite; font-weight: 700; }
+.unit-name-deviation-outline { border: 1.5px solid #A03033; border-radius: 4px; padding: 0 3px; display: inline-block; }
 /* ================================================================
    DESIGN TOKENS
    ================================================================ */
@@ -585,6 +610,13 @@ label { font-size: 11px; font-weight: 600; color: var(--text-2); display: block;
 .station-chip-label { font-size: 9px; font-weight: 700; color: var(--text-2); text-transform: uppercase; letter-spacing: .3px; }
 .station-chip-count { font-size: 16px; font-weight: 800; margin: 2px 0; }
 .station-chip-units { font-size: 9px; color: var(--text-2); }
+/* Bigger overall chip — larger min-width, header, count, and unit-name
+   text, so the whole tile reads more easily at a glance. */
+.station-chip-lg { min-width: 104px; }
+.station-chip-lg .station-chip-header { font-size: 12px; padding: 6px 10px; }
+.station-chip-lg .station-chip-body { padding: 9px 12px; }
+.station-chip-lg .station-chip-count { font-size: 22px; }
+.station-chip-lg .station-chip-units { font-size: 11px; }
 
 /* ================================================================
    API / SYNC
@@ -1041,7 +1073,7 @@ label { font-size: 11px; font-weight: 600; color: var(--text-2); display: block;
 
 <!-- ============================================================ HEADER -->
 <div class="app-header">
-  <div id="build-stamp" title="If this looks out of date after an update was announced, hard-refresh with Ctrl+Shift+R (Cmd+Shift+R on Mac) to clear your browser's cached copy.">Build: <span id="build-stamp-text">2026-08-20-76</span></div>
+  <div id="build-stamp" title="If this looks out of date after an update was announced, hard-refresh with Ctrl+Shift+R (Cmd+Shift+R on Mac) to clear your browser's cached copy.">Build: <span id="build-stamp-text">2026-08-20-77</span></div>
   <div id="header-signed-in" style="position:absolute;top:26px;right:16px;font-size:11px;color:rgba(255,255,255,.75);white-space:nowrap;z-index:101;"></div>
   <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;flex:1;">
     <div style="background:#fff;border-radius:8px;padding:8px 14px;display:flex;align-items:center;box-shadow:0 1px 3px rgba(0,0,0,.15);">
@@ -6017,14 +6049,27 @@ function renderLineSummary() {
       const cls=count>0?(hasRemediation?'remediation-alert has-deviation':hasMaterialHold?'material-hold-alert has-material-hold':hasDeviation?'has-deviation':hasFail?'has-fail':hasHeld?'has-held':hasDone?'has-done':'has-units'):'';
       const topColor=count>0?(hasRemediation?'#A03033':hasMaterialHold?'#b45309':hasDeviation?'#A03033':hasFail?'#A03033':hasHeld?'#7a5d00':hasDone?'#107c10':line.headerColor):'#edebe9';
       const shortLabel=col.label.replace('Station ','Stn ').replace('In the Hole','Hole').replace('On Deck','Deck').replace('Ready to Ship','✓ RTS').replace('Holding ','Hold.').replace('Load Bank','LB');
-      // Color each unit's name by ITS OWN checklist status — green once fully
-      // passed (ready to move on), red if it currently has a Fail item.
+      // Color each unit's name by ITS OWN status — remediation (blinking
+      // red) takes priority over Material Hold (blinking yellow), which
+      // takes priority over a plain Hold (solid yellow), which takes
+      // priority over the existing pass/fail checklist coloring. A
+      // Deviation outline is independent of all of that — it's a border,
+      // not a text color, so it can combine with any of the above
+      // without conflicting. Each name is individually clickable,
+      // jumping straight to that unit's line+station on the Tracker.
       const unitNames = cu.slice(0,2).map(u => {
         const cS=getChecklistState(u), qS=getQCChecklistState(u);
         const uHasFail = (cS && cS.includes('fail')) || (qS && qS.includes('fail'));
         const uReady   = isAllChecklistsComplete(u);
-        const color = uHasFail ? '#A03033' : uReady ? '#0e7c3a' : 'inherit';
-        const weight = (uHasFail || uReady) ? '700' : '400';
+        const uHasRemediation = (u.remediationNeeded && !u.remediationComplete) || (u.remediationFlags||[]).length>0;
+        const uHasMaterialHold = !!u.materialHold;
+        let nameClass = '';
+        let color = uHasFail ? '#A03033' : uReady ? '#0e7c3a' : 'inherit';
+        let weight = (uHasFail || uReady) ? '700' : '400';
+        if (uHasRemediation) { nameClass = 'unit-name-remediation'; color = ''; weight = ''; }
+        else if (uHasMaterialHold) { nameClass = 'unit-name-mathold'; color = ''; weight = ''; }
+        else if (u.held) { nameClass = 'unit-name-held'; color = ''; weight = ''; }
+        if (u.deviationNeeded) nameClass += ' unit-name-deviation-outline';
         let dueTag = '';
         if (u.dueDate) {
           const d = new Date(u.dueDate+'T00:00:00'); const today = new Date(); today.setHours(0,0,0,0);
@@ -6033,9 +6078,9 @@ function renderLineSummary() {
           dueTag = ` <span style="color:${dueColor};font-weight:600;font-size:10px;">(${formatDueDate(u.dueDate)})</span>`;
         }
         const locTag = u.location ? `<div style="font-size:9px;color:#006A8E;font-weight:600;">&#128205; ${u.location}</div>` : '';
-        return `<div style="color:${color};font-weight:${weight};">${u.id}${dueTag}${locTag}</div>`;
+        return `<div class="${nameClass}" style="${color?'color:'+color+';':''}${weight?'font-weight:'+weight+';':''}cursor:pointer;" onclick="event.stopPropagation();jumpToLine('${jsq(line.id)}','${jsq(col.label)}')">${u.id}${dueTag}${locTag}</div>`;
       }).join('');
-      return `<div class="station-chip ${cls}" onclick="event.stopPropagation();jumpToLine('${jsq(line.id)}','${jsq(col.label)}')">
+      return `<div class="station-chip station-chip-lg ${cls}" onclick="event.stopPropagation();jumpToLine('${jsq(line.id)}','${jsq(col.label)}')">
         <div class="station-chip-header">${shortLabel}</div>
         <div class="station-chip-body">
           <div class="station-chip-count" style="color:${count>0?'#006A8E':'#c8c6c4'}">${count||'—'}</div>
@@ -12070,7 +12115,7 @@ function openMaterialHoldReleaseModal(unitId) {
    visible stamp every time a change is made, or version checks
    against a stale reference and never fires.
    ============================================================ */
-const BUILD_DATE = '2026-08-20-76';
+const BUILD_DATE = '2026-08-20-77';
 let updateBannerShown = false;
 function checkForNewVersion() {
   if (updateBannerShown) return;

@@ -624,25 +624,33 @@ label { font-size: 11px; font-weight: 600; color: var(--text-2); display: block;
 .station-chip.has-move-request { border-color: #6b46c1; background: #f3effc; }
 .station-chip-label { font-size: 9px; font-weight: 700; color: var(--text-2); text-transform: uppercase; letter-spacing: .3px; }
 .station-chip-count { font-size: 16px; font-weight: 800; margin: 2px 0; }
-.station-chip-units { font-size: 9px; color: var(--text-2); }
+.station-chip-units { font-size: 11px; color: var(--text-2); }
 /* Bigger overall chip — larger min-width, header, count, and unit-name
    text, so the whole tile reads more easily at a glance. */
 .station-chip-lg { min-width: 104px; }
 .station-chip-lg .station-chip-header { font-size: 12px; padding: 6px 10px; }
 .station-chip-lg .station-chip-body { padding: 9px 12px; }
 .station-chip-lg .station-chip-count { font-size: 22px; }
-.station-chip-lg .station-chip-units { font-size: 11px; }
+.station-chip-lg .station-chip-units { font-size: 14px; }
 /* Individual unit names inside a chip — clickable to jump straight to
    that unit's line+station on the Tracker. A hover scale-up gives clear
    feedback that this specific name (not just the whole chip) is its own
-   clickable target, distinct from clicking elsewhere on the chip. */
+   clickable target, distinct from clicking elsewhere on the chip.
+   Each one gets real vertical breathing room and its own bottom border
+   so a station with many units reads as a clean stacked list instead of
+   names running together with no visual separation. */
 .dash-unit-name {
   cursor: pointer;
-  display: inline-block;
+  display: block;
+  padding: 3px 0;
+  margin-bottom: 2px;
+  border-bottom: 0.5px solid var(--border);
+  line-height: 1.5;
   transform-origin: left center;
   transition: transform .12s ease;
 }
-.dash-unit-name:hover { transform: scale(1.12); }
+.dash-unit-name:last-child { border-bottom: none; margin-bottom: 0; }
+.dash-unit-name:hover { transform: scale(1.1); }
 
 /* ================================================================
    API / SYNC
@@ -1099,7 +1107,7 @@ label { font-size: 11px; font-weight: 600; color: var(--text-2); display: block;
 
 <!-- ============================================================ HEADER -->
 <div class="app-header">
-  <div id="build-stamp" title="If this looks out of date after an update was announced, hard-refresh with Ctrl+Shift+R (Cmd+Shift+R on Mac) to clear your browser's cached copy.">Build: <span id="build-stamp-text">2026-08-21-04</span></div>
+  <div id="build-stamp" title="If this looks out of date after an update was announced, hard-refresh with Ctrl+Shift+R (Cmd+Shift+R on Mac) to clear your browser's cached copy.">Build: <span id="build-stamp-text">2026-08-21-05</span></div>
   <div id="header-signed-in" style="position:absolute;top:26px;right:16px;font-size:11px;color:rgba(255,255,255,.75);white-space:nowrap;z-index:101;"></div>
   <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;flex:1;">
     <div style="background:#fff;border-radius:8px;padding:8px 14px;display:flex;align-items:center;box-shadow:0 1px 3px rgba(0,0,0,.15);">
@@ -12236,7 +12244,7 @@ function quickDismissMoveRequest(unitId) {
    visible stamp every time a change is made, or version checks
    against a stale reference and never fires.
    ============================================================ */
-const BUILD_DATE = '2026-08-21-04';
+const BUILD_DATE = '2026-08-21-05';
 let updateBannerShown = false;
 function checkForNewVersion() {
   if (updateBannerShown) return;

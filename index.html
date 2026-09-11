@@ -1088,7 +1088,7 @@ label { font-size: 11px; font-weight: 600; color: var(--text-2); display: block;
 
 <!-- ============================================================ HEADER -->
 <div class="app-header">
-  <div id="build-stamp" title="If this looks out of date after an update was announced, hard-refresh with Ctrl+Shift+R (Cmd+Shift+R on Mac) to clear your browser's cached copy.">Build: <span id="build-stamp-text">2026-08-21-01</span></div>
+  <div id="build-stamp" title="If this looks out of date after an update was announced, hard-refresh with Ctrl+Shift+R (Cmd+Shift+R on Mac) to clear your browser's cached copy.">Build: <span id="build-stamp-text">2026-08-21-02</span></div>
   <div id="header-signed-in" style="position:absolute;top:26px;right:16px;font-size:11px;color:rgba(255,255,255,.75);white-space:nowrap;z-index:101;"></div>
   <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;flex:1;">
     <div style="background:#fff;border-radius:8px;padding:8px 14px;display:flex;align-items:center;box-shadow:0 1px 3px rgba(0,0,0,.15);">
@@ -1231,14 +1231,6 @@ label { font-size: 11px; font-weight: 600; color: var(--text-2); display: block;
     <div id="dashboard-custom-cards" style="display:none;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:10px;margin-bottom:18px;"></div>
   </div>
 
-  <!-- Checklist Pass/Fail KPI -->
-  <div class="dash-card-wrap" data-card-id="checklist">
-    <div class="card">
-      <div class="section-title">&#9989; Checklist Pass Rate</div>
-      <div id="checklist-kpi-body"></div>
-    </div>
-  </div>
-
   <!-- Completed -->
   <div class="dash-card-wrap" data-card-id="completedboard">
     <div class="card">
@@ -1281,6 +1273,12 @@ label { font-size: 11px; font-weight: 600; color: var(--text-2); display: block;
     <!-- Time in Process by Unit -->
     <div class="chart-card" id="pm-time-chart" style="margin-bottom:14px;"></div>
     <div class="chart-card" id="pm-duedate-chart" style="margin-bottom:14px;"></div>
+
+    <!-- Checklist Pass/Fail KPI — moved here from the main Dashboard -->
+    <div class="card" style="margin-bottom:14px;">
+      <div class="section-title">&#9989; Checklist Pass Rate</div>
+      <div id="checklist-kpi-body"></div>
+    </div>
   </div>
 
   <!-- ===== TAB: SCHEDULE ===== -->
@@ -5740,7 +5738,7 @@ function getBoardReadyForReleaseUnits() {
 
 /* ---- Dashboard card reordering ---- */
 const DASH_CARD_ORDER_KEY = 'dashboard_card_order';
-const DASH_CARD_DEFAULT_ORDER = ['lines','custom','checklist','completedboard'];
+const DASH_CARD_DEFAULT_ORDER = ['lines','custom','completedboard'];
 let dashDraggedId = null;
 
 function getDashCardOrder() {
@@ -5794,7 +5792,6 @@ function resetDashboardOrder() {
 const DASH_SECTION_LABELS = {
   lines: '&#128203; Production lines',
   custom: '&#128200; Custom metric cards (below)',
-  checklist: '&#9989; Checklist Pass Rate',
   completedboard: '&#9989; Completed — Board',
 };
 let secOrderDraggedId = null;
@@ -6081,7 +6078,7 @@ function renderLineSummary() {
         return (cS && cS.includes('fail')) || (qS && qS.includes('fail'));
       });
       const cls=count>0?(hasRemediation?'remediation-alert has-deviation':hasMaterialHold?'material-hold-alert has-material-hold':hasMoveRequest?'move-request-alert has-move-request':hasDeviation?'has-deviation':hasFail?'has-fail':hasHeld?'has-held':hasDone?'has-done':'has-units'):'';
-      const topColor=count>0?(hasRemediation?'#A03033':hasMaterialHold?'#b45309':hasMoveRequest?'#6b46c1':hasDeviation?'#A03033':hasFail?'#A03033':hasHeld?'#7a5d00':hasDone?'#107c10':line.headerColor):'#edebe9';
+      const topColor=count>0?(hasRemediation?'#A03033':hasMaterialHold?'#b45309':hasMoveRequest?'#6b46c1':hasDeviation?'#A03033':hasFail?'#A03033':hasHeld?'#b45309':hasDone?'#107c10':line.headerColor):'#edebe9';
       const shortLabel=col.label.replace('Station ','Stn ').replace('In the Hole','Hole').replace('On Deck','Deck').replace('Ready to Ship','✓ RTS').replace('Holding ','Hold.').replace('Load Bank','LB');
       // Color each unit's name by ITS OWN status — remediation (blinking
       // red) takes priority over Material Hold (blinking yellow), which
@@ -12221,7 +12218,7 @@ function quickDismissMoveRequest(unitId) {
    visible stamp every time a change is made, or version checks
    against a stale reference and never fires.
    ============================================================ */
-const BUILD_DATE = '2026-08-21-01';
+const BUILD_DATE = '2026-08-21-02';
 let updateBannerShown = false;
 function checkForNewVersion() {
   if (updateBannerShown) return;

@@ -1088,7 +1088,7 @@ label { font-size: 11px; font-weight: 600; color: var(--text-2); display: block;
 
 <!-- ============================================================ HEADER -->
 <div class="app-header">
-  <div id="build-stamp" title="If this looks out of date after an update was announced, hard-refresh with Ctrl+Shift+R (Cmd+Shift+R on Mac) to clear your browser's cached copy.">Build: <span id="build-stamp-text">2026-08-20-80</span></div>
+  <div id="build-stamp" title="If this looks out of date after an update was announced, hard-refresh with Ctrl+Shift+R (Cmd+Shift+R on Mac) to clear your browser's cached copy.">Build: <span id="build-stamp-text">2026-08-21-01</span></div>
   <div id="header-signed-in" style="position:absolute;top:26px;right:16px;font-size:11px;color:rgba(255,255,255,.75);white-space:nowrap;z-index:101;"></div>
   <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;flex:1;">
     <div style="background:#fff;border-radius:8px;padding:8px 14px;display:flex;align-items:center;box-shadow:0 1px 3px rgba(0,0,0,.15);">
@@ -1199,12 +1199,26 @@ label { font-size: 11px; font-weight: 600; color: var(--text-2); display: block;
         <div class="section-title" style="margin-bottom:0;border:none;padding:0;">Production &amp; QC lines — click to track</div>
         <div style="display:flex;align-items:center;gap:10px;">
           <span id="cat-legend" style="display:inline-flex;flex-wrap:wrap;gap:6px;"></span>
-          <div style="display:flex;gap:10px;flex-wrap:wrap;">
-            <span style="font-size:11px;color:#605e5c;"><span style="display:inline-block;width:10px;height:10px;background:#f0eeff;border:1.5px solid #4b3a9e;border-radius:2px;margin-right:3px;"></span>Inspecting</span>
-            <span style="font-size:11px;color:#605e5c;"><span style="display:inline-block;width:10px;height:10px;background:#fde7e9;border:1.5px solid #A03033;border-radius:2px;margin-right:3px;"></span>Remed.</span>
-            <span style="font-size:11px;color:#605e5c;"><span style="display:inline-block;width:10px;height:10px;background:#fff4ce;border:1.5px solid #7a5d00;border-radius:2px;margin-right:3px;"></span>On hold</span>
-          </div>
         </div>
+      </div>
+      <!-- Legend: what each unit-name color/animation means -->
+      <div style="display:flex;gap:14px;flex-wrap:wrap;align-items:center;background:var(--surface-2);border:1px solid var(--border);border-radius:8px;padding:8px 14px;margin-bottom:12px;">
+        <span style="font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.3px;color:var(--text-3,#8a96a8);">Legend:</span>
+        <span style="font-size:11px;color:#605e5c;display:inline-flex;align-items:center;gap:5px;">
+          <span class="unit-name-held" style="font-weight:700;">UNIT</span> On Hold
+        </span>
+        <span style="font-size:11px;color:#605e5c;display:inline-flex;align-items:center;gap:5px;">
+          <span class="unit-name-mathold" style="font-weight:700;">UNIT</span> Material Hold
+        </span>
+        <span style="font-size:11px;color:#605e5c;display:inline-flex;align-items:center;gap:5px;">
+          <span class="unit-name-remediation" style="font-weight:700;">UNIT</span> Needs Remediation
+        </span>
+        <span style="font-size:11px;color:#605e5c;display:inline-flex;align-items:center;gap:5px;">
+          <span class="unit-name-moverequest" style="font-weight:700;">UNIT</span> Move Requested
+        </span>
+        <span style="font-size:11px;color:#605e5c;display:inline-flex;align-items:center;gap:5px;">
+          <span class="unit-name-deviation-outline">UNIT</span> Deviation
+        </span>
       </div>
       <!-- Production board lines -->
       <div id="line-summary-list"></div>
@@ -6078,7 +6092,7 @@ function renderLineSummary() {
       // not a text color, so it can combine with any of the above
       // without conflicting. Each name is individually clickable,
       // jumping straight to that unit's line+station on the Tracker.
-      const unitNames = cu.slice(0,2).map(u => {
+      const unitNames = cu.map(u => {
         const cS=getChecklistState(u), qS=getQCChecklistState(u);
         const uHasFail = (cS && cS.includes('fail')) || (qS && qS.includes('fail'));
         const uReady   = isAllChecklistsComplete(u);
@@ -6108,7 +6122,7 @@ function renderLineSummary() {
         <div class="station-chip-header">${shortLabel}</div>
         <div class="station-chip-body">
           <div class="station-chip-count" style="color:${count>0?'#006A8E':'#c8c6c4'}">${count||'—'}</div>
-          <div class="station-chip-units">${unitNames}${cu.length>2?`<div style="opacity:.7;">+${cu.length-2} more</div>`:''}</div>
+          <div class="station-chip-units">${unitNames}</div>
         </div>
       </div>`;
     }).join('');
@@ -12207,7 +12221,7 @@ function quickDismissMoveRequest(unitId) {
    visible stamp every time a change is made, or version checks
    against a stale reference and never fires.
    ============================================================ */
-const BUILD_DATE = '2026-08-20-80';
+const BUILD_DATE = '2026-08-21-01';
 let updateBannerShown = false;
 function checkForNewVersion() {
   if (updateBannerShown) return;

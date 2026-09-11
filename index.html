@@ -56,6 +56,7 @@
 .unit-name-remediation { animation: unit-name-remediation-blink 1.4s ease-in-out infinite; font-weight: 700; }
 .unit-name-deviation-outline { border: 1.5px solid #A03033; border-radius: 4px; padding: 0 3px; display: inline-block; }
 .unit-name-inspecting-outline { border: 1.5px solid #4b3a9e; border-radius: 4px; padding: 0 3px; display: inline-block; }
+.unit-name-cleaning-outline { border: 1.5px solid #0078d4; border-radius: 4px; padding: 0 3px; display: inline-block; }
 /* Brief highlight after jumping to a specific unit from a Dashboard chip
    — a few quick pulses of a neutral blue glow, distinct from every
    status color above, so it reads purely as "here it is", never as a
@@ -1117,7 +1118,7 @@ label { font-size: 11px; font-weight: 600; color: var(--text-2); display: block;
 
 <!-- ============================================================ HEADER -->
 <div class="app-header">
-  <div id="build-stamp" title="If this looks out of date after an update was announced, hard-refresh with Ctrl+Shift+R (Cmd+Shift+R on Mac) to clear your browser's cached copy.">Build: <span id="build-stamp-text">2026-08-21-08</span></div>
+  <div id="build-stamp" title="If this looks out of date after an update was announced, hard-refresh with Ctrl+Shift+R (Cmd+Shift+R on Mac) to clear your browser's cached copy.">Build: <span id="build-stamp-text">2026-08-21-09</span></div>
   <div id="header-signed-in" style="position:absolute;top:26px;right:16px;font-size:11px;color:rgba(255,255,255,.75);white-space:nowrap;z-index:101;"></div>
   <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;flex:1;">
     <div style="background:#fff;border-radius:8px;padding:8px 14px;display:flex;align-items:center;box-shadow:0 1px 3px rgba(0,0,0,.15);">
@@ -1250,6 +1251,9 @@ label { font-size: 11px; font-weight: 600; color: var(--text-2); display: block;
         </span>
         <span style="font-size:11px;color:#605e5c;display:inline-flex;align-items:center;gap:5px;">
           <span class="unit-name-inspecting-outline">UNIT</span> Being Inspected
+        </span>
+        <span style="font-size:11px;color:#605e5c;display:inline-flex;align-items:center;gap:5px;">
+          <span class="unit-name-cleaning-outline">UNIT</span> Being Cleaned
         </span>
       </div>
       <!-- Production board lines -->
@@ -6152,6 +6156,7 @@ function renderLineSummary() {
         else if (u.held) { nameClass = 'unit-name-held'; color = ''; weight = ''; }
         if (u.deviationNeeded) nameClass += ' unit-name-deviation-outline';
         if (u.inspectionStarted) nameClass += ' unit-name-inspecting-outline';
+        if ((u.cleaningSessions||[]).some(s => !s.endTs)) nameClass += ' unit-name-cleaning-outline';
         let dueTag = '';
         if (u.dueDate) {
           const d = new Date(u.dueDate+'T00:00:00'); const today = new Date(); today.setHours(0,0,0,0);
@@ -12281,7 +12286,7 @@ function quickDismissMoveRequest(unitId) {
    visible stamp every time a change is made, or version checks
    against a stale reference and never fires.
    ============================================================ */
-const BUILD_DATE = '2026-08-21-08';
+const BUILD_DATE = '2026-08-21-09';
 let updateBannerShown = false;
 function checkForNewVersion() {
   if (updateBannerShown) return;

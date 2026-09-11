@@ -632,6 +632,17 @@ label { font-size: 11px; font-weight: 600; color: var(--text-2); display: block;
 .station-chip-lg .station-chip-body { padding: 9px 12px; }
 .station-chip-lg .station-chip-count { font-size: 22px; }
 .station-chip-lg .station-chip-units { font-size: 11px; }
+/* Individual unit names inside a chip — clickable to jump straight to
+   that unit's line+station on the Tracker. A hover scale-up gives clear
+   feedback that this specific name (not just the whole chip) is its own
+   clickable target, distinct from clicking elsewhere on the chip. */
+.dash-unit-name {
+  cursor: pointer;
+  display: inline-block;
+  transform-origin: left center;
+  transition: transform .12s ease;
+}
+.dash-unit-name:hover { transform: scale(1.12); }
 
 /* ================================================================
    API / SYNC
@@ -1088,7 +1099,7 @@ label { font-size: 11px; font-weight: 600; color: var(--text-2); display: block;
 
 <!-- ============================================================ HEADER -->
 <div class="app-header">
-  <div id="build-stamp" title="If this looks out of date after an update was announced, hard-refresh with Ctrl+Shift+R (Cmd+Shift+R on Mac) to clear your browser's cached copy.">Build: <span id="build-stamp-text">2026-08-21-02</span></div>
+  <div id="build-stamp" title="If this looks out of date after an update was announced, hard-refresh with Ctrl+Shift+R (Cmd+Shift+R on Mac) to clear your browser's cached copy.">Build: <span id="build-stamp-text">2026-08-21-04</span></div>
   <div id="header-signed-in" style="position:absolute;top:26px;right:16px;font-size:11px;color:rgba(255,255,255,.75);white-space:nowrap;z-index:101;"></div>
   <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;flex:1;">
     <div style="background:#fff;border-radius:8px;padding:8px 14px;display:flex;align-items:center;box-shadow:0 1px 3px rgba(0,0,0,.15);">
@@ -6113,7 +6124,7 @@ function renderLineSummary() {
         }
         const locTag = u.location ? `<div style="font-size:9px;color:#006A8E;font-weight:600;">&#128205; ${u.location}</div>` : '';
         const moveTag = u.moveRequest ? `<div style="font-size:9px;color:#6b46c1;font-weight:700;">&#8594; ${u.moveRequest.target}${u.moveRequest.location?' ('+u.moveRequest.location+')':''}</div>` : '';
-        return `<div class="${nameClass}" style="${color?'color:'+color+';':''}${weight?'font-weight:'+weight+';':''}cursor:pointer;" onclick="event.stopPropagation();jumpToLine('${jsq(line.id)}','${jsq(col.label)}')">${u.id}${dueTag}${locTag}${moveTag}</div>`;
+        return `<div class="dash-unit-name ${nameClass}" style="${color?'color:'+color+';':''}${weight?'font-weight:'+weight+';':''}" onclick="event.stopPropagation();jumpToLine('${jsq(line.id)}','${jsq(col.label)}')">${u.id}${dueTag}${locTag}${moveTag}</div>`;
       }).join('');
       return `<div class="station-chip station-chip-lg ${cls}" onclick="event.stopPropagation();jumpToLine('${jsq(line.id)}','${jsq(col.label)}')">
         <div class="station-chip-header">${shortLabel}</div>
@@ -7298,6 +7309,13 @@ function quickHold(unitId) {
 }
 function quickRelease(unitId) {
   requireName(() => {
+    const destEl = document.getElementById('bd-fwd-dest-'+safeId(unitId));
+    const dest = destEl ? destEl.value : '';
+    // Confirms the actual selected destination before anything happens —
+    // the dropdown always shows it, but a stray click right after it
+    // (or someone who changed the selection and forgot) could otherwise
+    // send a unit somewhere unintended with no way to catch it beforehand.
+    if (dest && !confirm('Release '+unitId+' to '+dest+'?')) return;
     const notes = prompt('Notes (optional):') || '';
     _quickFieldValue('bd-notes-fwd-'+safeId(unitId), notes);
     _doBoardAction(unitId, 'forward');
@@ -12218,7 +12236,7 @@ function quickDismissMoveRequest(unitId) {
    visible stamp every time a change is made, or version checks
    against a stale reference and never fires.
    ============================================================ */
-const BUILD_DATE = '2026-08-21-02';
+const BUILD_DATE = '2026-08-21-04';
 let updateBannerShown = false;
 function checkForNewVersion() {
   if (updateBannerShown) return;

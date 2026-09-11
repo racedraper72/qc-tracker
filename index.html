@@ -1118,7 +1118,7 @@ label { font-size: 11px; font-weight: 600; color: var(--text-2); display: block;
 
 <!-- ============================================================ HEADER -->
 <div class="app-header">
-  <div id="build-stamp" title="If this looks out of date after an update was announced, hard-refresh with Ctrl+Shift+R (Cmd+Shift+R on Mac) to clear your browser's cached copy.">Build: <span id="build-stamp-text">2026-08-21-09</span></div>
+  <div id="build-stamp" title="If this looks out of date after an update was announced, hard-refresh with Ctrl+Shift+R (Cmd+Shift+R on Mac) to clear your browser's cached copy.">Build: <span id="build-stamp-text">2026-08-21-12</span></div>
   <div id="header-signed-in" style="position:absolute;top:26px;right:16px;font-size:11px;color:rgba(255,255,255,.75);white-space:nowrap;z-index:101;"></div>
   <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;flex:1;">
     <div style="background:#fff;border-radius:8px;padding:8px 14px;display:flex;align-items:center;box-shadow:0 1px 3px rgba(0,0,0,.15);">
@@ -1314,6 +1314,14 @@ label { font-size: 11px; font-weight: 600; color: var(--text-2); display: block;
     <div class="card" style="margin-bottom:14px;">
       <div class="section-title">&#9989; Checklist Pass Rate</div>
       <div id="checklist-kpi-body"></div>
+    </div>
+
+    <!-- Station Leads — who's leading each station, with a one-click
+         Teams chat link, shown right above the unit list on the Tracker. -->
+    <div class="card" style="margin-bottom:14px;">
+      <div class="section-title">&#128100; Station Leads</div>
+      <p style="font-size:12px;color:#605e5c;margin-bottom:12px;">Enter who's leading each station and their email — a Teams chat link to them shows right above that station's unit list on the Tracker. Syncs to every device.</p>
+      <div id="pm-station-leads-body"></div>
     </div>
   </div>
 
@@ -6337,7 +6345,13 @@ function cleanerSaveAdjustedTime(unitId, idx) {
 function renderCleanerDashboard() {
   const el = document.getElementById('cleaner-dashboard-body'); if (!el) return;
 
-  const units = getAllBoardUnits().filter(u => !u.completed).sort((a,b) => a.id.localeCompare(b.id));
+  // Only units actually AT a Cleaners-named station — matches loosely on
+  // "clean" (case-insensitive) rather than one exact string, same
+  // reasoning as the Tracker card's own Cleaners check: the real station
+  // name turned out to be "Cleaners" not "Cleaning" once before, and
+  // matching loosely means a future rename can't silently break this
+  // again.
+  const units = getAllBoardUnits().filter(u => !u.completed && /clean/i.test(u.col)).sort((a,b) => a.id.localeCompare(b.id));
   // Every currently-active session on the unit gets its own row with its
   // own Time Out button — multiple people can be timed in on the same
   // unit at once, each independent of the others (one person timing out
@@ -6366,7 +6380,7 @@ function renderCleanerDashboard() {
   </div>`;
 
   el.innerHTML = headerHtml +
-    (units.length ? unitRows : '<p style="font-size:14px;color:#8a96a8;">No active units. / No hay unidades activas.</p>');
+    (units.length ? unitRows : '<p style="font-size:14px;color:#8a96a8;">No units at the Cleaners station right now. / No hay unidades en la estación de limpieza en este momento.</p>');
 }
 
 function renderBoardCompleted() {
@@ -6617,6 +6631,17 @@ function renderAllLinesContent(el) {
       ? cu.map(u => renderBoardUnitCard(u)).join('')
       : `<p style="font-size:13px;color:#605e5c;padding:6px 0;">No units at <strong>${showCol}</strong>.</p>`;
 
+    // Station lead bar — right above the unit list, one click into a
+    // Teams chat with whoever's leading this specific station right now.
+    // Entered on PM View, not here — this is display-only.
+    const lead = getStationLead(line.id, showCol);
+    const leadBar = lead
+      ? `<div style="display:flex;align-items:center;gap:8px;padding:8px 14px;background:#f0f2f5;border-bottom:1px solid #edebe9;font-size:12px;">
+          <span style="color:#605e5c;">&#128100; Lead:</span>
+          <a href="${teamsChatUrl(lead.email)}" target="_blank" style="color:#4b3a9e;font-weight:700;text-decoration:none;">${lead.name} &#8594; Message on Teams</a>
+        </div>`
+      : '';
+
     return `<div style="margin-bottom:14px;border-radius:4px;overflow:hidden;border:1px solid #edebe9;">
       <div style="background:${line.bgColor};border-left:4px solid ${line.headerColor};padding:8px 14px;display:flex;align-items:center;justify-content:space-between;cursor:pointer;" onclick="toggleLineSection('${line.id}')">
         <span style="font-size:13px;font-weight:700;color:${line.headerColor};">${line.name}</span>
@@ -6624,6 +6649,7 @@ function renderAllLinesContent(el) {
       </div>
       <div id="line-section-${line.id}">
         <div class="tab-bar" style="margin-bottom:0;padding:0 8px;background:#fafafa;border-bottom:1px solid #edebe9;">${stBar}</div>
+        ${leadBar}
         <div style="padding:10px 14px;">${colContent}</div>
       </div>
     </div>`;
@@ -8356,6 +8382,7 @@ function renderPMPage() {
   renderPMChecklistFails();
   renderPMInspectorSummary();
   renderPMLeadCheckins();
+  renderPMStationLeads();
   renderPMFailOverrides();
   renderPMInspectorActivity();
   renderPMClockedIn();
@@ -8446,6 +8473,69 @@ PM_WIDGET_METRICS.forEach(m => {
    device, instead of personal-per-browser. Reuses PM_WIDGET_METRICS
    and the same svgDonutChart/svgColumnChart/etc. chart renderers.
    ============================================================ */
+/* ---- Station Leads ----
+   Who's currently leading each station, with a one-click link straight
+   into a Teams chat with them — entered on PM View, shown right above
+   the station's unit list on the Tracker. Synced (shared across every
+   device) the same way as other admin-style config in this app, keyed
+   by line+station so renaming a station elsewhere doesn't silently
+   orphan an entry. */
+function getStationLeads() {
+  const synced = unitIssues['__config__station_leads'] && unitIssues['__config__station_leads'].url;
+  if (synced) { try { return JSON.parse(synced); } catch(e) {} }
+  try { return JSON.parse(localStorage.getItem('station_leads_local') || '{}'); } catch(e) { return {}; }
+}
+function saveStationLeads(data) {
+  const json = JSON.stringify(data);
+  unitIssues['__config__station_leads'] = { url: json, updatedAt: new Date().toISOString() };
+  localStorage.setItem('station_leads_local', json);
+  saveIssues();
+}
+function stationLeadKey(lineId, stationLabel) { return lineId+'::'+stationLabel; }
+function getStationLead(lineId, stationLabel) {
+  return getStationLeads()[stationLeadKey(lineId, stationLabel)] || null;
+}
+function teamsChatUrl(email) {
+  return 'https://teams.microsoft.com/l/chat/0/0?users='+encodeURIComponent(email);
+}
+function renderPMStationLeads() {
+  const el = document.getElementById('pm-station-leads-body'); if (!el) return;
+  const leads = getStationLeads();
+  el.innerHTML = CONFIG.lines.map(line => {
+    const rows = line.columns.map(col => {
+      const key = stationLeadKey(line.id, col.label);
+      const existing = leads[key] || { name: '', email: '' };
+      const sid = safeId(key);
+      return `<div style="display:grid;grid-template-columns:110px 1fr 1fr auto;gap:8px;align-items:center;padding:5px 0;border-bottom:1px solid #f0f2f5;">
+        <span style="font-size:12px;color:#605e5c;">${col.label}</span>
+        <input id="pmsl-name-${sid}" type="text" placeholder="Lead name" value="${existing.name}" style="font-size:12px;padding:5px 8px;" />
+        <input id="pmsl-email-${sid}" type="email" placeholder="name@company.com" value="${existing.email}" style="font-size:12px;padding:5px 8px;" />
+        <button class="sm" onclick="pmSaveStationLead('${jsq(line.id)}','${jsq(col.label)}')">Save</button>
+      </div>`;
+    }).join('');
+    return `<div style="margin-bottom:14px;">
+      <div style="font-size:12px;font-weight:700;color:${line.headerColor};padding:4px 0;border-bottom:2px solid ${line.headerColor};margin-bottom:4px;">${line.name}</div>
+      ${rows}
+    </div>`;
+  }).join('');
+}
+function pmSaveStationLead(lineId, stationLabel) {
+  const key = stationLeadKey(lineId, stationLabel);
+  const sid = safeId(key);
+  const name = document.getElementById('pmsl-name-'+sid).value.trim();
+  const email = document.getElementById('pmsl-email-'+sid).value.trim();
+  const leads = getStationLeads();
+  if (!name && !email) {
+    delete leads[key];
+  } else {
+    if (!name) { alert('Enter a name too.'); return; }
+    if (!email || !email.includes('@')) { alert('Enter a valid email — Teams needs it to open the right chat.'); return; }
+    leads[key] = { name, email };
+  }
+  saveStationLeads(leads);
+  renderAll();
+}
+
 function getAdminDashboardWidgets() {
   const synced = unitIssues['__config__admin_dashboard_widgets'] && unitIssues['__config__admin_dashboard_widgets'].url;
   let ids = [];
@@ -12286,7 +12376,7 @@ function quickDismissMoveRequest(unitId) {
    visible stamp every time a change is made, or version checks
    against a stale reference and never fires.
    ============================================================ */
-const BUILD_DATE = '2026-08-21-09';
+const BUILD_DATE = '2026-08-21-12';
 let updateBannerShown = false;
 function checkForNewVersion() {
   if (updateBannerShown) return;

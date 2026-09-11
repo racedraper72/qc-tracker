@@ -1118,7 +1118,7 @@ label { font-size: 11px; font-weight: 600; color: var(--text-2); display: block;
 
 <!-- ============================================================ HEADER -->
 <div class="app-header">
-  <div id="build-stamp" title="If this looks out of date after an update was announced, hard-refresh with Ctrl+Shift+R (Cmd+Shift+R on Mac) to clear your browser's cached copy.">Build: <span id="build-stamp-text">2026-08-21-12</span></div>
+  <div id="build-stamp" title="If this looks out of date after an update was announced, hard-refresh with Ctrl+Shift+R (Cmd+Shift+R on Mac) to clear your browser's cached copy.">Build: <span id="build-stamp-text">2026-08-21-13</span></div>
   <div id="header-signed-in" style="position:absolute;top:26px;right:16px;font-size:11px;color:rgba(255,255,255,.75);white-space:nowrap;z-index:101;"></div>
   <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;flex:1;">
     <div style="background:#fff;border-radius:8px;padding:8px 14px;display:flex;align-items:center;box-shadow:0 1px 3px rgba(0,0,0,.15);">
@@ -5109,7 +5109,18 @@ function syncFromSheetsViaGAS(onDone) {
         });
       }
       jsonpCall(sheetsUrl+'?tab=Issues', function(err3, rows3) {
-        if (!err3 && rows3 && rows3.length>1) {
+        // Recency guard — same 45s reasoning as the Board/QC guards above.
+        // The timestamp-comparison merge below looks correct on paper, but
+        // it has no protection against the exact failure mode that broke
+        // Remediation earlier: if a push hasn't actually landed on the
+        // sheet yet when a pull fires, the remote row for a just-saved key
+        // can still reflect a stale (or even nonexistent) prior state,
+        // and a subsequent pull a few sync cycles later could then treat
+        // that as "no local edit in progress" and let a still-stale
+        // remote value slip back in. Skipping the merge entirely while a
+        // local edit is this recent removes that window rather than
+        // relying on timestamp comparison alone to catch every case.
+        if (!err3 && rows3 && rows3.length>1 && Date.now() - issuesLastLocalEditAt > 45000) {
           // Merge, don't overwrite — the remote sheet may not have caught up
           // to a very recent local save yet (Apps Script write lag, or the
           // push simply hasn't landed). Keep whichever version of each key
@@ -5561,10 +5572,9 @@ function syncFromSheetsViaSmartsheet(onDone) {
           deviationNeeded:r[13]==='TRUE'||r[13]===true,deviationNote:r[14]||'',deviationTs:r[15]||'',checklist,qcChecklist,failOverrides,station2Tasks,solutionsEso:r[20]||'',dueDate:normalizeDueDate(r[21]),leadCheckins,stationTrackerTasks,fuelTankSerial:r[24]||'',location:r[25]||'',mapX:r[26]!==undefined&&r[26]!==''?parseFloat(r[26]):null,mapY:r[27]!==undefined&&r[27]!==''?parseFloat(r[27]):null,mapRotation:r[28]!==undefined&&r[28]!==''?parseFloat(r[28]):0,deviations,inspectionComplete:r[30]==='TRUE'||r[30]===true,weatherReadySignoffs,checklistMeta,qcChecklistMeta,issueClosures,remediations,issueClosingSessions,cleaningSessions,remediationCheckins,remediationStarted:r[39]==='TRUE'||r[39]===true,remediationComplete:r[40]==='TRUE'||r[40]===true,remediationFlags,materialHold:r[42]==='TRUE'||r[42]===true,materialHoldNote:r[43]||'',materialHoldTs:r[44]||'',materialHoldHistory,moveRequest};
       });
     }
-    if (rows3 && rows3.length>1) {
-      // Same merge logic as the Google Sheets path — keep whichever
-      // version of each config key is actually newer, don't blindly trust
-      // the remote copy over a more recent local one.
+    if (rows3 && rows3.length>1 && Date.now() - issuesLastLocalEditAt > 45000) {
+      // Same merge logic and recency guard as the Google Sheets path — see
+      // syncFromSheetsViaGAS for the full reasoning.
       const remoteIssues = {};
       rows3.slice(1).filter(r=>r[0] && r[1]).forEach(r => {
         remoteIssues[r[0]] = { url: r[1], updatedAt: r[2] || '' };
@@ -5605,6 +5615,7 @@ function syncFromSheets() {
 /* ---- LOCAL CACHE — safety net so data survives a refresh even if remote sync fails ---- */
 let boardLastLocalEditAt = 0;
 let qcLastLocalEditAt = 0;
+let issuesLastLocalEditAt = 0;
 function saveLocalCache() {
   try { localStorage.setItem('qc_units_cache', JSON.stringify(qcUnits)); } catch(e) { console.error('Local QC cache save failed:', e); }
   try { localStorage.setItem('board_units_cache', JSON.stringify(boardUnits)); } catch(e) { console.error('Local Board cache save failed:', e); }
@@ -11852,6 +11863,7 @@ function loadIssues() {
   try { unitIssues = JSON.parse(localStorage.getItem('unit_issues') || '{}'); } catch(e) { unitIssues = {}; }
 }
 function saveIssues() {
+  issuesLastLocalEditAt = Date.now();
   localStorage.setItem('unit_issues', JSON.stringify(unitIssues));
   if (sheetUrl) pushIssues();
 }
@@ -12376,7 +12388,7 @@ function quickDismissMoveRequest(unitId) {
    visible stamp every time a change is made, or version checks
    against a stale reference and never fires.
    ============================================================ */
-const BUILD_DATE = '2026-08-21-12';
+const BUILD_DATE = '2026-08-21-13';
 let updateBannerShown = false;
 function checkForNewVersion() {
   if (updateBannerShown) return;

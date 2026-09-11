@@ -55,6 +55,16 @@
 }
 .unit-name-remediation { animation: unit-name-remediation-blink 1.4s ease-in-out infinite; font-weight: 700; }
 .unit-name-deviation-outline { border: 1.5px solid #A03033; border-radius: 4px; padding: 0 3px; display: inline-block; }
+.unit-name-inspecting-outline { border: 1.5px solid #4b3a9e; border-radius: 4px; padding: 0 3px; display: inline-block; }
+/* Brief highlight after jumping to a specific unit from a Dashboard chip
+   — a few quick pulses of a neutral blue glow, distinct from every
+   status color above, so it reads purely as "here it is", never as a
+   real alert state. */
+@keyframes unit-card-flash-kf {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(24,95,165,0); }
+  25%, 75% { box-shadow: 0 0 0 4px rgba(24,95,165,.5); }
+}
+.unit-card-flash { animation: unit-card-flash-kf 2s ease-in-out; }
 /* Move Request — purple, distinct from every other status color so it
    never gets confused with Remediation (red) or Material Hold (yellow)
    at a glance. Same border-blink treatment as the others for the card/
@@ -1107,7 +1117,7 @@ label { font-size: 11px; font-weight: 600; color: var(--text-2); display: block;
 
 <!-- ============================================================ HEADER -->
 <div class="app-header">
-  <div id="build-stamp" title="If this looks out of date after an update was announced, hard-refresh with Ctrl+Shift+R (Cmd+Shift+R on Mac) to clear your browser's cached copy.">Build: <span id="build-stamp-text">2026-08-21-05</span></div>
+  <div id="build-stamp" title="If this looks out of date after an update was announced, hard-refresh with Ctrl+Shift+R (Cmd+Shift+R on Mac) to clear your browser's cached copy.">Build: <span id="build-stamp-text">2026-08-21-08</span></div>
   <div id="header-signed-in" style="position:absolute;top:26px;right:16px;font-size:11px;color:rgba(255,255,255,.75);white-space:nowrap;z-index:101;"></div>
   <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;flex:1;">
     <div style="background:#fff;border-radius:8px;padding:8px 14px;display:flex;align-items:center;box-shadow:0 1px 3px rgba(0,0,0,.15);">
@@ -1237,6 +1247,9 @@ label { font-size: 11px; font-weight: 600; color: var(--text-2); display: block;
         </span>
         <span style="font-size:11px;color:#605e5c;display:inline-flex;align-items:center;gap:5px;">
           <span class="unit-name-deviation-outline">UNIT</span> Deviation
+        </span>
+        <span style="font-size:11px;color:#605e5c;display:inline-flex;align-items:center;gap:5px;">
+          <span class="unit-name-inspecting-outline">UNIT</span> Being Inspected
         </span>
       </div>
       <!-- Production board lines -->
@@ -5732,6 +5745,21 @@ function jumpToLine(lineId, col) {
   activeCol = col || (line?line.columns[0].label:'');
   showPage('tracker');
 }
+// Same navigation as jumpToLine, then scrolls straight to and briefly
+// highlights the ONE specific unit that was actually clicked — jumpToLine
+// alone only filters down to the whole station, which still left someone
+// hunting through every card at that station for the one they wanted,
+// especially at a busy station with many units. Safe to query the DOM
+// immediately (no setTimeout) since showPage's render finishes
+// synchronously before this line runs.
+function jumpToUnit(lineId, col, unitId) {
+  jumpToLine(lineId, col);
+  const card = document.querySelector(`[data-unit-id="${CSS.escape(unitId)}"]`);
+  if (!card) return;
+  card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  card.classList.add('unit-card-flash');
+  setTimeout(() => card.classList.remove('unit-card-flash'), 2000);
+}
 
 /* ---- UNIFIED TABS ---- */
 // Board has its own inspection stations (M1, M2, I3A, I3B, I4's, etc. —
@@ -6123,6 +6151,7 @@ function renderLineSummary() {
         else if (uHasMoveRequest) { nameClass = 'unit-name-moverequest'; color = ''; weight = ''; }
         else if (u.held) { nameClass = 'unit-name-held'; color = ''; weight = ''; }
         if (u.deviationNeeded) nameClass += ' unit-name-deviation-outline';
+        if (u.inspectionStarted) nameClass += ' unit-name-inspecting-outline';
         let dueTag = '';
         if (u.dueDate) {
           const d = new Date(u.dueDate+'T00:00:00'); const today = new Date(); today.setHours(0,0,0,0);
@@ -6132,7 +6161,7 @@ function renderLineSummary() {
         }
         const locTag = u.location ? `<div style="font-size:9px;color:#006A8E;font-weight:600;">&#128205; ${u.location}</div>` : '';
         const moveTag = u.moveRequest ? `<div style="font-size:9px;color:#6b46c1;font-weight:700;">&#8594; ${u.moveRequest.target}${u.moveRequest.location?' ('+u.moveRequest.location+')':''}</div>` : '';
-        return `<div class="dash-unit-name ${nameClass}" style="${color?'color:'+color+';':''}${weight?'font-weight:'+weight+';':''}" onclick="event.stopPropagation();jumpToLine('${jsq(line.id)}','${jsq(col.label)}')">${u.id}${dueTag}${locTag}${moveTag}</div>`;
+        return `<div class="dash-unit-name ${nameClass}" style="${color?'color:'+color+';':''}${weight?'font-weight:'+weight+';':''}" onclick="event.stopPropagation();jumpToUnit('${jsq(line.id)}','${jsq(col.label)}','${jsq(u.id)}')">${u.id}${dueTag}${locTag}${moveTag}</div>`;
       }).join('');
       return `<div class="station-chip station-chip-lg ${cls}" onclick="event.stopPropagation();jumpToLine('${jsq(line.id)}','${jsq(col.label)}')">
         <div class="station-chip-header">${shortLabel}</div>
@@ -7070,7 +7099,7 @@ function renderBoardUnitCard(u) {
   const moveRequestActive = !!u.moveRequest;
   const alertClass = remediationActive ? 'remediation-alert' : (materialHoldActive ? 'material-hold-alert' : (moveRequestActive ? 'move-request-alert' : ''));
   const alertBorderStyle = remediationActive ? 'border:3px solid #A03033;' : (materialHoldActive ? 'border:3px solid #b45309;' : (moveRequestActive ? 'border:3px solid #6b46c1;' : (u.deviationNeeded||openFailOverrides.length?'border:2px solid #A03033;':'')));
-  return `<div class="unit-card ${u.held?'held':''} ${u.completed?'completed':''} ${alertClass}" style="${alertBorderStyle}">
+  return `<div class="unit-card ${u.held?'held':''} ${u.completed?'completed':''} ${alertClass}" data-unit-id="${u.id}" style="${alertBorderStyle}">
     <div class="unit-header"><div>${boardPill(u.id)}</div><div style="display:flex;gap:6px;align-items:center;">${deviationBadge}${failOverrideBadge}${statusBadge}</div></div>
     ${remedOrigin}
     ${esoGensetInfo}
@@ -8414,8 +8443,14 @@ PM_WIDGET_METRICS.forEach(m => {
    ============================================================ */
 function getAdminDashboardWidgets() {
   const synced = unitIssues['__config__admin_dashboard_widgets'] && unitIssues['__config__admin_dashboard_widgets'].url;
-  if (synced) { try { return JSON.parse(synced); } catch(e) {} }
-  try { return JSON.parse(localStorage.getItem('admin_dashboard_widgets_local') || '[]'); } catch(e) { return []; }
+  let ids = [];
+  if (synced) { try { ids = JSON.parse(synced); } catch(e) {} }
+  else { try { ids = JSON.parse(localStorage.getItem('admin_dashboard_widgets_local') || '[]'); } catch(e) { ids = []; } }
+  // Avg Cleaning Time is PM View only now — filtered out here at read
+  // time rather than just removed from whatever's currently saved, so
+  // it can never quietly reappear on the main Dashboard even if an old
+  // saved layout (or a stale sync) still lists it.
+  return ids.filter(id => id !== 'avgCleaningTime');
 }
 function saveAdminDashboardWidgets(ids) {
   const json = JSON.stringify(ids);
@@ -8672,7 +8707,9 @@ function renderAdminDashboardCardManager() {
   const layout = getAdminDashboardWidgets();
   const chartTypes = getAdminDashboardChartTypes();
 
-  const paletteCards = PM_WIDGET_METRICS.map(m => {
+  // Avg Cleaning Time is PM View only — excluded from the main
+  // Dashboard's palette entirely so it can't be re-added here.
+  const paletteCards = PM_WIDGET_METRICS.filter(m => m.id !== 'avgCleaningTime').map(m => {
     const pinned = layout.includes(m.id);
     return `<div onclick="adminDashWidgetToggle('${m.id}')" style="cursor:pointer;background:#fff;border:2px solid ${pinned?m.color:'#e2e6ea'};border-top:3px solid ${m.color};border-radius:8px;padding:10px 12px;position:relative;min-width:150px;">
       ${pinned?`<span style="position:absolute;top:6px;right:6px;width:16px;height:16px;border-radius:50%;background:${m.color};color:#fff;font-size:10px;display:flex;align-items:center;justify-content:center;">&#10003;</span>`:''}
@@ -12244,7 +12281,7 @@ function quickDismissMoveRequest(unitId) {
    visible stamp every time a change is made, or version checks
    against a stale reference and never fires.
    ============================================================ */
-const BUILD_DATE = '2026-08-21-05';
+const BUILD_DATE = '2026-08-21-08';
 let updateBannerShown = false;
 function checkForNewVersion() {
   if (updateBannerShown) return;

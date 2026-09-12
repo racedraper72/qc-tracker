@@ -1119,7 +1119,7 @@ label { font-size: 11px; font-weight: 600; color: var(--text-2); display: block;
 
 <!-- ============================================================ HEADER -->
 <div class="app-header">
-  <div id="build-stamp" title="If this looks out of date after an update was announced, hard-refresh with Ctrl+Shift+R (Cmd+Shift+R on Mac) to clear your browser's cached copy.">Build: <span id="build-stamp-text">2026-08-21-15</span></div>
+  <div id="build-stamp" title="If this looks out of date after an update was announced, hard-refresh with Ctrl+Shift+R (Cmd+Shift+R on Mac) to clear your browser's cached copy.">Build: <span id="build-stamp-text">2026-08-21-16</span></div>
   <div id="header-signed-in" style="position:absolute;top:26px;right:16px;font-size:11px;color:rgba(255,255,255,.75);white-space:nowrap;z-index:101;"></div>
   <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;flex:1;">
     <div style="background:#fff;border-radius:8px;padding:8px 14px;display:flex;align-items:center;box-shadow:0 1px 3px rgba(0,0,0,.15);">
@@ -7462,17 +7462,15 @@ function quickFinishOneInspector(unitId, checkinIdx) {
   u.leadCheckins.splice(checkinIdx, 1);
   const stillInspecting = u.leadCheckins.some(c => c.station === u.col);
   u.inspectionStarted = stillInspecting;
-  if (!stillInspecting) {
-    u.inspectionComplete = true;
-    // Finishing inspection at a Board Inspection station (M1/M2/M3, etc.)
-    // marks the whole unit Complete outright — always, even if the line
-    // has more stations configured after this one. Confirmed explicitly:
-    // these stations are treated as the real finish line for tracking
-    // purposes here, regardless of what (if anything) is listed after
-    // them in the line's column config.
-    u.completed = true;
-  }
-  u.history.push({ action: 'Inspection finished at '+u.col+' — '+person.name+(stillInspecting?'':' (last inspector — unit marked Complete)'), ts: now(), notes: '' });
+  // Only marks inspectionComplete — NOT u.completed. That auto-completed
+  // the unit outright, removing it from the active Tracker entirely,
+  // which turned out not to be what was actually wanted: the unit should
+  // stay fully visible and trackable, just showing as ready to move
+  // (the green "Ready to Move" indicator on the Dashboard, and the
+  // "Ready for Release" badge on the card) — an actual Mark Complete or
+  // Release still has to be done as its own separate, explicit action.
+  if (!stillInspecting) u.inspectionComplete = true;
+  u.history.push({ action: 'Inspection finished at '+u.col+' — '+person.name+(stillInspecting?'':' (last inspector — unit now Ready for Release)'), ts: now(), notes: '' });
   pushBoard(); renderAll();
 }
 // Stops just ONE inspector — a pause (e.g. end of day), not completion.
@@ -12403,7 +12401,7 @@ function quickDismissMoveRequest(unitId) {
    visible stamp every time a change is made, or version checks
    against a stale reference and never fires.
    ============================================================ */
-const BUILD_DATE = '2026-08-21-15';
+const BUILD_DATE = '2026-08-21-16';
 let updateBannerShown = false;
 function checkForNewVersion() {
   if (updateBannerShown) return;

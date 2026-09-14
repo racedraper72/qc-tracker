@@ -1119,7 +1119,7 @@ label { font-size: 11px; font-weight: 600; color: var(--text-2); display: block;
 
 <!-- ============================================================ HEADER -->
 <div class="app-header">
-  <div id="build-stamp" title="If this looks out of date after an update was announced, hard-refresh with Ctrl+Shift+R (Cmd+Shift+R on Mac) to clear your browser's cached copy.">Build: <span id="build-stamp-text">2026-08-21-16</span></div>
+  <div id="build-stamp" title="If this looks out of date after an update was announced, hard-refresh with Ctrl+Shift+R (Cmd+Shift+R on Mac) to clear your browser's cached copy.">Build: <span id="build-stamp-text">2026-08-21-17</span></div>
   <div id="header-signed-in" style="position:absolute;top:26px;right:16px;font-size:11px;color:rgba(255,255,255,.75);white-space:nowrap;z-index:101;"></div>
   <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;flex:1;">
     <div style="background:#fff;border-radius:8px;padding:8px 14px;display:flex;align-items:center;box-shadow:0 1px 3px rgba(0,0,0,.15);">
@@ -5696,11 +5696,11 @@ function pushBoard(force) {
   return syncTarget === 'smartsheet' ? proxySave('Board', padded) : jsonpSave('Board', padded);
 }
 function pushIssues() {
-  if (!sheetUrl) return;
+  if (!sheetUrl) return Promise.resolve(false);
   const rows = Object.entries(unitIssues)
     .filter(([uid, rec]) => rec && rec.url)
     .map(([uid, rec]) => [uid, rec.url, rec.updatedAt || '']);
-  if (syncTarget === 'smartsheet') proxySave('Issues', rows); else jsonpSave('Issues', rows);
+  return syncTarget === 'smartsheet' ? proxySave('Issues', rows) : jsonpSave('Issues', rows);
 }
 
 /* ---- TRACKER MODE: 'board' or 'qc' ---- */
@@ -7840,7 +7840,23 @@ function renderAdminBoard() {
 }
 function adminMoveBoard(uid){const u=ensureBoardTracked(uid);const sid=safeId(uid);const dest=document.getElementById('badm-col-'+sid).value;u.history.push({action:'Admin moved to '+dest,ts:now(),notes:''});u.col=dest;pushBoard();renderAll();renderAdminBoard();}
 function adminToggleHoldBoard(uid){const u=ensureBoardTracked(uid);u.held=!u.held;u.history.push({action:u.held?'Admin placed on hold':'Admin removed hold',ts:now(),notes:''});pushBoard();renderAll();renderAdminBoard();}
-function adminDeleteBoard(uid){if(!confirm('Delete '+uid+'?'))return;boardUnits=boardUnits.filter(u=>u.id!==uid);CONFIG.lines.forEach(l=>l.columns.forEach(c=>{c.units=c.units.filter(u=>u!==uid);}));addDeletedUnitId(uid);pushBoard();renderAll();renderAdminBoard();}
+function adminDeleteBoard(uid){
+  if(!confirm('Delete '+uid+'?'))return;
+  boardUnits=boardUnits.filter(u=>u.id!==uid);
+  CONFIG.lines.forEach(l=>l.columns.forEach(c=>{c.units=c.units.filter(u=>u!==uid);}));
+  renderAll();renderAdminBoard();
+  // Awaits BOTH pushes (the tombstone list AND the board sheet itself)
+  // rather than firing them and immediately moving on. The local delete
+  // always looks instant and successful in the UI regardless — that's
+  // exactly what made a genuinely failed push invisible before: nothing
+  // ever told anyone it hadn't actually reached the sheet, so it could
+  // silently reappear on a later fresh sync with no warning at all.
+  Promise.all([addDeletedUnitId(uid), pushBoard()]).then(([issuesOk, boardOk]) => {
+    if (!issuesOk || !boardOk) {
+      alert('⚠ '+uid+' was removed here, but saving that to the sheet failed. It may reappear later unless this is retried — check your connection and try deleting it again.');
+    }
+  });
+}
 function adminClearDeletedUnitIds() {
   const count = getDeletedUnitIds().length;
   if (!count) return;
@@ -11878,7 +11894,7 @@ function loadIssues() {
 function saveIssues() {
   issuesLastLocalEditAt = Date.now();
   localStorage.setItem('unit_issues', JSON.stringify(unitIssues));
-  if (sheetUrl) pushIssues();
+  return sheetUrl ? pushIssues() : Promise.resolve(false);
 }
 
 /* ---- DELETED BOARD UNITS ----
@@ -11900,7 +11916,7 @@ function addDeletedUnitId(uid) {
   const json = JSON.stringify(ids);
   unitIssues['__config__deleted_units'] = { url: json, updatedAt: new Date().toISOString() };
   localStorage.setItem('deleted_units_local', json);
-  saveIssues();
+  return saveIssues();
 }
 function removeDeletedUnitId(uid) {
   // "Un-tombstones" a unit id — used when a unit is deliberately re-added
@@ -12401,7 +12417,7 @@ function quickDismissMoveRequest(unitId) {
    visible stamp every time a change is made, or version checks
    against a stale reference and never fires.
    ============================================================ */
-const BUILD_DATE = '2026-08-21-16';
+const BUILD_DATE = '2026-08-21-17';
 let updateBannerShown = false;
 function checkForNewVersion() {
   if (updateBannerShown) return;

@@ -1146,7 +1146,7 @@ label { font-size: 11px; font-weight: 600; color: var(--text-2); display: block;
 
 <!-- ============================================================ HEADER -->
 <div class="app-header">
-  <div id="build-stamp" title="If this looks out of date after an update was announced, hard-refresh with Ctrl+Shift+R (Cmd+Shift+R on Mac) to clear your browser's cached copy.">Build: <span id="build-stamp-text">2026-08-21-21</span></div>
+  <div id="build-stamp" title="If this looks out of date after an update was announced, hard-refresh with Ctrl+Shift+R (Cmd+Shift+R on Mac) to clear your browser's cached copy.">Build: <span id="build-stamp-text">2026-08-21-22</span></div>
   <div id="header-signed-in" style="position:absolute;top:26px;right:16px;font-size:11px;color:rgba(255,255,255,.75);white-space:nowrap;z-index:101;"></div>
   <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;flex:1;">
     <div style="background:#fff;border-radius:8px;padding:8px 14px;display:flex;align-items:center;box-shadow:0 1px 3px rgba(0,0,0,.15);">
@@ -2553,6 +2553,17 @@ function getS2TaskState(u, taskName, stationKey) {
     if (e.isTrainee === undefined) e.isTrainee = false;
     if (e.materialHoldNote === undefined) e.materialHoldNote = '';
     if (e.engineeringHoldNote === undefined) e.engineeringHoldNote = '';
+    // Multiple reasons per hold, e.g. two different missing parts at once —
+    // a list rather than the single materialHoldNote/engineeringHoldNote
+    // string above, which is kept only so older saved data still displays.
+    // A pre-existing single note is folded in as the first list entry once,
+    // not repeatedly, so it isn't duplicated on every subsequent render.
+    if (e.materialHoldNotes === undefined) {
+      e.materialHoldNotes = e.materialHoldNote ? [{ note: e.materialHoldNote, ts: e.materialHoldTs || now() }] : [];
+    }
+    if (e.engineeringHoldNotes === undefined) {
+      e.engineeringHoldNotes = e.engineeringHoldNote ? [{ note: e.engineeringHoldNote, ts: e.engineeringHoldTs || now() }] : [];
+    }
   });
   // One-time migration from the old single shared task-level timer, if present
   if (t.status !== undefined) {
@@ -2687,12 +2698,24 @@ function s2TaskAction(unitId, taskName, empIdx, action, note, stationKey) {
   const t = getS2TaskState(u, taskName, stationKey);
   const emp = t.employees[empIdx];
   if (!emp) return;
+
+  // Adding another reason to an ALREADY-active hold doesn't touch the
+  // running timer at all — no status change, no segment banking — it's
+  // purely appending to the reasons list for a hold that's already going.
+  if (action === 'addMaterialReason' || action === 'addEngineeringReason') {
+    const list = action === 'addMaterialReason' ? emp.materialHoldNotes : emp.engineeringHoldNotes;
+    list.push({ note: note || '', ts: now() });
+    pushBoard();
+    renderStationTracker(stationKey || 'Station 2');
+    return;
+  }
+
   s2BankSegment(emp); // close out whatever was running before this change
 
   if (action === 'start')                { emp.status = 'running'; emp.currentSegmentStart = Date.now(); }
   else if (action === 'pause')           { emp.status = 'paused'; }
-  else if (action === 'holdMaterial')    { emp.status = 'holdMaterial'; emp.currentSegmentStart = Date.now(); emp.materialHoldNote = note || ''; }
-  else if (action === 'holdEngineering') { emp.status = 'holdEngineering'; emp.currentSegmentStart = Date.now(); emp.engineeringHoldNote = note || ''; }
+  else if (action === 'holdMaterial')    { emp.status = 'holdMaterial'; emp.currentSegmentStart = Date.now(); emp.materialHoldNote = note || ''; emp.materialHoldNotes.push({ note: note || '', ts: now() }); }
+  else if (action === 'holdEngineering') { emp.status = 'holdEngineering'; emp.currentSegmentStart = Date.now(); emp.engineeringHoldNote = note || ''; emp.engineeringHoldNotes.push({ note: note || '', ts: now() }); }
   else if (action === 'finish')          { emp.status = 'finished'; }
   else if (action === 'reopen')          { emp.status = 'idle'; } // undo a mistaken Finish
 
@@ -2768,18 +2791,21 @@ function s2OpenHoldNoteModal(unitId, taskName, empIdx, holdType, stationKey) {
   const existing = document.getElementById('s2-hold-note-overlay');
   if (existing) existing.remove();
 
-  const label = holdType === 'holdMaterial' ? 'Material' : 'Engineering';
+  const isMaterial = holdType === 'holdMaterial' || holdType === 'addMaterialReason';
+  const isAdditional = holdType === 'addMaterialReason' || holdType === 'addEngineeringReason';
+  const label = isMaterial ? 'Material' : 'Engineering';
+  const color = isMaterial ? '#4b3a9e' : '#006A8E';
   const overlay = document.createElement('div');
   overlay.id = 's2-hold-note-overlay';
   overlay.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.55);z-index:9999;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(2px);';
   overlay.innerHTML = `
     <div style="background:#fff;border-radius:16px;padding:28px 32px;max-width:400px;width:94%;box-shadow:0 24px 64px rgba(0,0,0,.28);">
-      <h2 style="font-size:16px;font-weight:800;color:#0f1923;margin-bottom:10px;letter-spacing:-.3px;">Hold for ${label} — Reason</h2>
+      <h2 style="font-size:16px;font-weight:800;color:#0f1923;margin-bottom:10px;letter-spacing:-.3px;">${isAdditional ? label+' Hold — Another Reason' : 'Hold for '+label+' — Reason'}</h2>
       <textarea id="s2-hold-note-input" rows="3" placeholder="What's this hold waiting on?" style="width:100%;font-size:15px;padding:12px;border:2px solid #e2e6ea;border-radius:8px;margin-bottom:6px;min-height:80px;"></textarea>
       <div id="s2-hold-note-err" style="color:#c0392b;font-size:12px;min-height:16px;margin-bottom:10px;"></div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
         <button id="s2-hold-note-cancel" style="padding:14px;font-size:15px;font-weight:700;background:#f0f2f5;color:#4a5568;border:none;border-radius:10px;cursor:pointer;min-height:48px;">Cancel</button>
-        <button id="s2-hold-note-confirm" style="padding:14px;font-size:15px;font-weight:700;background:${holdType==='holdMaterial'?'#4b3a9e':'#006A8E'};color:#fff;border:none;border-radius:10px;cursor:pointer;min-height:48px;">Confirm Hold</button>
+        <button id="s2-hold-note-confirm" style="padding:14px;font-size:15px;font-weight:700;background:${color};color:#fff;border:none;border-radius:10px;cursor:pointer;min-height:48px;">${isAdditional ? 'Add Reason' : 'Confirm Hold'}</button>
       </div>
     </div>`;
   document.body.appendChild(overlay);
@@ -3023,8 +3049,14 @@ function renderStationTracker(stationKey) {
             <span style="color:var(--text-2,#605e5c);">Engineering Hold: <strong id="s2-eng-${esid}" style="color:#006A8E;">${s2FormatHM(engSec)}</strong></span>
             <span style="color:var(--text-1,#323130);">Earned: <strong id="s2-earned-${esid}">${s2FormatHM(earnedSec)}</strong></span>
           </div>
-          ${e.status==='holdMaterial' && e.materialHoldNote ? `<div style="font-size:12px;color:#4b3a9e;background:#f0eeff;border-radius:6px;padding:6px 10px;margin-bottom:10px;"><strong>Material hold reason:</strong> ${e.materialHoldNote}</div>` : ''}
-          ${e.status==='holdEngineering' && e.engineeringHoldNote ? `<div style="font-size:12px;color:#006A8E;background:#E6F0F3;border-radius:6px;padding:6px 10px;margin-bottom:10px;"><strong>Engineering hold reason:</strong> ${e.engineeringHoldNote}</div>` : ''}
+          ${e.status==='holdMaterial' && e.materialHoldNotes.length ? `<div style="margin-bottom:10px;">
+            ${e.materialHoldNotes.map(n => `<div style="font-size:12px;color:#4b3a9e;background:#f0eeff;border-radius:6px;padding:6px 10px;margin-bottom:4px;">${n.note}<span style="opacity:.65;font-size:10px;margin-left:6px;">${n.ts}</span></div>`).join('')}
+            <button class="sm" onclick="s2OpenHoldNoteModal('${u.id}','${taskName}',${idx},'addMaterialReason','${stationKey}')" style="border-color:#4b3a9e;color:#4b3a9e;">&#43; Add another reason</button>
+          </div>` : ''}
+          ${e.status==='holdEngineering' && e.engineeringHoldNotes.length ? `<div style="margin-bottom:10px;">
+            ${e.engineeringHoldNotes.map(n => `<div style="font-size:12px;color:#006A8E;background:#E6F0F3;border-radius:6px;padding:6px 10px;margin-bottom:4px;">${n.note}<span style="opacity:.65;font-size:10px;margin-left:6px;">${n.ts}</span></div>`).join('')}
+            <button class="sm" onclick="s2OpenHoldNoteModal('${u.id}','${taskName}',${idx},'addEngineeringReason','${stationKey}')" style="border-color:#006A8E;color:#006A8E;">&#43; Add another reason</button>
+          </div>` : ''}
           <div style="display:flex;gap:8px;flex-wrap:wrap;">${buttons}</div>
         </div>`;
       }).join('');
@@ -12586,7 +12618,7 @@ function quickDismissReadyForPDI(unitId) {
    visible stamp every time a change is made, or version checks
    against a stale reference and never fires.
    ============================================================ */
-const BUILD_DATE = '2026-08-21-21';
+const BUILD_DATE = '2026-08-21-22';
 let updateBannerShown = false;
 function checkForNewVersion() {
   if (updateBannerShown) return;

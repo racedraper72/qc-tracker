@@ -92,6 +92,20 @@
   50% { color: #fb923c; }
 }
 .unit-name-readypdi { animation: unit-name-readypdi-blink 1.4s ease-in-out infinite; font-weight: 700; }
+/* Station Tracker Material/Engineering Hold — magenta/pink, distinct
+   from every other status color used so far, so a hold placed at the
+   Station Tracker reads as clearly different from a regular manual
+   Hold (solid yellow) or Material Hold (blinking yellow) at a glance. */
+@keyframes tracker-hold-blink {
+  0%, 100% { border-color: #be185d; box-shadow: 0 0 0 0 rgba(190,24,93,.4); }
+  50% { border-color: #f472b6; box-shadow: 0 0 0 4px rgba(190,24,93,0); }
+}
+.tracker-hold-alert { animation: tracker-hold-blink 1.4s ease-in-out infinite; }
+@keyframes unit-name-trackerhold-blink {
+  0%, 100% { color: #be185d; }
+  50% { color: #f472b6; }
+}
+.unit-name-trackerhold { animation: unit-name-trackerhold-blink 1.4s ease-in-out infinite; font-weight: 700; }
 /* ================================================================
    DESIGN TOKENS
    ================================================================ */
@@ -646,6 +660,7 @@ label { font-size: 11px; font-weight: 600; color: var(--text-2); display: block;
 .station-chip.has-material-hold { border-color: #b45309; background: #fff4ce; }
 .station-chip.has-move-request { border-color: #6b46c1; background: #f3effc; }
 .station-chip.has-ready-pdi { border-color: #c2410c; background: #fff0e6; }
+.station-chip.has-tracker-hold { border-color: #be185d; background: #fce7f3; }
 .station-chip-label { font-size: 9px; font-weight: 700; color: var(--text-2); text-transform: uppercase; letter-spacing: .3px; }
 .station-chip-count { font-size: 16px; font-weight: 800; margin: 2px 0; }
 .station-chip-units { font-size: 11px; color: var(--text-2); }
@@ -1131,7 +1146,7 @@ label { font-size: 11px; font-weight: 600; color: var(--text-2); display: block;
 
 <!-- ============================================================ HEADER -->
 <div class="app-header">
-  <div id="build-stamp" title="If this looks out of date after an update was announced, hard-refresh with Ctrl+Shift+R (Cmd+Shift+R on Mac) to clear your browser's cached copy.">Build: <span id="build-stamp-text">2026-08-21-19</span></div>
+  <div id="build-stamp" title="If this looks out of date after an update was announced, hard-refresh with Ctrl+Shift+R (Cmd+Shift+R on Mac) to clear your browser's cached copy.">Build: <span id="build-stamp-text">2026-08-21-21</span></div>
   <div id="header-signed-in" style="position:absolute;top:26px;right:16px;font-size:11px;color:rgba(255,255,255,.75);white-space:nowrap;z-index:101;"></div>
   <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;flex:1;">
     <div style="background:#fff;border-radius:8px;padding:8px 14px;display:flex;align-items:center;box-shadow:0 1px 3px rgba(0,0,0,.15);">
@@ -1276,6 +1291,9 @@ label { font-size: 11px; font-weight: 600; color: var(--text-2); display: block;
         </span>
         <span style="font-size:11px;color:#605e5c;display:inline-flex;align-items:center;gap:5px;">
           <span class="unit-name-readypdi" style="font-weight:700;">UNIT</span> Ready for PDI
+        </span>
+        <span style="font-size:11px;color:#605e5c;display:inline-flex;align-items:center;gap:5px;">
+          <span class="unit-name-trackerhold" style="font-weight:700;">UNIT</span> Station Tracker Hold
         </span>
       </div>
       <!-- Production board lines -->
@@ -2678,8 +2696,71 @@ function s2TaskAction(unitId, taskName, empIdx, action, note, stationKey) {
   else if (action === 'finish')          { emp.status = 'finished'; }
   else if (action === 'reopen')          { emp.status = 'idle'; } // undo a mistaken Finish
 
+  s2SyncHeldFromTaskHolds(u);
   pushBoard();
   renderStationTracker(stationKey || 'Station 2');
+}
+// Reflects a Station Tracker Material/Engineering hold on the main
+// Dashboard — the same u.held flag the general Hold button already
+// drives, so it shows the existing solid-yellow "On Hold" indicator
+// without needing a whole separate visual just for this. Checks EVERY
+// task, at EVERY station, for ANY employee currently on either hold
+// type — not just the one person whose status just changed — so the
+// unit correctly stays flagged if a second person is still on hold
+// after the first one resumes, and correctly clears only once nobody
+// on it is on hold anywhere anymore.
+// heldByTracker is explicit provenance, not inferred from history text
+// (which would be fragile to parse) — it means this specific mechanism
+// is what's currently holding the unit, so auto-clearing only ever
+// releases a hold this mechanism itself set. A hold someone placed
+// manually via the regular Hold button is never touched here; it stays
+// however that person left it, cleared only by that same manual action.
+// Shared by s2SyncHeldFromTaskHolds and refreshAllTrackerHoldStations
+// below — the actual "which stations have an active Material/Engineering
+// hold on this unit" computation lives in exactly one place.
+// "Station 2" is a special case that lives in its own, older field
+// (u.station2Tasks) rather than the newer, generic u.stationTrackerTasks
+// every other station uses — both need checking, or a hold placed at
+// Station 2 specifically would never be detected here at all.
+function s2ComputeHeldStations(u) {
+  const anyEmpOnHold = t => (t.employees || []).some(e => e.status === 'holdMaterial' || e.status === 'holdEngineering');
+  const heldStations = [];
+  if (Object.values(u.station2Tasks || {}).some(anyEmpOnHold)) heldStations.push('Station 2');
+  Object.entries(u.stationTrackerTasks || {}).forEach(([stationKey, bucket]) => {
+    if (Object.values(bucket).some(anyEmpOnHold)) heldStations.push(stationKey);
+  });
+  return heldStations;
+}
+function s2SyncHeldFromTaskHolds(u) {
+  const heldStations = s2ComputeHeldStations(u);
+  const anyOnHold = heldStations.length > 0;
+  u.trackerHoldStations = heldStations; // drives the Dashboard alert + its direct link
+  if (anyOnHold && !u.held) {
+    u.held = true;
+    u.heldByTracker = true;
+    u.history.push({ action: 'On Hold — Station Tracker material/engineering hold at '+heldStations.join(', '), ts: now(), notes: '' });
+  } else if (!anyOnHold && u.held && u.heldByTracker) {
+    u.held = false;
+    u.heldByTracker = false;
+    u.history.push({ action: 'Hold cleared — no more Station Tracker material/engineering holds', ts: now(), notes: '' });
+  }
+}
+// Navigates straight to the specific Station Tracker page for a given
+// station key — "Station 2" is its own separate page, every other
+// station is a generated tab under the shared Station Tracker system.
+function jumpToStationTrackerPage(stationKey) {
+  if (stationKey === 'Station 2') { showPage('station2'); return; }
+  showPage('stationtracker_' + stationKey.replace(/\s+/g,''));
+}
+// Recomputes JUST the derived trackerHoldStations list (not the full
+// held/heldByTracker side effects s2SyncHeldFromTaskHolds also has) for
+// every unit — needed because a hold placed on a different device syncs
+// u.held correctly (it's a real synced field), but this specific
+// derived list isn't itself persisted, so it needs refreshing here on
+// every render rather than staying stale until someone locally touches
+// that unit's Station Tracker again.
+function refreshAllTrackerHoldStations() {
+  getAllBoardUnits().forEach(u => { u.trackerHoldStations = s2ComputeHeldStations(u); });
 }
 
 /* Hold: Material / Hold: Engineering require a reason before they'll go through. */
@@ -5027,7 +5108,7 @@ function jsonpSave(tab, rows) {
   const header = tab==='QC'
     ? ['Serial','Type','Station','InspectionStarted','Held','Remediation','RemediationOrigin','Completed','Status','HistoryJSON']
     : tab==='Board'
-    ? ['UnitID','Line','Column','Held','Completed','Notes','ESONumber','GensetSerial','ReadyForInspection','InspectionStarted','HistoryJSON','SupervisorReleased','SupervisorReleaseTs','DeviationNeeded','DeviationNote','DeviationTs','ChecklistJSON','QCChecklistJSON','FailOverridesJSON','Station2TasksJSON','SolutionsESO','DueDate','LeadCheckinsJSON','StationTrackerTasksJSON','FuelTankSerial','Location','MapX','MapY','MapRotation','DeviationsJSON','InspectionComplete','WeatherReadySignoffsJSON','ChecklistMetaJSON','QCChecklistMetaJSON','IssueClosuresJSON','RemediationsJSON','IssueClosingSessionsJSON','CleaningSessionsJSON','RemediationCheckinsJSON','RemediationStarted','RemediationComplete','RemediationFlagsJSON','MaterialHold','MaterialHoldNote','MaterialHoldTs','MaterialHoldHistoryJSON','MoveRequestJSON','ReadyForPDIJSON']
+    ? ['UnitID','Line','Column','Held','Completed','Notes','ESONumber','GensetSerial','ReadyForInspection','InspectionStarted','HistoryJSON','SupervisorReleased','SupervisorReleaseTs','DeviationNeeded','DeviationNote','DeviationTs','ChecklistJSON','QCChecklistJSON','FailOverridesJSON','Station2TasksJSON','SolutionsESO','DueDate','LeadCheckinsJSON','StationTrackerTasksJSON','FuelTankSerial','Location','MapX','MapY','MapRotation','DeviationsJSON','InspectionComplete','WeatherReadySignoffsJSON','ChecklistMetaJSON','QCChecklistMetaJSON','IssueClosuresJSON','RemediationsJSON','IssueClosingSessionsJSON','CleaningSessionsJSON','RemediationCheckinsJSON','RemediationStarted','RemediationComplete','RemediationFlagsJSON','MaterialHold','MaterialHoldNote','MaterialHoldTs','MaterialHoldHistoryJSON','MoveRequestJSON','ReadyForPDIJSON','HeldByTracker']
     : ['UnitID','Link','UpdatedAt'];
   const payload = JSON.stringify({action:'save', rows:[header,...rows]});
 
@@ -5130,7 +5211,7 @@ function syncFromSheetsViaGAS(onDone) {
           if (deviations.length===0 && (r[13]==='TRUE'||r[13]===true) && r[14]) deviations=[{note:r[14],ts:r[15]||'',operator:''}];
           return {id:r[0],line:r[1],col:r[2],held:r[3]==='TRUE'||r[3]===true,completed:r[4]==='TRUE'||r[4]===true,notes:r[5]||'',esoNumber:r[6]||'',gensetSerial:r[7]||'',readyForInspection:r[8]==='TRUE'||r[8]===true,inspectionStarted:r[9]==='TRUE'||r[9]===true,history,
             supervisorReleased:r[11]==='TRUE'||r[11]===true,supervisorReleaseTs:r[12]||'',
-            deviationNeeded:r[13]==='TRUE'||r[13]===true,deviationNote:r[14]||'',deviationTs:r[15]||'',checklist,qcChecklist,failOverrides,station2Tasks,solutionsEso:r[20]||'',dueDate:normalizeDueDate(r[21]),leadCheckins,stationTrackerTasks,fuelTankSerial:r[24]||'',location:r[25]||'',mapX:r[26]!==undefined&&r[26]!==''?parseFloat(r[26]):null,mapY:r[27]!==undefined&&r[27]!==''?parseFloat(r[27]):null,mapRotation:r[28]!==undefined&&r[28]!==''?parseFloat(r[28]):0,deviations,inspectionComplete:r[30]==='TRUE'||r[30]===true,weatherReadySignoffs,checklistMeta,qcChecklistMeta,issueClosures,remediations,issueClosingSessions,cleaningSessions,remediationCheckins,remediationStarted:r[39]==='TRUE'||r[39]===true,remediationComplete:r[40]==='TRUE'||r[40]===true,remediationFlags,materialHold:r[42]==='TRUE'||r[42]===true,materialHoldNote:r[43]||'',materialHoldTs:r[44]||'',materialHoldHistory,moveRequest,readyForPDI};
+            deviationNeeded:r[13]==='TRUE'||r[13]===true,deviationNote:r[14]||'',deviationTs:r[15]||'',checklist,qcChecklist,failOverrides,station2Tasks,solutionsEso:r[20]||'',dueDate:normalizeDueDate(r[21]),leadCheckins,stationTrackerTasks,fuelTankSerial:r[24]||'',location:r[25]||'',mapX:r[26]!==undefined&&r[26]!==''?parseFloat(r[26]):null,mapY:r[27]!==undefined&&r[27]!==''?parseFloat(r[27]):null,mapRotation:r[28]!==undefined&&r[28]!==''?parseFloat(r[28]):0,deviations,inspectionComplete:r[30]==='TRUE'||r[30]===true,weatherReadySignoffs,checklistMeta,qcChecklistMeta,issueClosures,remediations,issueClosingSessions,cleaningSessions,remediationCheckins,remediationStarted:r[39]==='TRUE'||r[39]===true,remediationComplete:r[40]==='TRUE'||r[40]===true,remediationFlags,materialHold:r[42]==='TRUE'||r[42]===true,materialHoldNote:r[43]||'',materialHoldTs:r[44]||'',materialHoldHistory,moveRequest,readyForPDI,heldByTracker:r[48]==='TRUE'||r[48]===true};
         });
       }
       jsonpCall(sheetsUrl+'?tab=Issues', function(err3, rows3) {
@@ -5182,7 +5263,7 @@ function proxySave(tab, rows) {
   const header = tab==='QC'
     ? ['Serial','Type','Station','InspectionStarted','Held','Remediation','RemediationOrigin','Completed','Status','HistoryJSON']
     : tab==='Board'
-    ? ['UnitID','Line','Column','Held','Completed','Notes','ESONumber','GensetSerial','ReadyForInspection','InspectionStarted','HistoryJSON','SupervisorReleased','SupervisorReleaseTs','DeviationNeeded','DeviationNote','DeviationTs','ChecklistJSON','QCChecklistJSON','FailOverridesJSON','Station2TasksJSON','SolutionsESO','DueDate','LeadCheckinsJSON','StationTrackerTasksJSON','FuelTankSerial','Location','MapX','MapY','MapRotation','DeviationsJSON','InspectionComplete','WeatherReadySignoffsJSON','ChecklistMetaJSON','QCChecklistMetaJSON','IssueClosuresJSON','RemediationsJSON','IssueClosingSessionsJSON','CleaningSessionsJSON','RemediationCheckinsJSON','RemediationStarted','RemediationComplete','RemediationFlagsJSON','MaterialHold','MaterialHoldNote','MaterialHoldTs','MaterialHoldHistoryJSON','MoveRequestJSON','ReadyForPDIJSON']
+    ? ['UnitID','Line','Column','Held','Completed','Notes','ESONumber','GensetSerial','ReadyForInspection','InspectionStarted','HistoryJSON','SupervisorReleased','SupervisorReleaseTs','DeviationNeeded','DeviationNote','DeviationTs','ChecklistJSON','QCChecklistJSON','FailOverridesJSON','Station2TasksJSON','SolutionsESO','DueDate','LeadCheckinsJSON','StationTrackerTasksJSON','FuelTankSerial','Location','MapX','MapY','MapRotation','DeviationsJSON','InspectionComplete','WeatherReadySignoffsJSON','ChecklistMetaJSON','QCChecklistMetaJSON','IssueClosuresJSON','RemediationsJSON','IssueClosingSessionsJSON','CleaningSessionsJSON','RemediationCheckinsJSON','RemediationStarted','RemediationComplete','RemediationFlagsJSON','MaterialHold','MaterialHoldNote','MaterialHoldTs','MaterialHoldHistoryJSON','MoveRequestJSON','ReadyForPDIJSON','HeldByTracker']
     : ['UnitID','Link','UpdatedAt'];
   return proxyFetch('?action=save&tab='+tab, {
     method: 'POST',
@@ -5595,7 +5676,7 @@ function syncFromSheetsViaSmartsheet(onDone) {
           if (deviations.length===0 && (r[13]==='TRUE'||r[13]===true) && r[14]) deviations=[{note:r[14],ts:r[15]||'',operator:''}];
         return {id:r[0],line:r[1],col:r[2],held:r[3]==='TRUE'||r[3]===true,completed:r[4]==='TRUE'||r[4]===true,notes:r[5]||'',esoNumber:r[6]||'',gensetSerial:r[7]||'',readyForInspection:r[8]==='TRUE'||r[8]===true,inspectionStarted:r[9]==='TRUE'||r[9]===true,history,
           supervisorReleased:r[11]==='TRUE'||r[11]===true,supervisorReleaseTs:r[12]||'',
-          deviationNeeded:r[13]==='TRUE'||r[13]===true,deviationNote:r[14]||'',deviationTs:r[15]||'',checklist,qcChecklist,failOverrides,station2Tasks,solutionsEso:r[20]||'',dueDate:normalizeDueDate(r[21]),leadCheckins,stationTrackerTasks,fuelTankSerial:r[24]||'',location:r[25]||'',mapX:r[26]!==undefined&&r[26]!==''?parseFloat(r[26]):null,mapY:r[27]!==undefined&&r[27]!==''?parseFloat(r[27]):null,mapRotation:r[28]!==undefined&&r[28]!==''?parseFloat(r[28]):0,deviations,inspectionComplete:r[30]==='TRUE'||r[30]===true,weatherReadySignoffs,checklistMeta,qcChecklistMeta,issueClosures,remediations,issueClosingSessions,cleaningSessions,remediationCheckins,remediationStarted:r[39]==='TRUE'||r[39]===true,remediationComplete:r[40]==='TRUE'||r[40]===true,remediationFlags,materialHold:r[42]==='TRUE'||r[42]===true,materialHoldNote:r[43]||'',materialHoldTs:r[44]||'',materialHoldHistory,moveRequest,readyForPDI};
+          deviationNeeded:r[13]==='TRUE'||r[13]===true,deviationNote:r[14]||'',deviationTs:r[15]||'',checklist,qcChecklist,failOverrides,station2Tasks,solutionsEso:r[20]||'',dueDate:normalizeDueDate(r[21]),leadCheckins,stationTrackerTasks,fuelTankSerial:r[24]||'',location:r[25]||'',mapX:r[26]!==undefined&&r[26]!==''?parseFloat(r[26]):null,mapY:r[27]!==undefined&&r[27]!==''?parseFloat(r[27]):null,mapRotation:r[28]!==undefined&&r[28]!==''?parseFloat(r[28]):0,deviations,inspectionComplete:r[30]==='TRUE'||r[30]===true,weatherReadySignoffs,checklistMeta,qcChecklistMeta,issueClosures,remediations,issueClosingSessions,cleaningSessions,remediationCheckins,remediationStarted:r[39]==='TRUE'||r[39]===true,remediationComplete:r[40]==='TRUE'||r[40]===true,remediationFlags,materialHold:r[42]==='TRUE'||r[42]===true,materialHoldNote:r[43]||'',materialHoldTs:r[44]||'',materialHoldHistory,moveRequest,readyForPDI,heldByTracker:r[48]==='TRUE'||r[48]===true};
       });
     }
     if (rows3 && rows3.length>1 && Date.now() - issuesLastLocalEditAt > 45000) {
@@ -5662,7 +5743,7 @@ function loadLocalCache() {
    seen (via push OR pull) and padding any smaller push with blank rows up
    to that count guarantees every previously-used row gets overwritten
    with blanks, regardless of how the backend script writes the range. */
-const BOARD_COL_COUNT = 48;
+const BOARD_COL_COUNT = 49;
 const QC_COL_COUNT = 10;
 function bumpRowFloor(tab, count) {
   const key = 'push_row_floor_' + tab;
@@ -5713,7 +5794,7 @@ function pushBoard(force) {
   if (!force && isStaleRelativeToReset()) { syncFromSheets(); return Promise.resolve(false); }
   boardLastLocalEditAt = Date.now();
   saveLocalCache();
-  const rows = boardUnits.map(u=>[u.id,u.line,u.col,u.held,u.completed,u.notes,u.esoNumber||'',u.gensetSerial||'',u.readyForInspection||false,u.inspectionStarted||false,JSON.stringify(u.history),u.supervisorReleased||false,u.supervisorReleaseTs||'',u.deviationNeeded||false,u.deviationNote||'',u.deviationTs||'',JSON.stringify(u.checklist||{}),JSON.stringify(u.qcChecklist||{}),JSON.stringify(u.failOverrides||[]),JSON.stringify(u.station2Tasks||{}),u.solutionsEso||'',u.dueDate||'',JSON.stringify(u.leadCheckins||[]),JSON.stringify(u.stationTrackerTasks||{}),u.fuelTankSerial||'',u.location||'',u.mapX==null?'':u.mapX,u.mapY==null?'':u.mapY,u.mapRotation==null?'':u.mapRotation,JSON.stringify(u.deviations||[]),u.inspectionComplete||false,JSON.stringify(u.weatherReadySignoffs||{}),JSON.stringify(u.checklistMeta||{}),JSON.stringify(u.qcChecklistMeta||{}),JSON.stringify(u.issueClosures||[]),JSON.stringify(u.remediations||[]),JSON.stringify(u.issueClosingSessions||[]),JSON.stringify(u.cleaningSessions||[]),JSON.stringify(u.remediationCheckins||[]),u.remediationStarted||false,u.remediationComplete||false,JSON.stringify(u.remediationFlags||[]),u.materialHold||false,u.materialHoldNote||'',u.materialHoldTs||'',JSON.stringify(u.materialHoldHistory||[]),JSON.stringify(u.moveRequest||null),JSON.stringify(u.readyForPDI||null)]);
+  const rows = boardUnits.map(u=>[u.id,u.line,u.col,u.held,u.completed,u.notes,u.esoNumber||'',u.gensetSerial||'',u.readyForInspection||false,u.inspectionStarted||false,JSON.stringify(u.history),u.supervisorReleased||false,u.supervisorReleaseTs||'',u.deviationNeeded||false,u.deviationNote||'',u.deviationTs||'',JSON.stringify(u.checklist||{}),JSON.stringify(u.qcChecklist||{}),JSON.stringify(u.failOverrides||[]),JSON.stringify(u.station2Tasks||{}),u.solutionsEso||'',u.dueDate||'',JSON.stringify(u.leadCheckins||[]),JSON.stringify(u.stationTrackerTasks||{}),u.fuelTankSerial||'',u.location||'',u.mapX==null?'':u.mapX,u.mapY==null?'':u.mapY,u.mapRotation==null?'':u.mapRotation,JSON.stringify(u.deviations||[]),u.inspectionComplete||false,JSON.stringify(u.weatherReadySignoffs||{}),JSON.stringify(u.checklistMeta||{}),JSON.stringify(u.qcChecklistMeta||{}),JSON.stringify(u.issueClosures||[]),JSON.stringify(u.remediations||[]),JSON.stringify(u.issueClosingSessions||[]),JSON.stringify(u.cleaningSessions||[]),JSON.stringify(u.remediationCheckins||[]),u.remediationStarted||false,u.remediationComplete||false,JSON.stringify(u.remediationFlags||[]),u.materialHold||false,u.materialHoldNote||'',u.materialHoldTs||'',JSON.stringify(u.materialHoldHistory||[]),JSON.stringify(u.moveRequest||null),JSON.stringify(u.readyForPDI||null),u.heldByTracker||false]);
   const padded = padRowsToFloor('Board', rows, BOARD_COL_COUNT);
   return syncTarget === 'smartsheet' ? proxySave('Board', padded) : jsonpSave('Board', padded);
 }
@@ -5969,6 +6050,7 @@ function renderAll() {
   migrateUnitsOffRemediationColumn();
   applyBoardInspectionColOverrides();
   applyProjectOverrides();
+  refreshAllTrackerHoldStations();
   renderCatLegend();
   renderColCounts();
   renderBoardStats(); renderLineSummary(); renderBoardCompleted();
@@ -6111,7 +6193,7 @@ function _addAllBoardUnits() {
   if (hasError) return;
   toAdd.forEach(u => {
     removeDeletedUnitId(u.id);
-    boardUnits.push({id:u.id,line:u.line,col:u.col,held:false,completed:false,notes:u.notes,esoNumber:'',gensetSerial:u.gensetSerial||'',fuelTankSerial:'',location:'',mapX:null,mapY:null,solutionsEso:u.solEso||'',dueDate:u.dueDate||'',leadCheckins:[],readyForInspection:false,inspectionStarted:false,inspectionComplete:false,weatherReadySignoffs:{},issueClosures:[],supervisorReleased:false,supervisorReleaseTs:'',deviationNeeded:false,deviationNote:'',deviationTs:'',deviations:[],remediationNeeded:false,remediationNote:'',remediationTs:'',remediations:[],remediationCheckins:[],remediationStarted:false,remediationComplete:false,remediationFlags:[],materialHold:false,materialHoldNote:'',materialHoldTs:'',materialHoldHistory:[],moveRequest:null,readyForPDI:null,issueClosingSessions:[],cleaningSessions:[],checklist:{},qcChecklist:{},checklistMeta:{},qcChecklistMeta:{},failOverrides:[],station2Tasks:{},stationTrackerTasks:{},history:[{action:'Added to '+u.col,ts:now(),notes:u.notes}]});
+    boardUnits.push({id:u.id,line:u.line,col:u.col,held:false,completed:false,notes:u.notes,esoNumber:'',gensetSerial:u.gensetSerial||'',fuelTankSerial:'',location:'',mapX:null,mapY:null,solutionsEso:u.solEso||'',dueDate:u.dueDate||'',leadCheckins:[],readyForInspection:false,inspectionStarted:false,inspectionComplete:false,weatherReadySignoffs:{},issueClosures:[],supervisorReleased:false,supervisorReleaseTs:'',deviationNeeded:false,deviationNote:'',deviationTs:'',deviations:[],remediationNeeded:false,remediationNote:'',remediationTs:'',remediations:[],remediationCheckins:[],remediationStarted:false,remediationComplete:false,remediationFlags:[],materialHold:false,materialHoldNote:'',materialHoldTs:'',materialHoldHistory:[],moveRequest:null,readyForPDI:null,heldByTracker:false,issueClosingSessions:[],cleaningSessions:[],checklist:{},qcChecklist:{},checklistMeta:{},qcChecklistMeta:{},failOverrides:[],station2Tasks:{},stationTrackerTasks:{},history:[{action:'Added to '+u.col,ts:now(),notes:u.notes}]});
   });
   err.textContent=''; document.getElementById('board-add-form').style.display='none';
   pushBoard(); renderAll();
@@ -6129,7 +6211,7 @@ function getAllBoardUnits() {
         if (deleted.includes(uid)) return; // tombstoned — don't resurrect from the static seed
         if (!merged.find(u=>u.id===uid)) {
           const tracked=boardUnits.find(u=>u.id===uid);
-          merged.push(tracked||{id:uid,line:line.id,col:col.label,held:false,completed:false,notes:'',esoNumber:'',gensetSerial:'',fuelTankSerial:'',location:'',mapX:null,mapY:null,solutionsEso:'',dueDate:'',leadCheckins:[],readyForInspection:false,inspectionStarted:false,inspectionComplete:false,weatherReadySignoffs:{},issueClosures:[],supervisorReleased:false,supervisorReleaseTs:'',deviationNeeded:false,deviationNote:'',deviationTs:'',deviations:[],remediationNeeded:false,remediationNote:'',remediationTs:'',remediations:[],remediationCheckins:[],remediationStarted:false,remediationComplete:false,remediationFlags:[],materialHold:false,materialHoldNote:'',materialHoldTs:'',materialHoldHistory:[],moveRequest:null,readyForPDI:null,issueClosingSessions:[],cleaningSessions:[],checklist:{},qcChecklist:{},checklistMeta:{},qcChecklistMeta:{},failOverrides:[],station2Tasks:{},stationTrackerTasks:{},history:[]});
+          merged.push(tracked||{id:uid,line:line.id,col:col.label,held:false,completed:false,notes:'',esoNumber:'',gensetSerial:'',fuelTankSerial:'',location:'',mapX:null,mapY:null,solutionsEso:'',dueDate:'',leadCheckins:[],readyForInspection:false,inspectionStarted:false,inspectionComplete:false,weatherReadySignoffs:{},issueClosures:[],supervisorReleased:false,supervisorReleaseTs:'',deviationNeeded:false,deviationNote:'',deviationTs:'',deviations:[],remediationNeeded:false,remediationNote:'',remediationTs:'',remediations:[],remediationCheckins:[],remediationStarted:false,remediationComplete:false,remediationFlags:[],materialHold:false,materialHoldNote:'',materialHoldTs:'',materialHoldHistory:[],moveRequest:null,readyForPDI:null,heldByTracker:false,issueClosingSessions:[],cleaningSessions:[],checklist:{},qcChecklist:{},checklistMeta:{},qcChecklistMeta:{},failOverrides:[],station2Tasks:{},stationTrackerTasks:{},history:[]});
         }
       });
     });
@@ -6168,31 +6250,37 @@ function renderLineSummary() {
       const hasDeviation=cu.some(u=>u.deviationNeeded);
       const hasRemediation=cu.some(u=>(u.remediationNeeded&&!u.remediationComplete)||(u.remediationFlags||[]).length>0);
       const hasMaterialHold=cu.some(u=>u.materialHold);
+      const hasTrackerHold=cu.some(u=>(u.trackerHoldStations||[]).length>0);
       const hasMoveRequest=cu.some(u=>u.moveRequest);
       const hasReadyPDI=cu.some(u=>u.readyForPDI);
       const hasFail=cu.some(u=>{
         const cS=getChecklistState(u), qS=getQCChecklistState(u);
         return (cS && cS.includes('fail')) || (qS && qS.includes('fail'));
       });
-      const cls=count>0?(hasRemediation?'remediation-alert has-deviation':hasMaterialHold?'material-hold-alert has-material-hold':hasMoveRequest?'move-request-alert has-move-request':hasReadyPDI?'ready-pdi-alert has-ready-pdi':hasDeviation?'has-deviation':hasFail?'has-fail':hasHeld?'has-held':hasDone?'has-done':'has-units'):'';
-      const topColor=count>0?(hasRemediation?'#A03033':hasMaterialHold?'#b45309':hasMoveRequest?'#6b46c1':hasReadyPDI?'#c2410c':hasDeviation?'#A03033':hasFail?'#A03033':hasHeld?'#b45309':hasDone?'#107c10':line.headerColor):'#edebe9';
+      const cls=count>0?(hasRemediation?'remediation-alert has-deviation':hasMaterialHold?'material-hold-alert has-material-hold':hasTrackerHold?'tracker-hold-alert has-tracker-hold':hasMoveRequest?'move-request-alert has-move-request':hasReadyPDI?'ready-pdi-alert has-ready-pdi':hasDeviation?'has-deviation':hasFail?'has-fail':hasHeld?'has-held':hasDone?'has-done':'has-units'):'';
+      const topColor=count>0?(hasRemediation?'#A03033':hasMaterialHold?'#b45309':hasTrackerHold?'#be185d':hasMoveRequest?'#6b46c1':hasReadyPDI?'#c2410c':hasDeviation?'#A03033':hasFail?'#A03033':hasHeld?'#b45309':hasDone?'#107c10':line.headerColor):'#edebe9';
       const shortLabel=col.label.replace('Station ','Stn ').replace('In the Hole','Hole').replace('On Deck','Deck').replace('Ready to Ship','✓ RTS').replace('Holding ','Hold.').replace('Load Bank','LB');
       // Color each unit's name by ITS OWN status — remediation (blinking
       // red) takes priority over Material Hold (blinking yellow), which
-      // takes priority over a Move Request (blinking purple), which
-      // takes priority over Ready for PDI (blinking orange), which takes
-      // priority over a plain Hold (solid yellow), which takes priority
-      // over the existing pass/fail checklist coloring. A Deviation
-      // outline is independent of all of that — it's a border, not a
-      // text color, so it can combine with any of the above without
-      // conflicting. Each name is individually clickable, jumping
-      // straight to that unit's line+station on the Tracker.
+      // takes priority over a Station Tracker Material/Engineering hold
+      // (blinking magenta), which takes priority over a Move Request
+      // (blinking purple), which takes priority over Ready for PDI
+      // (blinking orange), which takes priority over a plain Hold (solid
+      // yellow), which takes priority over the existing pass/fail
+      // checklist coloring. A Deviation outline is independent of all of
+      // that — it's a border, not a text color, so it can combine with
+      // any of the above without conflicting. Each name is individually
+      // clickable — normally jumping to that unit's line+station on the
+      // Tracker, but a unit with an active Station Tracker hold jumps
+      // straight to that specific Station Tracker page instead, since
+      // that's where the hold actually needs to be resolved.
       const unitNames = cu.map(u => {
         const cS=getChecklistState(u), qS=getQCChecklistState(u);
         const uHasFail = (cS && cS.includes('fail')) || (qS && qS.includes('fail'));
         const uReady   = isAllChecklistsComplete(u);
         const uHasRemediation = (u.remediationNeeded && !u.remediationComplete) || (u.remediationFlags||[]).length>0;
         const uHasMaterialHold = !!u.materialHold;
+        const uHasTrackerHold = (u.trackerHoldStations||[]).length>0;
         const uHasMoveRequest = !!u.moveRequest;
         const uHasReadyPDI = !!u.readyForPDI;
         let nameClass = '';
@@ -6200,6 +6288,7 @@ function renderLineSummary() {
         let weight = (uHasFail || uReady) ? '700' : '400';
         if (uHasRemediation) { nameClass = 'unit-name-remediation'; color = ''; weight = ''; }
         else if (uHasMaterialHold) { nameClass = 'unit-name-mathold'; color = ''; weight = ''; }
+        else if (uHasTrackerHold) { nameClass = 'unit-name-trackerhold'; color = ''; weight = ''; }
         else if (uHasMoveRequest) { nameClass = 'unit-name-moverequest'; color = ''; weight = ''; }
         else if (uHasReadyPDI) { nameClass = 'unit-name-readypdi'; color = ''; weight = ''; }
         else if (u.held) { nameClass = 'unit-name-held'; color = ''; weight = ''; }
@@ -6217,8 +6306,12 @@ function renderLineSummary() {
         const locTag = u.location ? `<div style="font-size:9px;color:#006A8E;font-weight:600;">&#128205; ${u.location}</div>` : '';
         const moveTag = u.moveRequest ? `<div style="font-size:9px;color:#6b46c1;font-weight:700;">&#8594; ${u.moveRequest.target}${u.moveRequest.location?' ('+u.moveRequest.location+')':''}</div>` : '';
         const pdiTag = u.readyForPDI ? `<div style="font-size:9px;color:#c2410c;font-weight:700;">&#128992; Ready for PDI</div>` : '';
+        const trackerHoldTag = uHasTrackerHold ? `<div style="font-size:9px;color:#be185d;font-weight:700;">&#9888; Hold — ${u.trackerHoldStations.join(', ')}</div>` : '';
         const readyTag = (u.inspectionComplete && CONFIG.boardInspectionCols.includes(u.col)) ? `<div style="font-size:9px;color:#0e7c3a;font-weight:700;">&#10003; Ready to Move</div>` : '';
-        return `<div class="dash-unit-name ${nameClass}" style="${color?'color:'+color+';':''}${weight?'font-weight:'+weight+';':''}" onclick="event.stopPropagation();jumpToUnit('${jsq(line.id)}','${jsq(col.label)}','${jsq(u.id)}')">${u.id}${dueTag}${locTag}${moveTag}${pdiTag}${readyTag}</div>`;
+        const clickHandler = uHasTrackerHold
+          ? `event.stopPropagation();jumpToStationTrackerPage('${jsq(u.trackerHoldStations[0])}')`
+          : `event.stopPropagation();jumpToUnit('${jsq(line.id)}','${jsq(col.label)}','${jsq(u.id)}')`;
+        return `<div class="dash-unit-name ${nameClass}" style="${color?'color:'+color+';':''}${weight?'font-weight:'+weight+';':''}" onclick="${clickHandler}">${u.id}${dueTag}${locTag}${moveTag}${pdiTag}${trackerHoldTag}${readyTag}</div>`;
       }).join('');
       return `<div class="station-chip station-chip-lg ${cls}" onclick="event.stopPropagation();jumpToLine('${jsq(line.id)}','${jsq(col.label)}')">
         <div class="station-chip-header">${shortLabel}</div>
@@ -7193,10 +7286,11 @@ function renderBoardUnitCard(u) {
     : '';
   const remediationActive = (u.remediationNeeded && !u.remediationComplete) || (u.remediationFlags||[]).length > 0;
   const materialHoldActive = !!u.materialHold;
+  const trackerHoldActive = (u.trackerHoldStations||[]).length > 0;
   const moveRequestActive = !!u.moveRequest;
   const readyPDIActive = !!u.readyForPDI;
-  const alertClass = remediationActive ? 'remediation-alert' : (materialHoldActive ? 'material-hold-alert' : (moveRequestActive ? 'move-request-alert' : (readyPDIActive ? 'ready-pdi-alert' : '')));
-  const alertBorderStyle = remediationActive ? 'border:3px solid #A03033;' : (materialHoldActive ? 'border:3px solid #b45309;' : (moveRequestActive ? 'border:3px solid #6b46c1;' : (readyPDIActive ? 'border:3px solid #c2410c;' : (u.deviationNeeded||openFailOverrides.length?'border:2px solid #A03033;':''))));
+  const alertClass = remediationActive ? 'remediation-alert' : (materialHoldActive ? 'material-hold-alert' : (trackerHoldActive ? 'tracker-hold-alert' : (moveRequestActive ? 'move-request-alert' : (readyPDIActive ? 'ready-pdi-alert' : ''))));
+  const alertBorderStyle = remediationActive ? 'border:3px solid #A03033;' : (materialHoldActive ? 'border:3px solid #b45309;' : (trackerHoldActive ? 'border:3px solid #be185d;' : (moveRequestActive ? 'border:3px solid #6b46c1;' : (readyPDIActive ? 'border:3px solid #c2410c;' : (u.deviationNeeded||openFailOverrides.length?'border:2px solid #A03033;':'')))));
   return `<div class="unit-card ${u.held?'held':''} ${u.completed?'completed':''} ${alertClass}" data-unit-id="${u.id}" style="${alertBorderStyle}">
     <div class="unit-header"><div>${boardPill(u.id)}</div><div style="display:flex;gap:6px;align-items:center;">${deviationBadge}${failOverrideBadge}${statusBadge}</div></div>
     ${remedOrigin}
@@ -7242,7 +7336,7 @@ function ensureBoardTracked(unitId) {
   if (!u) {
     const line=CONFIG.lines.find(l=>l.columns.some(c=>c.units.includes(unitId)));
     const col=line?line.columns.find(c=>c.units.includes(unitId)):null;
-    u={id:unitId,line:line?line.id:activeLine,col:col?col.label:activeCol,held:false,completed:false,notes:'',esoNumber:'',gensetSerial:'',fuelTankSerial:'',location:'',mapX:null,mapY:null,solutionsEso:'',dueDate:'',leadCheckins:[],readyForInspection:false,inspectionStarted:false,inspectionComplete:false,weatherReadySignoffs:{},issueClosures:[],supervisorReleased:false,supervisorReleaseTs:'',deviationNeeded:false,deviationNote:'',deviationTs:'',deviations:[],remediationNeeded:false,remediationNote:'',remediationTs:'',remediations:[],remediationCheckins:[],remediationStarted:false,remediationComplete:false,remediationFlags:[],materialHold:false,materialHoldNote:'',materialHoldTs:'',materialHoldHistory:[],moveRequest:null,readyForPDI:null,issueClosingSessions:[],cleaningSessions:[],checklist:{},qcChecklist:{},checklistMeta:{},qcChecklistMeta:{},failOverrides:[],station2Tasks:{},stationTrackerTasks:{},history:[]};
+    u={id:unitId,line:line?line.id:activeLine,col:col?col.label:activeCol,held:false,completed:false,notes:'',esoNumber:'',gensetSerial:'',fuelTankSerial:'',location:'',mapX:null,mapY:null,solutionsEso:'',dueDate:'',leadCheckins:[],readyForInspection:false,inspectionStarted:false,inspectionComplete:false,weatherReadySignoffs:{},issueClosures:[],supervisorReleased:false,supervisorReleaseTs:'',deviationNeeded:false,deviationNote:'',deviationTs:'',deviations:[],remediationNeeded:false,remediationNote:'',remediationTs:'',remediations:[],remediationCheckins:[],remediationStarted:false,remediationComplete:false,remediationFlags:[],materialHold:false,materialHoldNote:'',materialHoldTs:'',materialHoldHistory:[],moveRequest:null,readyForPDI:null,heldByTracker:false,issueClosingSessions:[],cleaningSessions:[],checklist:{},qcChecklist:{},checklistMeta:{},qcChecklistMeta:{},failOverrides:[],station2Tasks:{},stationTrackerTasks:{},history:[]};
     boardUnits.push(u);
   }
   return u;
@@ -8162,7 +8256,7 @@ function eauAddAllUnits() {
   if (hasError) return;
   toAdd.forEach(u => {
     removeDeletedUnitId(u.id);
-    boardUnits.push({id:u.id,line:u.line,col:u.col,held:false,completed:false,notes:u.notes,esoNumber:'',gensetSerial:u.gensetSerial||'',fuelTankSerial:'',location:'',mapX:null,mapY:null,solutionsEso:u.solEso,dueDate:u.dueDate,leadCheckins:[],readyForInspection:false,inspectionStarted:false,inspectionComplete:false,weatherReadySignoffs:{},issueClosures:[],supervisorReleased:false,supervisorReleaseTs:'',deviationNeeded:false,deviationNote:'',deviationTs:'',deviations:[],remediationNeeded:false,remediationNote:'',remediationTs:'',remediations:[],remediationCheckins:[],remediationStarted:false,remediationComplete:false,remediationFlags:[],materialHold:false,materialHoldNote:'',materialHoldTs:'',materialHoldHistory:[],moveRequest:null,readyForPDI:null,issueClosingSessions:[],cleaningSessions:[],checklist:{},qcChecklist:{},checklistMeta:{},qcChecklistMeta:{},failOverrides:[],station2Tasks:{},stationTrackerTasks:{},history:[{action:'Added to '+u.col,ts:now(),notes:u.notes}]});
+    boardUnits.push({id:u.id,line:u.line,col:u.col,held:false,completed:false,notes:u.notes,esoNumber:'',gensetSerial:u.gensetSerial||'',fuelTankSerial:'',location:'',mapX:null,mapY:null,solutionsEso:u.solEso,dueDate:u.dueDate,leadCheckins:[],readyForInspection:false,inspectionStarted:false,inspectionComplete:false,weatherReadySignoffs:{},issueClosures:[],supervisorReleased:false,supervisorReleaseTs:'',deviationNeeded:false,deviationNote:'',deviationTs:'',deviations:[],remediationNeeded:false,remediationNote:'',remediationTs:'',remediations:[],remediationCheckins:[],remediationStarted:false,remediationComplete:false,remediationFlags:[],materialHold:false,materialHoldNote:'',materialHoldTs:'',materialHoldHistory:[],moveRequest:null,readyForPDI:null,heldByTracker:false,issueClosingSessions:[],cleaningSessions:[],checklist:{},qcChecklist:{},checklistMeta:{},qcChecklistMeta:{},failOverrides:[],station2Tasks:{},stationTrackerTasks:{},history:[{action:'Added to '+u.col,ts:now(),notes:u.notes}]});
   });
   err.textContent = '';
   document.getElementById('eau-rows').innerHTML = ''; eauRowCtr = 0; eauAddRow();
@@ -12492,7 +12586,7 @@ function quickDismissReadyForPDI(unitId) {
    visible stamp every time a change is made, or version checks
    against a stale reference and never fires.
    ============================================================ */
-const BUILD_DATE = '2026-08-21-19';
+const BUILD_DATE = '2026-08-21-21';
 let updateBannerShown = false;
 function checkForNewVersion() {
   if (updateBannerShown) return;

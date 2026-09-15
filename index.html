@@ -1146,7 +1146,7 @@ label { font-size: 11px; font-weight: 600; color: var(--text-2); display: block;
 
 <!-- ============================================================ HEADER -->
 <div class="app-header">
-  <div id="build-stamp" title="If this looks out of date after an update was announced, hard-refresh with Ctrl+Shift+R (Cmd+Shift+R on Mac) to clear your browser's cached copy.">Build: <span id="build-stamp-text">2026-08-21-22</span></div>
+  <div id="build-stamp" title="If this looks out of date after an update was announced, hard-refresh with Ctrl+Shift+R (Cmd+Shift+R on Mac) to clear your browser's cached copy.">Build: <span id="build-stamp-text">2026-08-21-23</span></div>
   <div id="header-signed-in" style="position:absolute;top:26px;right:16px;font-size:11px;color:rgba(255,255,255,.75);white-space:nowrap;z-index:101;"></div>
   <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;flex:1;">
     <div style="background:#fff;border-radius:8px;padding:8px 14px;display:flex;align-items:center;box-shadow:0 1px 3px rgba(0,0,0,.15);">
@@ -2745,13 +2745,17 @@ function s2TaskAction(unitId, taskName, empIdx, action, note, stationKey) {
 // (u.station2Tasks) rather than the newer, generic u.stationTrackerTasks
 // every other station uses — both need checking, or a hold placed at
 // Station 2 specifically would never be detected here at all.
+// Only checks the unit's CURRENT station (u.col) — not every station
+// bucket it has ever had task data for. Task data isn't cleared when a
+// unit moves on, so checking all of it would keep flagging a hold at a
+// station the unit already left, showing on the Dashboard as on hold
+// somewhere the Tracker correctly shows no units at all.
 function s2ComputeHeldStations(u) {
   const anyEmpOnHold = t => (t.employees || []).some(e => e.status === 'holdMaterial' || e.status === 'holdEngineering');
   const heldStations = [];
-  if (Object.values(u.station2Tasks || {}).some(anyEmpOnHold)) heldStations.push('Station 2');
-  Object.entries(u.stationTrackerTasks || {}).forEach(([stationKey, bucket]) => {
-    if (Object.values(bucket).some(anyEmpOnHold)) heldStations.push(stationKey);
-  });
+  if (u.col === 'Station 2' && Object.values(u.station2Tasks || {}).some(anyEmpOnHold)) heldStations.push('Station 2');
+  const bucket = (u.stationTrackerTasks || {})[u.col];
+  if (bucket && Object.values(bucket).some(anyEmpOnHold)) heldStations.push(u.col);
   return heldStations;
 }
 function s2SyncHeldFromTaskHolds(u) {
@@ -2775,15 +2779,29 @@ function jumpToStationTrackerPage(stationKey) {
   if (stationKey === 'Station 2') { showPage('station2'); return; }
   showPage('stationtracker_' + stationKey.replace(/\s+/g,''));
 }
-// Recomputes JUST the derived trackerHoldStations list (not the full
-// held/heldByTracker side effects s2SyncHeldFromTaskHolds also has) for
-// every unit — needed because a hold placed on a different device syncs
-// u.held correctly (it's a real synced field), but this specific
-// derived list isn't itself persisted, so it needs refreshing here on
-// every render rather than staying stale until someone locally touches
-// that unit's Station Tracker again.
+// Recomputes trackerHoldStations AND re-syncs held/heldByTracker for
+// every unit, on every render — not just when someone happens to touch
+// that unit's Station Tracker task again. Without this, moving a unit to
+// a different station (e.g. via the regular Release button, which never
+// calls s2TaskAction at all) would leave a stale on-hold flag behind
+// forever: the Dashboard would keep showing it on hold at a station the
+// Tracker correctly shows as empty, since nothing had ever re-evaluated
+// whether that hold is still real. Only ever clears a hold this
+// mechanism itself set (heldByTracker) — never touches one placed
+// manually via the regular Hold button.
 function refreshAllTrackerHoldStations() {
-  getAllBoardUnits().forEach(u => { u.trackerHoldStations = s2ComputeHeldStations(u); });
+  getAllBoardUnits().forEach(u => {
+    const heldStations = s2ComputeHeldStations(u);
+    u.trackerHoldStations = heldStations;
+    const anyOnHold = heldStations.length > 0;
+    if (anyOnHold && !u.held) {
+      u.held = true;
+      u.heldByTracker = true;
+    } else if (!anyOnHold && u.held && u.heldByTracker) {
+      u.held = false;
+      u.heldByTracker = false;
+    }
+  });
 }
 
 /* Hold: Material / Hold: Engineering require a reason before they'll go through. */
@@ -12618,7 +12636,7 @@ function quickDismissReadyForPDI(unitId) {
    visible stamp every time a change is made, or version checks
    against a stale reference and never fires.
    ============================================================ */
-const BUILD_DATE = '2026-08-21-22';
+const BUILD_DATE = '2026-08-21-23';
 let updateBannerShown = false;
 function checkForNewVersion() {
   if (updateBannerShown) return;

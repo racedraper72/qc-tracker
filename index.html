@@ -1146,7 +1146,7 @@ label { font-size: 11px; font-weight: 600; color: var(--text-2); display: block;
 
 <!-- ============================================================ HEADER -->
 <div class="app-header">
-  <div id="build-stamp" title="If this looks out of date after an update was announced, hard-refresh with Ctrl+Shift+R (Cmd+Shift+R on Mac) to clear your browser's cached copy.">Build: <span id="build-stamp-text">2026-08-21-23</span></div>
+  <div id="build-stamp" title="If this looks out of date after an update was announced, hard-refresh with Ctrl+Shift+R (Cmd+Shift+R on Mac) to clear your browser's cached copy.">Build: <span id="build-stamp-text">2026-08-21-24</span></div>
   <div id="header-signed-in" style="position:absolute;top:26px;right:16px;font-size:11px;color:rgba(255,255,255,.75);white-space:nowrap;z-index:101;"></div>
   <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;flex:1;">
     <div style="background:#fff;border-radius:8px;padding:8px 14px;display:flex;align-items:center;box-shadow:0 1px 3px rgba(0,0,0,.15);">
@@ -2788,13 +2788,19 @@ function jumpToStationTrackerPage(stationKey) {
 // Tracker correctly shows as empty, since nothing had ever re-evaluated
 // whether that hold is still real. Only ever clears a hold this
 // mechanism itself set (heldByTracker) — never touches one placed
-// manually via the regular Hold button.
+// manually via the regular Hold button. Also self-heals heldByTracker
+// itself whenever a genuine tracker hold is currently detected: a unit
+// already held (u.held true) from before heldByTracker tracking existed,
+// or from some other gap, would otherwise never get marked as
+// tracker-owned — meaning the clear-on-resolve branch above could never
+// fire for it even after the hold is actually released, leaving it stuck
+// showing "on hold" forever with no way to self-correct.
 function refreshAllTrackerHoldStations() {
   getAllBoardUnits().forEach(u => {
     const heldStations = s2ComputeHeldStations(u);
     u.trackerHoldStations = heldStations;
     const anyOnHold = heldStations.length > 0;
-    if (anyOnHold && !u.held) {
+    if (anyOnHold) {
       u.held = true;
       u.heldByTracker = true;
     } else if (!anyOnHold && u.held && u.heldByTracker) {
@@ -12636,7 +12642,7 @@ function quickDismissReadyForPDI(unitId) {
    visible stamp every time a change is made, or version checks
    against a stale reference and never fires.
    ============================================================ */
-const BUILD_DATE = '2026-08-21-23';
+const BUILD_DATE = '2026-08-21-24';
 let updateBannerShown = false;
 function checkForNewVersion() {
   if (updateBannerShown) return;

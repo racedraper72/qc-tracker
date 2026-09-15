@@ -81,17 +81,17 @@
   50% { color: #a78bfa; }
 }
 .unit-name-moverequest { animation: unit-name-moverequest-blink 1.4s ease-in-out infinite; font-weight: 700; }
-/* Ready for DPI — orange, same pattern as Move Request. */
-@keyframes ready-dpi-blink {
+/* Ready for PDI — orange, same pattern as Move Request. */
+@keyframes ready-pdi-blink {
   0%, 100% { border-color: #c2410c; box-shadow: 0 0 0 0 rgba(194,65,12,.4); }
   50% { border-color: #fb923c; box-shadow: 0 0 0 4px rgba(194,65,12,0); }
 }
-.ready-dpi-alert { animation: ready-dpi-blink 1.4s ease-in-out infinite; }
-@keyframes unit-name-readydpi-blink {
+.ready-pdi-alert { animation: ready-pdi-blink 1.4s ease-in-out infinite; }
+@keyframes unit-name-readypdi-blink {
   0%, 100% { color: #c2410c; }
   50% { color: #fb923c; }
 }
-.unit-name-readydpi { animation: unit-name-readydpi-blink 1.4s ease-in-out infinite; font-weight: 700; }
+.unit-name-readypdi { animation: unit-name-readypdi-blink 1.4s ease-in-out infinite; font-weight: 700; }
 /* ================================================================
    DESIGN TOKENS
    ================================================================ */
@@ -645,7 +645,7 @@ label { font-size: 11px; font-weight: 600; color: var(--text-2); display: block;
 .station-chip.has-deviation { border-color: #A03033; background: #fdecea; }
 .station-chip.has-material-hold { border-color: #b45309; background: #fff4ce; }
 .station-chip.has-move-request { border-color: #6b46c1; background: #f3effc; }
-.station-chip.has-ready-dpi { border-color: #c2410c; background: #fff0e6; }
+.station-chip.has-ready-pdi { border-color: #c2410c; background: #fff0e6; }
 .station-chip-label { font-size: 9px; font-weight: 700; color: var(--text-2); text-transform: uppercase; letter-spacing: .3px; }
 .station-chip-count { font-size: 16px; font-weight: 800; margin: 2px 0; }
 .station-chip-units { font-size: 11px; color: var(--text-2); }
@@ -1131,7 +1131,7 @@ label { font-size: 11px; font-weight: 600; color: var(--text-2); display: block;
 
 <!-- ============================================================ HEADER -->
 <div class="app-header">
-  <div id="build-stamp" title="If this looks out of date after an update was announced, hard-refresh with Ctrl+Shift+R (Cmd+Shift+R on Mac) to clear your browser's cached copy.">Build: <span id="build-stamp-text">2026-08-21-18</span></div>
+  <div id="build-stamp" title="If this looks out of date after an update was announced, hard-refresh with Ctrl+Shift+R (Cmd+Shift+R on Mac) to clear your browser's cached copy.">Build: <span id="build-stamp-text">2026-08-21-19</span></div>
   <div id="header-signed-in" style="position:absolute;top:26px;right:16px;font-size:11px;color:rgba(255,255,255,.75);white-space:nowrap;z-index:101;"></div>
   <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;flex:1;">
     <div style="background:#fff;border-radius:8px;padding:8px 14px;display:flex;align-items:center;box-shadow:0 1px 3px rgba(0,0,0,.15);">
@@ -1275,7 +1275,7 @@ label { font-size: 11px; font-weight: 600; color: var(--text-2); display: block;
           <span class="unit-name-moverequest" style="font-weight:700;">UNIT</span> Move Requested
         </span>
         <span style="font-size:11px;color:#605e5c;display:inline-flex;align-items:center;gap:5px;">
-          <span class="unit-name-readydpi" style="font-weight:700;">UNIT</span> Ready for DPI
+          <span class="unit-name-readypdi" style="font-weight:700;">UNIT</span> Ready for PDI
         </span>
       </div>
       <!-- Production board lines -->
@@ -4781,8 +4781,8 @@ function requireName(callback, title) {
     'Sign to place Material Hold': { desc: 'material hold', button: 'Continue' },
     'Sign to request a move': { desc: 'move request', button: 'Continue' },
     'Sign to confirm move done': { desc: 'move confirmation', button: 'Continue' },
-    'Sign to mark Ready for DPI': { desc: 'DPI readiness', button: 'Continue' },
-    'Sign to confirm DPI done': { desc: 'DPI confirmation', button: 'Continue' },
+    'Sign to mark Ready for PDI': { desc: 'PDI readiness', button: 'Continue' },
+    'Sign to confirm PDI done': { desc: 'PDI confirmation', button: 'Continue' },
     'Sign to remove Remediation flag': { desc: 'remediation flag removal', button: 'Continue' },
   };
   const copy = SIGN_COPY[title] || { desc: 'station release', button: 'Confirm Release' };
@@ -5027,7 +5027,7 @@ function jsonpSave(tab, rows) {
   const header = tab==='QC'
     ? ['Serial','Type','Station','InspectionStarted','Held','Remediation','RemediationOrigin','Completed','Status','HistoryJSON']
     : tab==='Board'
-    ? ['UnitID','Line','Column','Held','Completed','Notes','ESONumber','GensetSerial','ReadyForInspection','InspectionStarted','HistoryJSON','SupervisorReleased','SupervisorReleaseTs','DeviationNeeded','DeviationNote','DeviationTs','ChecklistJSON','QCChecklistJSON','FailOverridesJSON','Station2TasksJSON','SolutionsESO','DueDate','LeadCheckinsJSON','StationTrackerTasksJSON','FuelTankSerial','Location','MapX','MapY','MapRotation','DeviationsJSON','InspectionComplete','WeatherReadySignoffsJSON','ChecklistMetaJSON','QCChecklistMetaJSON','IssueClosuresJSON','RemediationsJSON','IssueClosingSessionsJSON','CleaningSessionsJSON','RemediationCheckinsJSON','RemediationStarted','RemediationComplete','RemediationFlagsJSON','MaterialHold','MaterialHoldNote','MaterialHoldTs','MaterialHoldHistoryJSON','MoveRequestJSON','ReadyForDPIJSON']
+    ? ['UnitID','Line','Column','Held','Completed','Notes','ESONumber','GensetSerial','ReadyForInspection','InspectionStarted','HistoryJSON','SupervisorReleased','SupervisorReleaseTs','DeviationNeeded','DeviationNote','DeviationTs','ChecklistJSON','QCChecklistJSON','FailOverridesJSON','Station2TasksJSON','SolutionsESO','DueDate','LeadCheckinsJSON','StationTrackerTasksJSON','FuelTankSerial','Location','MapX','MapY','MapRotation','DeviationsJSON','InspectionComplete','WeatherReadySignoffsJSON','ChecklistMetaJSON','QCChecklistMetaJSON','IssueClosuresJSON','RemediationsJSON','IssueClosingSessionsJSON','CleaningSessionsJSON','RemediationCheckinsJSON','RemediationStarted','RemediationComplete','RemediationFlagsJSON','MaterialHold','MaterialHoldNote','MaterialHoldTs','MaterialHoldHistoryJSON','MoveRequestJSON','ReadyForPDIJSON']
     : ['UnitID','Link','UpdatedAt'];
   const payload = JSON.stringify({action:'save', rows:[header,...rows]});
 
@@ -5123,14 +5123,14 @@ function syncFromSheetsViaGAS(onDone) {
           let remediationFlags=[]; try{remediationFlags=JSON.parse(r[41]||'[]');}catch(e){}
           let materialHoldHistory=[]; try{materialHoldHistory=JSON.parse(r[45]||'[]');}catch(e){}
           let moveRequest=null; try{moveRequest=JSON.parse(r[46]||'null');}catch(e){}
-          let readyForDPI=null; try{readyForDPI=JSON.parse(r[47]||'null');}catch(e){}
+          let readyForPDI=null; try{readyForPDI=JSON.parse(r[47]||'null');}catch(e){}
           // Migrate a pre-existing single deviation (from before the deviations
           // list existed) into the list, so historical entries synced from an
           // older build aren't silently dropped the first time they're pulled.
           if (deviations.length===0 && (r[13]==='TRUE'||r[13]===true) && r[14]) deviations=[{note:r[14],ts:r[15]||'',operator:''}];
           return {id:r[0],line:r[1],col:r[2],held:r[3]==='TRUE'||r[3]===true,completed:r[4]==='TRUE'||r[4]===true,notes:r[5]||'',esoNumber:r[6]||'',gensetSerial:r[7]||'',readyForInspection:r[8]==='TRUE'||r[8]===true,inspectionStarted:r[9]==='TRUE'||r[9]===true,history,
             supervisorReleased:r[11]==='TRUE'||r[11]===true,supervisorReleaseTs:r[12]||'',
-            deviationNeeded:r[13]==='TRUE'||r[13]===true,deviationNote:r[14]||'',deviationTs:r[15]||'',checklist,qcChecklist,failOverrides,station2Tasks,solutionsEso:r[20]||'',dueDate:normalizeDueDate(r[21]),leadCheckins,stationTrackerTasks,fuelTankSerial:r[24]||'',location:r[25]||'',mapX:r[26]!==undefined&&r[26]!==''?parseFloat(r[26]):null,mapY:r[27]!==undefined&&r[27]!==''?parseFloat(r[27]):null,mapRotation:r[28]!==undefined&&r[28]!==''?parseFloat(r[28]):0,deviations,inspectionComplete:r[30]==='TRUE'||r[30]===true,weatherReadySignoffs,checklistMeta,qcChecklistMeta,issueClosures,remediations,issueClosingSessions,cleaningSessions,remediationCheckins,remediationStarted:r[39]==='TRUE'||r[39]===true,remediationComplete:r[40]==='TRUE'||r[40]===true,remediationFlags,materialHold:r[42]==='TRUE'||r[42]===true,materialHoldNote:r[43]||'',materialHoldTs:r[44]||'',materialHoldHistory,moveRequest,readyForDPI};
+            deviationNeeded:r[13]==='TRUE'||r[13]===true,deviationNote:r[14]||'',deviationTs:r[15]||'',checklist,qcChecklist,failOverrides,station2Tasks,solutionsEso:r[20]||'',dueDate:normalizeDueDate(r[21]),leadCheckins,stationTrackerTasks,fuelTankSerial:r[24]||'',location:r[25]||'',mapX:r[26]!==undefined&&r[26]!==''?parseFloat(r[26]):null,mapY:r[27]!==undefined&&r[27]!==''?parseFloat(r[27]):null,mapRotation:r[28]!==undefined&&r[28]!==''?parseFloat(r[28]):0,deviations,inspectionComplete:r[30]==='TRUE'||r[30]===true,weatherReadySignoffs,checklistMeta,qcChecklistMeta,issueClosures,remediations,issueClosingSessions,cleaningSessions,remediationCheckins,remediationStarted:r[39]==='TRUE'||r[39]===true,remediationComplete:r[40]==='TRUE'||r[40]===true,remediationFlags,materialHold:r[42]==='TRUE'||r[42]===true,materialHoldNote:r[43]||'',materialHoldTs:r[44]||'',materialHoldHistory,moveRequest,readyForPDI};
         });
       }
       jsonpCall(sheetsUrl+'?tab=Issues', function(err3, rows3) {
@@ -5182,7 +5182,7 @@ function proxySave(tab, rows) {
   const header = tab==='QC'
     ? ['Serial','Type','Station','InspectionStarted','Held','Remediation','RemediationOrigin','Completed','Status','HistoryJSON']
     : tab==='Board'
-    ? ['UnitID','Line','Column','Held','Completed','Notes','ESONumber','GensetSerial','ReadyForInspection','InspectionStarted','HistoryJSON','SupervisorReleased','SupervisorReleaseTs','DeviationNeeded','DeviationNote','DeviationTs','ChecklistJSON','QCChecklistJSON','FailOverridesJSON','Station2TasksJSON','SolutionsESO','DueDate','LeadCheckinsJSON','StationTrackerTasksJSON','FuelTankSerial','Location','MapX','MapY','MapRotation','DeviationsJSON','InspectionComplete','WeatherReadySignoffsJSON','ChecklistMetaJSON','QCChecklistMetaJSON','IssueClosuresJSON','RemediationsJSON','IssueClosingSessionsJSON','CleaningSessionsJSON','RemediationCheckinsJSON','RemediationStarted','RemediationComplete','RemediationFlagsJSON','MaterialHold','MaterialHoldNote','MaterialHoldTs','MaterialHoldHistoryJSON','MoveRequestJSON','ReadyForDPIJSON']
+    ? ['UnitID','Line','Column','Held','Completed','Notes','ESONumber','GensetSerial','ReadyForInspection','InspectionStarted','HistoryJSON','SupervisorReleased','SupervisorReleaseTs','DeviationNeeded','DeviationNote','DeviationTs','ChecklistJSON','QCChecklistJSON','FailOverridesJSON','Station2TasksJSON','SolutionsESO','DueDate','LeadCheckinsJSON','StationTrackerTasksJSON','FuelTankSerial','Location','MapX','MapY','MapRotation','DeviationsJSON','InspectionComplete','WeatherReadySignoffsJSON','ChecklistMetaJSON','QCChecklistMetaJSON','IssueClosuresJSON','RemediationsJSON','IssueClosingSessionsJSON','CleaningSessionsJSON','RemediationCheckinsJSON','RemediationStarted','RemediationComplete','RemediationFlagsJSON','MaterialHold','MaterialHoldNote','MaterialHoldTs','MaterialHoldHistoryJSON','MoveRequestJSON','ReadyForPDIJSON']
     : ['UnitID','Link','UpdatedAt'];
   return proxyFetch('?action=save&tab='+tab, {
     method: 'POST',
@@ -5588,14 +5588,14 @@ function syncFromSheetsViaSmartsheet(onDone) {
           let remediationFlags=[]; try{remediationFlags=JSON.parse(r[41]||'[]');}catch(e){}
           let materialHoldHistory=[]; try{materialHoldHistory=JSON.parse(r[45]||'[]');}catch(e){}
           let moveRequest=null; try{moveRequest=JSON.parse(r[46]||'null');}catch(e){}
-          let readyForDPI=null; try{readyForDPI=JSON.parse(r[47]||'null');}catch(e){}
+          let readyForPDI=null; try{readyForPDI=JSON.parse(r[47]||'null');}catch(e){}
           // Migrate a pre-existing single deviation (from before the deviations
           // list existed) into the list, so historical entries synced from an
           // older build aren't silently dropped the first time they're pulled.
           if (deviations.length===0 && (r[13]==='TRUE'||r[13]===true) && r[14]) deviations=[{note:r[14],ts:r[15]||'',operator:''}];
         return {id:r[0],line:r[1],col:r[2],held:r[3]==='TRUE'||r[3]===true,completed:r[4]==='TRUE'||r[4]===true,notes:r[5]||'',esoNumber:r[6]||'',gensetSerial:r[7]||'',readyForInspection:r[8]==='TRUE'||r[8]===true,inspectionStarted:r[9]==='TRUE'||r[9]===true,history,
           supervisorReleased:r[11]==='TRUE'||r[11]===true,supervisorReleaseTs:r[12]||'',
-          deviationNeeded:r[13]==='TRUE'||r[13]===true,deviationNote:r[14]||'',deviationTs:r[15]||'',checklist,qcChecklist,failOverrides,station2Tasks,solutionsEso:r[20]||'',dueDate:normalizeDueDate(r[21]),leadCheckins,stationTrackerTasks,fuelTankSerial:r[24]||'',location:r[25]||'',mapX:r[26]!==undefined&&r[26]!==''?parseFloat(r[26]):null,mapY:r[27]!==undefined&&r[27]!==''?parseFloat(r[27]):null,mapRotation:r[28]!==undefined&&r[28]!==''?parseFloat(r[28]):0,deviations,inspectionComplete:r[30]==='TRUE'||r[30]===true,weatherReadySignoffs,checklistMeta,qcChecklistMeta,issueClosures,remediations,issueClosingSessions,cleaningSessions,remediationCheckins,remediationStarted:r[39]==='TRUE'||r[39]===true,remediationComplete:r[40]==='TRUE'||r[40]===true,remediationFlags,materialHold:r[42]==='TRUE'||r[42]===true,materialHoldNote:r[43]||'',materialHoldTs:r[44]||'',materialHoldHistory,moveRequest,readyForDPI};
+          deviationNeeded:r[13]==='TRUE'||r[13]===true,deviationNote:r[14]||'',deviationTs:r[15]||'',checklist,qcChecklist,failOverrides,station2Tasks,solutionsEso:r[20]||'',dueDate:normalizeDueDate(r[21]),leadCheckins,stationTrackerTasks,fuelTankSerial:r[24]||'',location:r[25]||'',mapX:r[26]!==undefined&&r[26]!==''?parseFloat(r[26]):null,mapY:r[27]!==undefined&&r[27]!==''?parseFloat(r[27]):null,mapRotation:r[28]!==undefined&&r[28]!==''?parseFloat(r[28]):0,deviations,inspectionComplete:r[30]==='TRUE'||r[30]===true,weatherReadySignoffs,checklistMeta,qcChecklistMeta,issueClosures,remediations,issueClosingSessions,cleaningSessions,remediationCheckins,remediationStarted:r[39]==='TRUE'||r[39]===true,remediationComplete:r[40]==='TRUE'||r[40]===true,remediationFlags,materialHold:r[42]==='TRUE'||r[42]===true,materialHoldNote:r[43]||'',materialHoldTs:r[44]||'',materialHoldHistory,moveRequest,readyForPDI};
       });
     }
     if (rows3 && rows3.length>1 && Date.now() - issuesLastLocalEditAt > 45000) {
@@ -5713,7 +5713,7 @@ function pushBoard(force) {
   if (!force && isStaleRelativeToReset()) { syncFromSheets(); return Promise.resolve(false); }
   boardLastLocalEditAt = Date.now();
   saveLocalCache();
-  const rows = boardUnits.map(u=>[u.id,u.line,u.col,u.held,u.completed,u.notes,u.esoNumber||'',u.gensetSerial||'',u.readyForInspection||false,u.inspectionStarted||false,JSON.stringify(u.history),u.supervisorReleased||false,u.supervisorReleaseTs||'',u.deviationNeeded||false,u.deviationNote||'',u.deviationTs||'',JSON.stringify(u.checklist||{}),JSON.stringify(u.qcChecklist||{}),JSON.stringify(u.failOverrides||[]),JSON.stringify(u.station2Tasks||{}),u.solutionsEso||'',u.dueDate||'',JSON.stringify(u.leadCheckins||[]),JSON.stringify(u.stationTrackerTasks||{}),u.fuelTankSerial||'',u.location||'',u.mapX==null?'':u.mapX,u.mapY==null?'':u.mapY,u.mapRotation==null?'':u.mapRotation,JSON.stringify(u.deviations||[]),u.inspectionComplete||false,JSON.stringify(u.weatherReadySignoffs||{}),JSON.stringify(u.checklistMeta||{}),JSON.stringify(u.qcChecklistMeta||{}),JSON.stringify(u.issueClosures||[]),JSON.stringify(u.remediations||[]),JSON.stringify(u.issueClosingSessions||[]),JSON.stringify(u.cleaningSessions||[]),JSON.stringify(u.remediationCheckins||[]),u.remediationStarted||false,u.remediationComplete||false,JSON.stringify(u.remediationFlags||[]),u.materialHold||false,u.materialHoldNote||'',u.materialHoldTs||'',JSON.stringify(u.materialHoldHistory||[]),JSON.stringify(u.moveRequest||null),JSON.stringify(u.readyForDPI||null)]);
+  const rows = boardUnits.map(u=>[u.id,u.line,u.col,u.held,u.completed,u.notes,u.esoNumber||'',u.gensetSerial||'',u.readyForInspection||false,u.inspectionStarted||false,JSON.stringify(u.history),u.supervisorReleased||false,u.supervisorReleaseTs||'',u.deviationNeeded||false,u.deviationNote||'',u.deviationTs||'',JSON.stringify(u.checklist||{}),JSON.stringify(u.qcChecklist||{}),JSON.stringify(u.failOverrides||[]),JSON.stringify(u.station2Tasks||{}),u.solutionsEso||'',u.dueDate||'',JSON.stringify(u.leadCheckins||[]),JSON.stringify(u.stationTrackerTasks||{}),u.fuelTankSerial||'',u.location||'',u.mapX==null?'':u.mapX,u.mapY==null?'':u.mapY,u.mapRotation==null?'':u.mapRotation,JSON.stringify(u.deviations||[]),u.inspectionComplete||false,JSON.stringify(u.weatherReadySignoffs||{}),JSON.stringify(u.checklistMeta||{}),JSON.stringify(u.qcChecklistMeta||{}),JSON.stringify(u.issueClosures||[]),JSON.stringify(u.remediations||[]),JSON.stringify(u.issueClosingSessions||[]),JSON.stringify(u.cleaningSessions||[]),JSON.stringify(u.remediationCheckins||[]),u.remediationStarted||false,u.remediationComplete||false,JSON.stringify(u.remediationFlags||[]),u.materialHold||false,u.materialHoldNote||'',u.materialHoldTs||'',JSON.stringify(u.materialHoldHistory||[]),JSON.stringify(u.moveRequest||null),JSON.stringify(u.readyForPDI||null)]);
   const padded = padRowsToFloor('Board', rows, BOARD_COL_COUNT);
   return syncTarget === 'smartsheet' ? proxySave('Board', padded) : jsonpSave('Board', padded);
 }
@@ -6111,7 +6111,7 @@ function _addAllBoardUnits() {
   if (hasError) return;
   toAdd.forEach(u => {
     removeDeletedUnitId(u.id);
-    boardUnits.push({id:u.id,line:u.line,col:u.col,held:false,completed:false,notes:u.notes,esoNumber:'',gensetSerial:u.gensetSerial||'',fuelTankSerial:'',location:'',mapX:null,mapY:null,solutionsEso:u.solEso||'',dueDate:u.dueDate||'',leadCheckins:[],readyForInspection:false,inspectionStarted:false,inspectionComplete:false,weatherReadySignoffs:{},issueClosures:[],supervisorReleased:false,supervisorReleaseTs:'',deviationNeeded:false,deviationNote:'',deviationTs:'',deviations:[],remediationNeeded:false,remediationNote:'',remediationTs:'',remediations:[],remediationCheckins:[],remediationStarted:false,remediationComplete:false,remediationFlags:[],materialHold:false,materialHoldNote:'',materialHoldTs:'',materialHoldHistory:[],moveRequest:null,readyForDPI:null,issueClosingSessions:[],cleaningSessions:[],checklist:{},qcChecklist:{},checklistMeta:{},qcChecklistMeta:{},failOverrides:[],station2Tasks:{},stationTrackerTasks:{},history:[{action:'Added to '+u.col,ts:now(),notes:u.notes}]});
+    boardUnits.push({id:u.id,line:u.line,col:u.col,held:false,completed:false,notes:u.notes,esoNumber:'',gensetSerial:u.gensetSerial||'',fuelTankSerial:'',location:'',mapX:null,mapY:null,solutionsEso:u.solEso||'',dueDate:u.dueDate||'',leadCheckins:[],readyForInspection:false,inspectionStarted:false,inspectionComplete:false,weatherReadySignoffs:{},issueClosures:[],supervisorReleased:false,supervisorReleaseTs:'',deviationNeeded:false,deviationNote:'',deviationTs:'',deviations:[],remediationNeeded:false,remediationNote:'',remediationTs:'',remediations:[],remediationCheckins:[],remediationStarted:false,remediationComplete:false,remediationFlags:[],materialHold:false,materialHoldNote:'',materialHoldTs:'',materialHoldHistory:[],moveRequest:null,readyForPDI:null,issueClosingSessions:[],cleaningSessions:[],checklist:{},qcChecklist:{},checklistMeta:{},qcChecklistMeta:{},failOverrides:[],station2Tasks:{},stationTrackerTasks:{},history:[{action:'Added to '+u.col,ts:now(),notes:u.notes}]});
   });
   err.textContent=''; document.getElementById('board-add-form').style.display='none';
   pushBoard(); renderAll();
@@ -6129,7 +6129,7 @@ function getAllBoardUnits() {
         if (deleted.includes(uid)) return; // tombstoned — don't resurrect from the static seed
         if (!merged.find(u=>u.id===uid)) {
           const tracked=boardUnits.find(u=>u.id===uid);
-          merged.push(tracked||{id:uid,line:line.id,col:col.label,held:false,completed:false,notes:'',esoNumber:'',gensetSerial:'',fuelTankSerial:'',location:'',mapX:null,mapY:null,solutionsEso:'',dueDate:'',leadCheckins:[],readyForInspection:false,inspectionStarted:false,inspectionComplete:false,weatherReadySignoffs:{},issueClosures:[],supervisorReleased:false,supervisorReleaseTs:'',deviationNeeded:false,deviationNote:'',deviationTs:'',deviations:[],remediationNeeded:false,remediationNote:'',remediationTs:'',remediations:[],remediationCheckins:[],remediationStarted:false,remediationComplete:false,remediationFlags:[],materialHold:false,materialHoldNote:'',materialHoldTs:'',materialHoldHistory:[],moveRequest:null,readyForDPI:null,issueClosingSessions:[],cleaningSessions:[],checklist:{},qcChecklist:{},checklistMeta:{},qcChecklistMeta:{},failOverrides:[],station2Tasks:{},stationTrackerTasks:{},history:[]});
+          merged.push(tracked||{id:uid,line:line.id,col:col.label,held:false,completed:false,notes:'',esoNumber:'',gensetSerial:'',fuelTankSerial:'',location:'',mapX:null,mapY:null,solutionsEso:'',dueDate:'',leadCheckins:[],readyForInspection:false,inspectionStarted:false,inspectionComplete:false,weatherReadySignoffs:{},issueClosures:[],supervisorReleased:false,supervisorReleaseTs:'',deviationNeeded:false,deviationNote:'',deviationTs:'',deviations:[],remediationNeeded:false,remediationNote:'',remediationTs:'',remediations:[],remediationCheckins:[],remediationStarted:false,remediationComplete:false,remediationFlags:[],materialHold:false,materialHoldNote:'',materialHoldTs:'',materialHoldHistory:[],moveRequest:null,readyForPDI:null,issueClosingSessions:[],cleaningSessions:[],checklist:{},qcChecklist:{},checklistMeta:{},qcChecklistMeta:{},failOverrides:[],station2Tasks:{},stationTrackerTasks:{},history:[]});
         }
       });
     });
@@ -6169,18 +6169,18 @@ function renderLineSummary() {
       const hasRemediation=cu.some(u=>(u.remediationNeeded&&!u.remediationComplete)||(u.remediationFlags||[]).length>0);
       const hasMaterialHold=cu.some(u=>u.materialHold);
       const hasMoveRequest=cu.some(u=>u.moveRequest);
-      const hasReadyDPI=cu.some(u=>u.readyForDPI);
+      const hasReadyPDI=cu.some(u=>u.readyForPDI);
       const hasFail=cu.some(u=>{
         const cS=getChecklistState(u), qS=getQCChecklistState(u);
         return (cS && cS.includes('fail')) || (qS && qS.includes('fail'));
       });
-      const cls=count>0?(hasRemediation?'remediation-alert has-deviation':hasMaterialHold?'material-hold-alert has-material-hold':hasMoveRequest?'move-request-alert has-move-request':hasReadyDPI?'ready-dpi-alert has-ready-dpi':hasDeviation?'has-deviation':hasFail?'has-fail':hasHeld?'has-held':hasDone?'has-done':'has-units'):'';
-      const topColor=count>0?(hasRemediation?'#A03033':hasMaterialHold?'#b45309':hasMoveRequest?'#6b46c1':hasReadyDPI?'#c2410c':hasDeviation?'#A03033':hasFail?'#A03033':hasHeld?'#b45309':hasDone?'#107c10':line.headerColor):'#edebe9';
+      const cls=count>0?(hasRemediation?'remediation-alert has-deviation':hasMaterialHold?'material-hold-alert has-material-hold':hasMoveRequest?'move-request-alert has-move-request':hasReadyPDI?'ready-pdi-alert has-ready-pdi':hasDeviation?'has-deviation':hasFail?'has-fail':hasHeld?'has-held':hasDone?'has-done':'has-units'):'';
+      const topColor=count>0?(hasRemediation?'#A03033':hasMaterialHold?'#b45309':hasMoveRequest?'#6b46c1':hasReadyPDI?'#c2410c':hasDeviation?'#A03033':hasFail?'#A03033':hasHeld?'#b45309':hasDone?'#107c10':line.headerColor):'#edebe9';
       const shortLabel=col.label.replace('Station ','Stn ').replace('In the Hole','Hole').replace('On Deck','Deck').replace('Ready to Ship','✓ RTS').replace('Holding ','Hold.').replace('Load Bank','LB');
       // Color each unit's name by ITS OWN status — remediation (blinking
       // red) takes priority over Material Hold (blinking yellow), which
       // takes priority over a Move Request (blinking purple), which
-      // takes priority over Ready for DPI (blinking orange), which takes
+      // takes priority over Ready for PDI (blinking orange), which takes
       // priority over a plain Hold (solid yellow), which takes priority
       // over the existing pass/fail checklist coloring. A Deviation
       // outline is independent of all of that — it's a border, not a
@@ -6194,14 +6194,14 @@ function renderLineSummary() {
         const uHasRemediation = (u.remediationNeeded && !u.remediationComplete) || (u.remediationFlags||[]).length>0;
         const uHasMaterialHold = !!u.materialHold;
         const uHasMoveRequest = !!u.moveRequest;
-        const uHasReadyDPI = !!u.readyForDPI;
+        const uHasReadyPDI = !!u.readyForPDI;
         let nameClass = '';
         let color = uHasFail ? '#A03033' : uReady ? '#0e7c3a' : 'inherit';
         let weight = (uHasFail || uReady) ? '700' : '400';
         if (uHasRemediation) { nameClass = 'unit-name-remediation'; color = ''; weight = ''; }
         else if (uHasMaterialHold) { nameClass = 'unit-name-mathold'; color = ''; weight = ''; }
         else if (uHasMoveRequest) { nameClass = 'unit-name-moverequest'; color = ''; weight = ''; }
-        else if (uHasReadyDPI) { nameClass = 'unit-name-readydpi'; color = ''; weight = ''; }
+        else if (uHasReadyPDI) { nameClass = 'unit-name-readypdi'; color = ''; weight = ''; }
         else if (u.held) { nameClass = 'unit-name-held'; color = ''; weight = ''; }
         if (u.deviationNeeded) nameClass += ' unit-name-deviation-outline';
         if (u.inspectionStarted) nameClass += ' unit-name-inspecting-outline';
@@ -6216,9 +6216,9 @@ function renderLineSummary() {
         }
         const locTag = u.location ? `<div style="font-size:9px;color:#006A8E;font-weight:600;">&#128205; ${u.location}</div>` : '';
         const moveTag = u.moveRequest ? `<div style="font-size:9px;color:#6b46c1;font-weight:700;">&#8594; ${u.moveRequest.target}${u.moveRequest.location?' ('+u.moveRequest.location+')':''}</div>` : '';
-        const dpiTag = u.readyForDPI ? `<div style="font-size:9px;color:#c2410c;font-weight:700;">&#128992; Ready for DPI</div>` : '';
+        const pdiTag = u.readyForPDI ? `<div style="font-size:9px;color:#c2410c;font-weight:700;">&#128992; Ready for PDI</div>` : '';
         const readyTag = (u.inspectionComplete && CONFIG.boardInspectionCols.includes(u.col)) ? `<div style="font-size:9px;color:#0e7c3a;font-weight:700;">&#10003; Ready to Move</div>` : '';
-        return `<div class="dash-unit-name ${nameClass}" style="${color?'color:'+color+';':''}${weight?'font-weight:'+weight+';':''}" onclick="event.stopPropagation();jumpToUnit('${jsq(line.id)}','${jsq(col.label)}','${jsq(u.id)}')">${u.id}${dueTag}${locTag}${moveTag}${dpiTag}${readyTag}</div>`;
+        return `<div class="dash-unit-name ${nameClass}" style="${color?'color:'+color+';':''}${weight?'font-weight:'+weight+';':''}" onclick="event.stopPropagation();jumpToUnit('${jsq(line.id)}','${jsq(col.label)}','${jsq(u.id)}')">${u.id}${dueTag}${locTag}${moveTag}${pdiTag}${readyTag}</div>`;
       }).join('');
       return `<div class="station-chip station-chip-lg ${cls}" onclick="event.stopPropagation();jumpToLine('${jsq(line.id)}','${jsq(col.label)}')">
         <div class="station-chip-header">${shortLabel}</div>
@@ -7066,24 +7066,24 @@ function renderBoardUnitCard(u) {
         </div>`;
       }
     }
-    // READY FOR DPI — a simple manual flag, same pattern as Move Request:
+    // READY FOR PDI — a simple manual flag, same pattern as Move Request:
     // anyone can set or dismiss it, dismissing always requires an explicit
     // click, never auto-clears on its own.
     {
-      if (u.readyForDPI) {
+      if (u.readyForPDI) {
         actions += `<div style="width:100%;padding:10px 12px;border:2px solid #c2410c;border-radius:8px;background:#fff0e6;">
-          <div style="font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.3px;color:#c2410c;margin-bottom:8px;">&#128992; Ready for DPI</div>
+          <div style="font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.3px;color:#c2410c;margin-bottom:8px;">&#128992; Ready for PDI</div>
           <div style="margin-bottom:8px;font-size:12px;color:#9a3412;background:#fff;border:1px solid rgba(194,65,12,.25);border-radius:6px;padding:6px 8px;">
-            ${u.readyForDPI.note ? u.readyForDPI.note+' — ' : ''}${u.readyForDPI.operator} <span style="opacity:.7;font-size:10px;">(${u.readyForDPI.ts})</span>
+            ${u.readyForPDI.note ? u.readyForPDI.note+' — ' : ''}${u.readyForPDI.operator} <span style="opacity:.7;font-size:10px;">(${u.readyForPDI.ts})</span>
           </div>
-          <button class="sm" onclick="quickDismissReadyForDPI('${u.id}')" style="border-color:#c2410c;color:#c2410c;">&#10003; Mark Done</button>
+          <button class="sm" onclick="quickDismissReadyForPDI('${u.id}')" style="border-color:#c2410c;color:#c2410c;">&#10003; Mark Done</button>
         </div>`;
       } else {
         actions += `<div style="width:100%;padding:10px 12px;border:2px solid #c2410c;border-radius:8px;background:#fff7f0;">
-          <div style="font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.3px;color:#c2410c;margin-bottom:8px;">&#128992; Ready for DPI</div>
+          <div style="font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.3px;color:#c2410c;margin-bottom:8px;">&#128992; Ready for PDI</div>
           <div style="display:flex;gap:6px;flex-wrap:wrap;">
-            <input id="bd-dpi-note-${sid}" type="text" placeholder="Note (optional)..." style="flex:1;min-width:110px;font-size:12px;padding:6px 8px;" />
-            <button class="sm" onclick="quickMarkReadyForDPI('${u.id}')" style="border-color:#c2410c;color:#c2410c;">&#128992; Mark Ready</button>
+            <input id="bd-pdi-note-${sid}" type="text" placeholder="Note (optional)..." style="flex:1;min-width:110px;font-size:12px;padding:6px 8px;" />
+            <button class="sm" onclick="quickMarkReadyForPDI('${u.id}')" style="border-color:#c2410c;color:#c2410c;">&#128992; Mark Ready</button>
           </div>
         </div>`;
       }
@@ -7194,9 +7194,9 @@ function renderBoardUnitCard(u) {
   const remediationActive = (u.remediationNeeded && !u.remediationComplete) || (u.remediationFlags||[]).length > 0;
   const materialHoldActive = !!u.materialHold;
   const moveRequestActive = !!u.moveRequest;
-  const readyDPIActive = !!u.readyForDPI;
-  const alertClass = remediationActive ? 'remediation-alert' : (materialHoldActive ? 'material-hold-alert' : (moveRequestActive ? 'move-request-alert' : (readyDPIActive ? 'ready-dpi-alert' : '')));
-  const alertBorderStyle = remediationActive ? 'border:3px solid #A03033;' : (materialHoldActive ? 'border:3px solid #b45309;' : (moveRequestActive ? 'border:3px solid #6b46c1;' : (readyDPIActive ? 'border:3px solid #c2410c;' : (u.deviationNeeded||openFailOverrides.length?'border:2px solid #A03033;':''))));
+  const readyPDIActive = !!u.readyForPDI;
+  const alertClass = remediationActive ? 'remediation-alert' : (materialHoldActive ? 'material-hold-alert' : (moveRequestActive ? 'move-request-alert' : (readyPDIActive ? 'ready-pdi-alert' : '')));
+  const alertBorderStyle = remediationActive ? 'border:3px solid #A03033;' : (materialHoldActive ? 'border:3px solid #b45309;' : (moveRequestActive ? 'border:3px solid #6b46c1;' : (readyPDIActive ? 'border:3px solid #c2410c;' : (u.deviationNeeded||openFailOverrides.length?'border:2px solid #A03033;':''))));
   return `<div class="unit-card ${u.held?'held':''} ${u.completed?'completed':''} ${alertClass}" data-unit-id="${u.id}" style="${alertBorderStyle}">
     <div class="unit-header"><div>${boardPill(u.id)}</div><div style="display:flex;gap:6px;align-items:center;">${deviationBadge}${failOverrideBadge}${statusBadge}</div></div>
     ${remedOrigin}
@@ -7242,7 +7242,7 @@ function ensureBoardTracked(unitId) {
   if (!u) {
     const line=CONFIG.lines.find(l=>l.columns.some(c=>c.units.includes(unitId)));
     const col=line?line.columns.find(c=>c.units.includes(unitId)):null;
-    u={id:unitId,line:line?line.id:activeLine,col:col?col.label:activeCol,held:false,completed:false,notes:'',esoNumber:'',gensetSerial:'',fuelTankSerial:'',location:'',mapX:null,mapY:null,solutionsEso:'',dueDate:'',leadCheckins:[],readyForInspection:false,inspectionStarted:false,inspectionComplete:false,weatherReadySignoffs:{},issueClosures:[],supervisorReleased:false,supervisorReleaseTs:'',deviationNeeded:false,deviationNote:'',deviationTs:'',deviations:[],remediationNeeded:false,remediationNote:'',remediationTs:'',remediations:[],remediationCheckins:[],remediationStarted:false,remediationComplete:false,remediationFlags:[],materialHold:false,materialHoldNote:'',materialHoldTs:'',materialHoldHistory:[],moveRequest:null,readyForDPI:null,issueClosingSessions:[],cleaningSessions:[],checklist:{},qcChecklist:{},checklistMeta:{},qcChecklistMeta:{},failOverrides:[],station2Tasks:{},stationTrackerTasks:{},history:[]};
+    u={id:unitId,line:line?line.id:activeLine,col:col?col.label:activeCol,held:false,completed:false,notes:'',esoNumber:'',gensetSerial:'',fuelTankSerial:'',location:'',mapX:null,mapY:null,solutionsEso:'',dueDate:'',leadCheckins:[],readyForInspection:false,inspectionStarted:false,inspectionComplete:false,weatherReadySignoffs:{},issueClosures:[],supervisorReleased:false,supervisorReleaseTs:'',deviationNeeded:false,deviationNote:'',deviationTs:'',deviations:[],remediationNeeded:false,remediationNote:'',remediationTs:'',remediations:[],remediationCheckins:[],remediationStarted:false,remediationComplete:false,remediationFlags:[],materialHold:false,materialHoldNote:'',materialHoldTs:'',materialHoldHistory:[],moveRequest:null,readyForPDI:null,issueClosingSessions:[],cleaningSessions:[],checklist:{},qcChecklist:{},checklistMeta:{},qcChecklistMeta:{},failOverrides:[],station2Tasks:{},stationTrackerTasks:{},history:[]};
     boardUnits.push(u);
   }
   return u;
@@ -8162,7 +8162,7 @@ function eauAddAllUnits() {
   if (hasError) return;
   toAdd.forEach(u => {
     removeDeletedUnitId(u.id);
-    boardUnits.push({id:u.id,line:u.line,col:u.col,held:false,completed:false,notes:u.notes,esoNumber:'',gensetSerial:u.gensetSerial||'',fuelTankSerial:'',location:'',mapX:null,mapY:null,solutionsEso:u.solEso,dueDate:u.dueDate,leadCheckins:[],readyForInspection:false,inspectionStarted:false,inspectionComplete:false,weatherReadySignoffs:{},issueClosures:[],supervisorReleased:false,supervisorReleaseTs:'',deviationNeeded:false,deviationNote:'',deviationTs:'',deviations:[],remediationNeeded:false,remediationNote:'',remediationTs:'',remediations:[],remediationCheckins:[],remediationStarted:false,remediationComplete:false,remediationFlags:[],materialHold:false,materialHoldNote:'',materialHoldTs:'',materialHoldHistory:[],moveRequest:null,readyForDPI:null,issueClosingSessions:[],cleaningSessions:[],checklist:{},qcChecklist:{},checklistMeta:{},qcChecklistMeta:{},failOverrides:[],station2Tasks:{},stationTrackerTasks:{},history:[{action:'Added to '+u.col,ts:now(),notes:u.notes}]});
+    boardUnits.push({id:u.id,line:u.line,col:u.col,held:false,completed:false,notes:u.notes,esoNumber:'',gensetSerial:u.gensetSerial||'',fuelTankSerial:'',location:'',mapX:null,mapY:null,solutionsEso:u.solEso,dueDate:u.dueDate,leadCheckins:[],readyForInspection:false,inspectionStarted:false,inspectionComplete:false,weatherReadySignoffs:{},issueClosures:[],supervisorReleased:false,supervisorReleaseTs:'',deviationNeeded:false,deviationNote:'',deviationTs:'',deviations:[],remediationNeeded:false,remediationNote:'',remediationTs:'',remediations:[],remediationCheckins:[],remediationStarted:false,remediationComplete:false,remediationFlags:[],materialHold:false,materialHoldNote:'',materialHoldTs:'',materialHoldHistory:[],moveRequest:null,readyForPDI:null,issueClosingSessions:[],cleaningSessions:[],checklist:{},qcChecklist:{},checklistMeta:{},qcChecklistMeta:{},failOverrides:[],station2Tasks:{},stationTrackerTasks:{},history:[{action:'Added to '+u.col,ts:now(),notes:u.notes}]});
   });
   err.textContent = '';
   document.getElementById('eau-rows').innerHTML = ''; eauRowCtr = 0; eauAddRow();
@@ -12452,29 +12452,29 @@ function quickDismissMoveRequest(unitId) {
   }, 'Sign to confirm move done');
 }
 
-/* ---- READY FOR DPI ----
+/* ---- READY FOR PDI ----
    Same simple manual-flag pattern as Move Request — anyone can set or
    dismiss it, no supervisor gate needed, dismissing always requires an
    explicit click and never auto-clears on its own. */
-function quickMarkReadyForDPI(unitId) {
+function quickMarkReadyForPDI(unitId) {
   requireName(() => {
     const sid = safeId(unitId);
-    const noteEl = document.getElementById('bd-dpi-note-'+sid);
+    const noteEl = document.getElementById('bd-pdi-note-'+sid);
     const note = noteEl ? noteEl.value.trim() : '';
     const u = ensureBoardTracked(unitId);
-    u.readyForDPI = { note, ts: now(), operator: getOperator().name };
-    u.history.push({ action: 'Marked Ready for DPI — '+getOperator().name, ts: now(), notes: note });
+    u.readyForPDI = { note, ts: now(), operator: getOperator().name };
+    u.history.push({ action: 'Marked Ready for PDI — '+getOperator().name, ts: now(), notes: note });
     pushBoard(); renderAll();
-  }, 'Sign to mark Ready for DPI');
+  }, 'Sign to mark Ready for PDI');
 }
-function quickDismissReadyForDPI(unitId) {
+function quickDismissReadyForPDI(unitId) {
   requireName(() => {
     const u = ensureBoardTracked(unitId);
-    if (!u.readyForDPI) return;
-    u.readyForDPI = null;
-    u.history.push({ action: 'Ready for DPI marked done — '+getOperator().name, ts: now(), notes: '' });
+    if (!u.readyForPDI) return;
+    u.readyForPDI = null;
+    u.history.push({ action: 'Ready for PDI marked done — '+getOperator().name, ts: now(), notes: '' });
     pushBoard(); renderAll();
-  }, 'Sign to confirm DPI done');
+  }, 'Sign to confirm PDI done');
 }
 
 /* ---- INIT ---- */
@@ -12492,7 +12492,7 @@ function quickDismissReadyForDPI(unitId) {
    visible stamp every time a change is made, or version checks
    against a stale reference and never fires.
    ============================================================ */
-const BUILD_DATE = '2026-08-21-18';
+const BUILD_DATE = '2026-08-21-19';
 let updateBannerShown = false;
 function checkForNewVersion() {
   if (updateBannerShown) return;

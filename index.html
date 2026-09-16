@@ -1146,7 +1146,7 @@ label { font-size: 11px; font-weight: 600; color: var(--text-2); display: block;
 
 <!-- ============================================================ HEADER -->
 <div class="app-header">
-  <div id="build-stamp" title="If this looks out of date after an update was announced, hard-refresh with Ctrl+Shift+R (Cmd+Shift+R on Mac) to clear your browser's cached copy.">Build: <span id="build-stamp-text">2026-08-21-24</span></div>
+  <div id="build-stamp" title="If this looks out of date after an update was announced, hard-refresh with Ctrl+Shift+R (Cmd+Shift+R on Mac) to clear your browser's cached copy.">Build: <span id="build-stamp-text">2026-08-21-28</span></div>
   <div id="header-signed-in" style="position:absolute;top:26px;right:16px;font-size:11px;color:rgba(255,255,255,.75);white-space:nowrap;z-index:101;"></div>
   <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;flex:1;">
     <div style="background:#fff;border-radius:8px;padding:8px 14px;display:flex;align-items:center;box-shadow:0 1px 3px rgba(0,0,0,.15);">
@@ -1984,6 +1984,7 @@ label { font-size: 11px; font-weight: 600; color: var(--text-2); display: block;
     <div>
       <h2 style="font-size:16px;font-weight:800;letter-spacing:-.3px;">&#128506; Floor Map</h2>
       <p style="font-size:12px;color:var(--text-2);margin-top:3px;">Drag a unit marker to update where it physically sits on the floor right now. Click a marker's &#8635; to rotate it 90&deg; (Shift+click = 15&deg;, Alt+click = -15&deg;; double-click a marker to reset its rotation).</p>
+      <p id="fm-last-updated" style="font-size:11px;margin-top:4px;"></p>
     </div>
     <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
       <input type="file" id="fm-bg-upload" accept="image/*,.pdf" style="display:none;" onchange="fmHandleBgUpload(event)" />
@@ -2152,6 +2153,7 @@ const CONFIG = {
     'EQ10': { bg:'#f0eeff',text:'#4b3a9e',border:'#4b3a9e' },
     'EQ11': { bg:'#f0eeff',text:'#4b3a9e',border:'#4b3a9e' },
     'COMP': { bg:'#f0efee',text:'#A03033',border:'#4A4645' }, // COMPASS — gray/red
+    'CPS':  { bg:'#dff6dd',text:'#0b6a0b',border:'#107c10' }, // CPS — green, matching its existing QC category color
     'DROP': { bg:'#f2f0ee',text:'#1A1A1A',border:'#D9A83D' }, // DROPOVER — black/gold
     'WDC':  { bg:'#fff4ce',text:'#7a5d00',border:'#f4c430' },
     'TITUS':{ bg:'#eaf2ea',text:'#2E5234',border:'#2E5234' }, // TITUS — dark green
@@ -3698,12 +3700,88 @@ function peEditColor(code, field, value) {
   peLastLocalEditAt = Date.now();
   CONFIG.boardCategories[code][field] = value; // apply directly
 }
+// Renames a project code in place, migrating everything tied to it (its
+// color, its Station Tracker task list at every station, and any
+// reference links set on those tasks) to the new code — unlike delete-
+// then-re-add, which would silently lose the task list and links behind
+// it. A project code is matched against the START of a unit's actual ID
+// (e.g. "CPS" matches "CPS-70"), so renaming the code does NOT rename any
+// existing unit IDs — those stay exactly as they are. If the new code no
+// longer matches those unit IDs' actual prefix, they'll stop finding a
+// color and a task list under this code until either their IDs are
+// updated to match, or the old code is added back.
+function peRenameProject(oldCode) {
+  const errEl = document.getElementById('pe-rename-err-'+safeId(oldCode));
+  const inputEl = document.getElementById('pe-rename-input-'+safeId(oldCode));
+  const newCode = (inputEl.value || '').trim().toUpperCase();
+  if (errEl) errEl.textContent = '';
+  if (!newCode) { if (errEl) errEl.textContent = 'Enter a new code.'; return; }
+  if (newCode === oldCode) { if (errEl) errEl.textContent = 'That\'s already the current code.'; return; }
+  if (CONFIG.boardCategories[newCode]) { if (errEl) errEl.textContent = 'A project called "'+newCode+'" already exists.'; return; }
+
+  const inUse = getAllBoardUnits().filter(u => !u.completed && getProjectType(u.id) === oldCode).length;
+  const idWarning = inUse
+    ? `\n\n${inUse} active unit${inUse!==1?'s are':' is'} currently matched to "${oldCode}" by their ID prefix. Their IDs won't change, so they'll keep matching "${oldCode}" — they'll only pick up "${newCode}" once their own IDs start with "${newCode}" instead.`
+    : '';
+  if (!confirm(`Rename project "${oldCode}" to "${newCode}"? Its color and Station Tracker task list carry over.${idWarning}`)) return;
+
+  // Category (color) — rename the key, keep the color settings
+  const categories = JSON.parse(JSON.stringify(CONFIG.boardCategories));
+  categories[newCode] = categories[oldCode];
+  delete categories[oldCode];
+  peLastLocalEditAt = Date.now();
+  CONFIG.boardCategories[newCode] = CONFIG.boardCategories[oldCode]; // apply directly
+  delete CONFIG.boardCategories[oldCode];
+  saveProjectOverrides(categories);
+
+  // Product Type dropdown entry, if this code has a matching one
+  const productIdx = CONFIG.products.findIndex(p => p.name === oldCode && p.category === oldCode);
+  if (productIdx !== -1) {
+    CONFIG.products[productIdx] = { name: newCode, category: newCode };
+    const prodListIdx = PRODUCTS.indexOf(oldCode);
+    if (prodListIdx !== -1) PRODUCTS[prodListIdx] = newCode;
+    delete PRODUCT_CAT[oldCode];
+    PRODUCT_CAT[newCode] = newCode;
+  }
+
+  // Station Tracker task list at every station, so it isn't lost
+  const trackerOverrides = getStationTrackerOverrides();
+  Object.keys(trackerOverrides).forEach(station => {
+    if (trackerOverrides[station] && trackerOverrides[station][oldCode] !== undefined) {
+      trackerOverrides[station][newCode] = trackerOverrides[station][oldCode];
+      delete trackerOverrides[station][oldCode];
+    }
+  });
+  saveStationTrackerOverrides(trackerOverrides);
+  Object.keys(STATION_TRACKER_TASKS).forEach(station => {
+    if (STATION_TRACKER_TASKS[station][oldCode] !== undefined) {
+      STATION_TRACKER_TASKS[station][newCode] = STATION_TRACKER_TASKS[station][oldCode];
+      delete STATION_TRACKER_TASKS[station][oldCode];
+    }
+  });
+
+  // Reference links set on those tasks
+  const links = getStationTaskLinks();
+  Object.keys(links).forEach(station => {
+    if (links[station] && links[station][oldCode] !== undefined) {
+      links[station][newCode] = links[station][oldCode];
+      delete links[station][oldCode];
+    }
+  });
+  saveStationTaskLinks(links);
+
+  if (steActiveProject === oldCode) steActiveProject = newCode;
+  renderProjectEditor();
+  renderStationTrackerEditor();
+  if (typeof renderEditUnitPage === 'function') renderEditUnitPage();
+}
 function renderProjectEditor() {
   const el = document.getElementById('project-editor-body'); if (!el) return;
   const codes = Object.keys(CONFIG.boardCategories);
   const rows = codes.map(code => {
     const c = CONFIG.boardCategories[code];
-    return `<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid #f0f2f5;">
+    const sid = safeId(code);
+    return `<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid #f0f2f5;flex-wrap:wrap;">
       <span style="font-size:12px;font-weight:800;padding:4px 12px;border-radius:20px;background:${c.border};color:#fff;min-width:70px;text-align:center;">${code}</span>
       <div style="display:flex;align-items:center;gap:4px;">
         <label style="font-size:10px;color:var(--text-3,#8a96a8);">Border</label>
@@ -3717,12 +3795,17 @@ function renderProjectEditor() {
         <label style="font-size:10px;color:var(--text-3,#8a96a8);">Background</label>
         <input type="color" value="${c.bg}" onchange="peEditColor('${code}','bg',this.value)" style="width:32px;height:28px;padding:1px;" />
       </div>
+      <div style="display:flex;align-items:center;gap:4px;">
+        <input id="pe-rename-input-${sid}" type="text" placeholder="Rename to..." style="font-size:12px;padding:6px 8px;width:110px;" />
+        <button class="sm" onclick="peRenameProject('${code}')">Rename</button>
+      </div>
       <button onclick="peRemoveProject('${code}')" title="Remove project" style="margin-left:auto;width:28px;height:28px;border-radius:8px;border:1px solid #e2e6ea;background:#fff;color:#A03033;cursor:pointer;flex-shrink:0;">&#10005;</button>
+      <div id="pe-rename-err-${sid}" style="color:#A03033;font-size:11px;width:100%;min-height:14px;"></div>
     </div>`;
   }).join('');
 
   el.innerHTML = `
-    <p style="font-size:11px;color:var(--text-3,#8a96a8);margin-bottom:12px;">This is the same project list used for unit color-coding everywhere in the app and for the Station Tracker Editor's project tabs. Renaming isn't offered here — add a new code or remove an old one instead, since a project code is matched against the start of a unit's actual ID.</p>
+    <p style="font-size:11px;color:var(--text-3,#8a96a8);margin-bottom:12px;">This is the same project list used for unit color-coding everywhere in the app and for the Station Tracker Editor's project tabs. Renaming carries the color and Station Tracker task list over to the new code — but a project code is matched against the start of a unit's actual ID, so existing unit IDs aren't renamed and will keep matching their old code until their own IDs are updated.</p>
     ${rows}
     <div style="display:flex;gap:8px;align-items:flex-end;margin-top:14px;">
       <div><label style="font-size:10px;font-weight:700;color:var(--text-3,#8a96a8);text-transform:uppercase;">New project code</label><input id="pe-new-code" type="text" placeholder="e.g. WDC2" style="font-size:13px;padding:8px 10px;" /></div>
@@ -3806,6 +3889,29 @@ function getFloorMapBg() {
   const local = localStorage.getItem('floormap_bg_local');
   if (local) return local;
   return DEFAULT_FLOOR_MAP_BG;
+}
+// Makes it obvious at a glance whether today's floor plan was actually
+// uploaded, rather than someone assuming it's current when it's really a
+// day (or several) stale — especially important here since the source
+// document changes daily and there's no automatic way to pull the latest
+// version in (see the reasoning in saveFloorMapBg below).
+function renderFmLastUpdated() {
+  const el = document.getElementById('fm-last-updated'); if (!el) return;
+  const rec = unitIssues['__config__floormap_bg'];
+  if (!rec || !rec.updatedAt) { el.textContent = ''; return; }
+  const updated = new Date(rec.updatedAt);
+  if (isNaN(updated)) { el.textContent = ''; return; }
+  const today = new Date(); today.setHours(0,0,0,0);
+  const updatedDay = new Date(updated); updatedDay.setHours(0,0,0,0);
+  const daysAgo = Math.round((today - updatedDay) / 86400000);
+  const dateStr = updated.toLocaleDateString('en-US', { month:'short', day:'numeric' });
+  if (daysAgo <= 0) {
+    el.innerHTML = `<span style="color:#0e7c3a;font-weight:700;">&#10003; Floor plan updated today</span>`;
+  } else if (daysAgo === 1) {
+    el.innerHTML = `<span style="color:#b45309;font-weight:700;">&#9888; Floor plan last updated yesterday (${dateStr})</span>`;
+  } else {
+    el.innerHTML = `<span style="color:#A03033;font-weight:700;">&#9888; Floor plan last updated ${daysAgo} days ago (${dateStr}) — may be out of date</span>`;
+  }
 }
 function saveFloorMapBg(dataUrl) {
   unitIssues['__config__floormap_bg'] = { url: dataUrl, updatedAt: new Date().toISOString() };
@@ -4201,6 +4307,7 @@ function renderFloorMap() {
   const listEl = document.getElementById('fm-unplaced-list');
   if (!bgEl || !markersEl || !listEl) return;
 
+  renderFmLastUpdated();
   fmRenderGridOverlay();
   fmRenderGridUnitPicker();
 
@@ -5063,8 +5170,7 @@ function typeBadge(productName) {
 
 /* ---- BOARD CATEGORY ---- */
 function getBoardCatStyle(unitId) {
-  const id = (unitId||'').toUpperCase();
-  const key = Object.keys(CONFIG.boardCategories).find(k => id.startsWith(k.toUpperCase()));
+  const key = getProjectType(unitId);
   return CONFIG.boardCategories[key] || {bg:'#f3f2f1',text:'#605e5c',border:'#8a8886'};
 }
 function boardPill(id) {
@@ -12642,7 +12748,7 @@ function quickDismissReadyForPDI(unitId) {
    visible stamp every time a change is made, or version checks
    against a stale reference and never fires.
    ============================================================ */
-const BUILD_DATE = '2026-08-21-24';
+const BUILD_DATE = '2026-08-21-28';
 let updateBannerShown = false;
 function checkForNewVersion() {
   if (updateBannerShown) return;

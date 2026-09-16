@@ -1146,7 +1146,7 @@ label { font-size: 11px; font-weight: 600; color: var(--text-2); display: block;
 
 <!-- ============================================================ HEADER -->
 <div class="app-header">
-  <div id="build-stamp" title="If this looks out of date after an update was announced, hard-refresh with Ctrl+Shift+R (Cmd+Shift+R on Mac) to clear your browser's cached copy.">Build: <span id="build-stamp-text">2026-08-21-28</span></div>
+  <div id="build-stamp" title="If this looks out of date after an update was announced, hard-refresh with Ctrl+Shift+R (Cmd+Shift+R on Mac) to clear your browser's cached copy.">Build: <span id="build-stamp-text">2026-08-21-29</span></div>
   <div id="header-signed-in" style="position:absolute;top:26px;right:16px;font-size:11px;color:rgba(255,255,255,.75);white-space:nowrap;z-index:101;"></div>
   <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;flex:1;">
     <div style="background:#fff;border-radius:8px;padding:8px 14px;display:flex;align-items:center;box-shadow:0 1px 3px rgba(0,0,0,.15);">
@@ -1979,48 +1979,21 @@ label { font-size: 11px; font-weight: 600; color: var(--text-2); display: block;
 <!-- ============================================================ END CLEANER DASHBOARD PAGE -->
 
 <!-- ============================================================ FLOOR MAP PAGE -->
-<div id="page-floormap" class="app-body" style="display:none;">
-  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:8px;">
-    <div>
-      <h2 style="font-size:16px;font-weight:800;letter-spacing:-.3px;">&#128506; Floor Map</h2>
-      <p style="font-size:12px;color:var(--text-2);margin-top:3px;">Drag a unit marker to update where it physically sits on the floor right now. Click a marker's &#8635; to rotate it 90&deg; (Shift+click = 15&deg;, Alt+click = -15&deg;; double-click a marker to reset its rotation).</p>
-      <p id="fm-last-updated" style="font-size:11px;margin-top:4px;"></p>
-    </div>
-    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
-      <input type="file" id="fm-bg-upload" accept="image/*,.pdf" style="display:none;" onchange="fmHandleBgUpload(event)" />
-      <button class="subtle sm" onclick="document.getElementById('fm-bg-upload').click()">&#8593; Upload Floor Plan (image or PDF)</button>
-      <button class="subtle sm" onclick="fmRotateBg(-90)" title="Rotate left 90&deg;">&#8634;</button>
-      <button class="subtle sm" onclick="fmRotateBg(90)" title="Rotate right 90&deg;">&#8635;</button>
-      <button class="subtle sm" onclick="fmClearBg()">&#10005; Clear Floor Plan</button>
-      <button class="subtle sm" onclick="fmToggleFullscreen()" id="fm-fullscreen-btn">&#10530; Fit to Screen</button>
-      <span style="width:1px;height:20px;background:var(--border,#e1dfdd);margin:0 2px;"></span>
-      <label style="display:flex;align-items:center;gap:5px;font-size:12px;color:var(--text-2);cursor:pointer;">
-        <input type="checkbox" id="fm-grid-toggle" checked onchange="fmSaveGridConfig();renderFloorMap();" /> Grid
-      </label>
-      <label style="display:flex;align-items:center;gap:4px;font-size:12px;color:var(--text-2);">Cols
-        <input type="number" id="fm-grid-cols" value="12" min="1" max="52" style="width:48px;padding:4px 6px;font-size:12px;" onchange="fmSaveGridConfig();renderFloorMap();" />
-      </label>
-      <label style="display:flex;align-items:center;gap:4px;font-size:12px;color:var(--text-2);">Rows
-        <input type="number" id="fm-grid-rows" value="8" min="1" max="52" style="width:48px;padding:4px 6px;font-size:12px;" onchange="fmSaveGridConfig();renderFloorMap();" />
-      </label>
-    </div>
-  </div>
-  <div style="display:grid;grid-template-columns:220px 1fr;gap:16px;align-items:start;">
-    <div class="card" style="padding:12px;">
-      <div style="font-size:11px;font-weight:700;color:var(--text-2,#605e5c);text-transform:uppercase;margin-bottom:8px;">Place by grid reference</div>
-      <select id="fm-grid-unit-picker" style="margin-bottom:6px;width:100%;"></select>
-      <div style="display:flex;gap:6px;">
-        <input type="text" id="fm-grid-ref-input" placeholder="e.g. C4" style="flex:1;min-width:0;text-transform:uppercase;" onkeydown="if(event.key==='Enter')fmPlaceByGridRef();" />
-        <button class="primary sm" onclick="fmPlaceByGridRef()">Place</button>
+<div id="page-floormap" class="app-body" style="display:none;padding:0;">
+  <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:82vh;text-align:center;padding:24px;">
+    <div style="font-size:56px;margin-bottom:8px;">&#128506;</div>
+    <h2 style="font-size:20px;font-weight:800;letter-spacing:-.3px;margin-bottom:6px;">Floor Plan</h2>
+    <p id="fm-last-updated" style="font-size:12px;margin-bottom:22px;max-width:420px;color:var(--text-2,#605e5c);"></p>
+    <a id="fm-open-link-btn" href="#" target="_blank" rel="noopener" style="display:inline-block;padding:20px 48px;font-size:18px;font-weight:800;background:var(--blue,#892729);color:#fff;border-radius:14px;text-decoration:none;box-shadow:0 8px 24px rgba(0,0,0,.15);">&#128506; Open Floor Plan</a>
+    <p style="font-size:11px;color:var(--text-3,#8a96a8);margin-top:14px;">Opens the live floor plan in a new tab — always the current version.</p>
+    <button class="subtle sm" onclick="fmEditLink()" style="margin-top:28px;">Edit link</button>
+    <div id="fm-link-editor" style="display:none;margin-top:16px;max-width:480px;width:100%;">
+      <input id="fm-link-input" type="url" placeholder="https://..." style="width:100%;font-size:13px;padding:10px 12px;" />
+      <div id="fm-link-err" style="color:#A03033;font-size:12px;min-height:16px;margin-top:6px;"></div>
+      <div style="display:flex;gap:8px;justify-content:center;margin-top:8px;">
+        <button class="subtle sm" onclick="document.getElementById('fm-link-editor').style.display='none';">Cancel</button>
+        <button class="primary sm" onclick="fmSaveLink()">Save</button>
       </div>
-      <div id="fm-grid-ref-err" style="color:#A03033;font-size:11px;min-height:14px;margin-top:4px;"></div>
-      <div style="font-size:11px;font-weight:700;color:var(--text-2,#605e5c);text-transform:uppercase;margin:14px 0 8px;">Unplaced Units</div>
-      <div id="fm-unplaced-list" style="display:flex;flex-direction:column;gap:6px;max-height:60vh;overflow-y:auto;"></div>
-    </div>
-    <div id="fm-map-container" style="position:relative;width:100%;aspect-ratio:16/10;background:#f0f2f5;border:2px dashed #c8d0dc;border-radius:10px;overflow:hidden;">
-      <div id="fm-map-empty" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#8a96a8;font-size:13px;text-align:center;padding:20px;">No floor plan uploaded yet — click "Upload Floor Plan" to add one, or place units on this blank canvas for now.</div>
-      <div id="fm-grid-layer" style="position:absolute;inset:0;pointer-events:none;"></div>
-      <div id="fm-markers-layer" style="position:absolute;inset:0;"></div>
     </div>
   </div>
 </div>
@@ -3897,21 +3870,42 @@ function getFloorMapBg() {
 // version in (see the reasoning in saveFloorMapBg below).
 function renderFmLastUpdated() {
   const el = document.getElementById('fm-last-updated'); if (!el) return;
-  const rec = unitIssues['__config__floormap_bg'];
-  if (!rec || !rec.updatedAt) { el.textContent = ''; return; }
-  const updated = new Date(rec.updatedAt);
-  if (isNaN(updated)) { el.textContent = ''; return; }
-  const today = new Date(); today.setHours(0,0,0,0);
-  const updatedDay = new Date(updated); updatedDay.setHours(0,0,0,0);
-  const daysAgo = Math.round((today - updatedDay) / 86400000);
-  const dateStr = updated.toLocaleDateString('en-US', { month:'short', day:'numeric' });
-  if (daysAgo <= 0) {
-    el.innerHTML = `<span style="color:#0e7c3a;font-weight:700;">&#10003; Floor plan updated today</span>`;
-  } else if (daysAgo === 1) {
-    el.innerHTML = `<span style="color:#b45309;font-weight:700;">&#9888; Floor plan last updated yesterday (${dateStr})</span>`;
-  } else {
-    el.innerHTML = `<span style="color:#A03033;font-weight:700;">&#9888; Floor plan last updated ${daysAgo} days ago (${dateStr}) — may be out of date</span>`;
+  const link = getFloorMapLink();
+  const btn = document.getElementById('fm-open-link-btn');
+  if (btn) btn.href = link || '#';
+  if (!link) {
+    el.innerHTML = `<span style="color:#A03033;">No floor plan link set yet — click "Edit link" below to add one.</span>`;
+    return;
   }
+  el.textContent = 'Always opens the current floor plan on SharePoint — nothing to keep in sync here.';
+}
+function getFloorMapLink() {
+  const synced = unitIssues['__config__floormap_link'] && unitIssues['__config__floormap_link'].url;
+  if (synced) return synced;
+  return localStorage.getItem('floormap_link_local') || '';
+}
+function saveFloorMapLink(url) {
+  unitIssues['__config__floormap_link'] = { url, updatedAt: new Date().toISOString() };
+  localStorage.setItem('floormap_link_local', url);
+  saveIssues();
+}
+function fmEditLink() {
+  const editor = document.getElementById('fm-link-editor');
+  const input = document.getElementById('fm-link-input');
+  input.value = getFloorMapLink();
+  editor.style.display = 'block';
+  document.getElementById('fm-link-err').textContent = '';
+  input.focus();
+}
+function fmSaveLink() {
+  const input = document.getElementById('fm-link-input');
+  const errEl = document.getElementById('fm-link-err');
+  const url = input.value.trim();
+  if (!url) { errEl.textContent = 'Enter a link.'; return; }
+  try { new URL(url); } catch(e) { errEl.textContent = 'That doesn\'t look like a valid link.'; return; }
+  saveFloorMapLink(url);
+  document.getElementById('fm-link-editor').style.display = 'none';
+  renderFmLastUpdated();
 }
 function saveFloorMapBg(dataUrl) {
   unitIssues['__config__floormap_bg'] = { url: dataUrl, updatedAt: new Date().toISOString() };
@@ -4300,56 +4294,13 @@ function fmResetUnitRotation(e, unitId) {
   renderFloorMap();
 }
 
+// The interactive drag-to-place map has been replaced by a direct link to
+// the live SharePoint floor plan (which changes daily) — this now just
+// renders the "last updated"/link status banner, the rest of the old
+// grid/marker logic below this file no longer runs from here but is left
+// in place in case the interactive map is ever brought back.
 function renderFloorMap() {
-  const bgEl = document.getElementById('fm-map-container');
-  const emptyEl = document.getElementById('fm-map-empty');
-  const markersEl = document.getElementById('fm-markers-layer');
-  const listEl = document.getElementById('fm-unplaced-list');
-  if (!bgEl || !markersEl || !listEl) return;
-
   renderFmLastUpdated();
-  fmRenderGridOverlay();
-  fmRenderGridUnitPicker();
-
-  const bg = getFloorMapBg();
-  if (bg) {
-    bgEl.style.backgroundImage = `url(${bg})`;
-    bgEl.style.backgroundSize = 'contain';
-    bgEl.style.backgroundRepeat = 'no-repeat';
-    bgEl.style.backgroundPosition = 'center';
-    if (emptyEl) emptyEl.style.display = 'none';
-  } else {
-    bgEl.style.backgroundImage = '';
-    if (emptyEl) emptyEl.style.display = 'flex';
-  }
-
-  const active = getAllBoardUnits().filter(u => !u.completed);
-  const placed = active.filter(u => u.mapX != null && u.mapY != null);
-  const unplaced = active.filter(u => u.mapX == null || u.mapY == null);
-
-  markersEl.innerHTML = placed.map(u => {
-    const cs = getBoardCatStyle(u.id);
-    const rot = u.mapRotation || 0;
-    const gridRef = fmPctToGridRef(u.mapX, u.mapY);
-    return `<div id="fm-marker-${safeId(u.id)}" onmousedown="fmMarkerMouseDown(event,'${u.id}')" ondblclick="fmResetUnitRotation(event,'${u.id}')"
-      style="position:absolute;left:${u.mapX}%;top:${u.mapY}%;z-index:10;cursor:grab;user-select:none;">
-      <div style="min-width:46px;padding:3px 14px 3px 6px;border-radius:3px;background:${cs.border};border:1.5px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.35);display:flex;align-items:center;justify-content:center;font-size:8.5px;font-weight:800;color:#fff;white-space:nowrap;line-height:1.1;transform:rotate(${rot}deg);transition:transform .1s ease;" title="${u.id} — ${u.col} — cell ${gridRef} — drag to move — rotation ${rot}&deg;">
-        ${u.id}
-      </div>
-      <button onmousedown="event.stopPropagation()" onclick="fmUnplaceUnit('${u.id}')" title="Remove from map" style="position:absolute;top:-6px;right:-6px;width:13px;height:13px;border-radius:50%;background:#fff;border:1px solid ${cs.border};color:${cs.border};font-size:8px;line-height:1;cursor:pointer;padding:0;display:flex;align-items:center;justify-content:center;font-weight:900;">&#10005;</button>
-      <button onmousedown="event.stopPropagation()" onclick="fmRotateUnit(event,'${u.id}')" title="Rotate 90&deg; (Shift+click: 15&deg;, Alt+click: -15&deg;; dbl-click marker to reset)" style="position:absolute;top:-6px;left:-6px;width:13px;height:13px;border-radius:50%;background:#fff;border:1px solid ${cs.border};color:${cs.border};font-size:8px;line-height:1;cursor:pointer;padding:0;display:flex;align-items:center;justify-content:center;font-weight:900;">&#8635;</button>
-    </div>`;
-  }).join('');
-
-  listEl.innerHTML = unplaced.length
-    ? unplaced.map(u => {
-        const cs = getBoardCatStyle(u.id);
-        return `<button onclick="fmPlaceUnit('${u.id}')" style="text-align:left;font-size:12px;padding:8px 10px;border-radius:8px;border:1px solid ${cs.border};background:#fff;color:${cs.text};cursor:pointer;">
-          <div style="font-weight:700;">${u.id}</div>
-          <div style="font-size:10px;color:var(--text-3,#8a96a8);">${u.col}</div>
-        </button>`;
-      }).join('')
-    : '<p style="font-size:12px;color:var(--text-3,#8a96a8);font-style:italic;">Every active unit has a placed position.</p>';
 }
 
 function getDefaultTaskLink(station, project, taskName) {
@@ -12748,7 +12699,7 @@ function quickDismissReadyForPDI(unitId) {
    visible stamp every time a change is made, or version checks
    against a stale reference and never fires.
    ============================================================ */
-const BUILD_DATE = '2026-08-21-28';
+const BUILD_DATE = '2026-08-21-29';
 let updateBannerShown = false;
 function checkForNewVersion() {
   if (updateBannerShown) return;

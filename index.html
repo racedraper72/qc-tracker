@@ -1146,7 +1146,7 @@ label { font-size: 11px; font-weight: 600; color: var(--text-2); display: block;
 
 <!-- ============================================================ HEADER -->
 <div class="app-header">
-  <div id="build-stamp" title="If this looks out of date after an update was announced, hard-refresh with Ctrl+Shift+R (Cmd+Shift+R on Mac) to clear your browser's cached copy.">Build: <span id="build-stamp-text">2026-08-21-29</span></div>
+  <div id="build-stamp" title="If this looks out of date after an update was announced, hard-refresh with Ctrl+Shift+R (Cmd+Shift+R on Mac) to clear your browser's cached copy.">Build: <span id="build-stamp-text">2026-08-21-30</span></div>
   <div id="header-signed-in" style="position:absolute;top:26px;right:16px;font-size:11px;color:rgba(255,255,255,.75);white-space:nowrap;z-index:101;"></div>
   <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;flex:1;">
     <div style="background:#fff;border-radius:8px;padding:8px 14px;display:flex;align-items:center;box-shadow:0 1px 3px rgba(0,0,0,.15);">
@@ -3877,7 +3877,7 @@ function renderFmLastUpdated() {
     el.innerHTML = `<span style="color:#A03033;">No floor plan link set yet — click "Edit link" below to add one.</span>`;
     return;
   }
-  el.textContent = 'Always opens the current floor plan on SharePoint — nothing to keep in sync here.';
+  el.textContent = 'Opens automatically in a new tab — always the current version. If it didn\'t open (some browsers block this), use the button below.';
 }
 function getFloorMapLink() {
   const synced = unitIssues['__config__floormap_link'] && unitIssues['__config__floormap_link'].url;
@@ -3906,6 +3906,19 @@ function fmSaveLink() {
   saveFloorMapLink(url);
   document.getElementById('fm-link-editor').style.display = 'none';
   renderFmLastUpdated();
+}
+// Opens the floor plan link automatically on every visit to this page,
+// rather than making people click the button. Runs from showPage() so
+// it fires within the same click that navigated here (the nav button's
+// own onclick) — that's still inside the browser's "user gesture"
+// window, so it isn't blocked as an unsolicited popup the way a delayed
+// or background-triggered window.open() call would be. The big button
+// stays as a fallback and stays clickable either way, since some
+// browsers' stricter popup settings can still block even this.
+function fmAutoOpenLink() {
+  const link = getFloorMapLink();
+  if (!link) return;
+  window.open(link, '_blank', 'noopener');
 }
 function saveFloorMapBg(dataUrl) {
   unitIssues['__config__floormap_bg'] = { url: dataUrl, updatedAt: new Date().toISOString() };
@@ -5962,7 +5975,7 @@ function _showPage(page) {
   }
   else                    { stopS2Ticker(); }
   if (page==='cleaner')  { renderCleanerDashboard(); }
-  if (page==='floormap') { renderFloorMap(); }
+  if (page==='floormap') { renderFloorMap(); fmAutoOpenLink(); }
   if (page==='editunit') { renderEditUnitPage(); }
   if (page==='masterschedule') { renderMasterSchedulePage(); }
   if (page==='admin') {
@@ -12699,7 +12712,7 @@ function quickDismissReadyForPDI(unitId) {
    visible stamp every time a change is made, or version checks
    against a stale reference and never fires.
    ============================================================ */
-const BUILD_DATE = '2026-08-21-29';
+const BUILD_DATE = '2026-08-21-30';
 let updateBannerShown = false;
 function checkForNewVersion() {
   if (updateBannerShown) return;

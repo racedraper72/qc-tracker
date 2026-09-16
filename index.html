@@ -1146,7 +1146,7 @@ label { font-size: 11px; font-weight: 600; color: var(--text-2); display: block;
 
 <!-- ============================================================ HEADER -->
 <div class="app-header">
-  <div id="build-stamp" title="If this looks out of date after an update was announced, hard-refresh with Ctrl+Shift+R (Cmd+Shift+R on Mac) to clear your browser's cached copy.">Build: <span id="build-stamp-text">2026-08-21-31</span></div>
+  <div id="build-stamp" title="If this looks out of date after an update was announced, hard-refresh with Ctrl+Shift+R (Cmd+Shift+R on Mac) to clear your browser's cached copy.">Build: <span id="build-stamp-text">2026-08-21-32</span></div>
   <div id="header-signed-in" style="position:absolute;top:26px;right:16px;font-size:11px;color:rgba(255,255,255,.75);white-space:nowrap;z-index:101;"></div>
   <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;flex:1;">
     <div style="background:#fff;border-radius:8px;padding:8px 14px;display:flex;align-items:center;box-shadow:0 1px 3px rgba(0,0,0,.15);">
@@ -1986,24 +1986,17 @@ label { font-size: 11px; font-weight: 600; color: var(--text-2); display: block;
       <p id="fm-last-updated" style="font-size:11px;margin-top:3px;color:var(--text-2,#605e5c);"></p>
     </div>
     <div style="display:flex;gap:8px;align-items:center;">
-      <a id="fm-open-link-btn" href="#" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:6px;padding:9px 16px;font-size:13px;font-weight:700;background:var(--blue,#892729);color:#fff;border-radius:8px;text-decoration:none;">&#8599; Open in New Tab</a>
-      <button class="subtle sm" onclick="fmEditLink()">Edit link</button>
+      <input type="file" id="fm-bg-upload" accept="image/*" style="display:none;" onchange="fmHandleBgUpload(event)" />
+      <button class="primary sm" onclick="document.getElementById('fm-bg-upload').click()">&#8593; Upload Screenshot</button>
+      <button class="subtle sm" onclick="fmClearBg()">&#10005; Clear</button>
     </div>
   </div>
-  <div id="fm-link-editor" style="display:none;padding:14px 20px;border-bottom:1px solid #edebe9;">
-    <input id="fm-link-input" type="url" placeholder="https://..." style="width:100%;max-width:520px;font-size:13px;padding:10px 12px;" />
-    <div id="fm-link-err" style="color:#A03033;font-size:12px;min-height:16px;margin-top:6px;"></div>
-    <div style="display:flex;gap:8px;margin-top:8px;">
-      <button class="subtle sm" onclick="document.getElementById('fm-link-editor').style.display='none';">Cancel</button>
-      <button class="primary sm" onclick="fmSaveLink()">Save</button>
-    </div>
-  </div>
-  <div id="fm-embed-wrap" style="position:relative;width:100%;height:82vh;background:#f0f2f5;">
+  <div id="fm-embed-wrap" style="position:relative;width:100%;height:86vh;background:#0f1923;overflow:hidden;">
     <div id="fm-embed-empty" style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:24px;color:#8a96a8;">
       <div style="font-size:40px;margin-bottom:10px;">&#128506;</div>
-      <p style="font-size:13px;">No floor plan link set yet — click "Edit link" above to add one.</p>
+      <p style="font-size:13px;">No floor plan uploaded yet — click "Upload Screenshot" above to add one.</p>
     </div>
-    <iframe id="fm-embed-frame" style="display:none;width:100%;height:100%;border:none;" title="Floor Plan"></iframe>
+    <img id="fm-embed-img" style="display:none;width:100%;height:100%;object-fit:contain;" alt="Floor Plan" />
   </div>
 </div>
 <!-- ============================================================ END FLOOR MAP PAGE -->
@@ -3877,68 +3870,42 @@ function getFloorMapBg() {
 // day (or several) stale — especially important here since the source
 // document changes daily and there's no automatic way to pull the latest
 // version in (see the reasoning in saveFloorMapBg below).
+// Shows how fresh the uploaded floor plan is, and keeps the displayed
+// image (or the empty state) in sync with what's actually stored —
+// called from renderFloorMap() on every page render.
 function renderFmLastUpdated() {
   const el = document.getElementById('fm-last-updated'); if (!el) return;
-  const link = getFloorMapLink();
-  const btn = document.getElementById('fm-open-link-btn');
-  if (btn) btn.href = link || '#';
+  const rec = unitIssues['__config__floormap_bg'];
+  const bg = getFloorMapBg();
+  const hasRealImage = bg && bg !== DEFAULT_FLOOR_MAP_BG;
 
-  const frame = document.getElementById('fm-embed-frame');
+  const img = document.getElementById('fm-embed-img');
   const emptyEl = document.getElementById('fm-embed-empty');
-  if (frame && emptyEl) {
-    if (link) {
-      // Only touch src when it's actually changed — resetting it to the
-      // same value would reload the embedded page every time this runs
-      // (e.g. on every auto-sync cycle while someone's just sitting on
-      // this page), which would be a jarring, flickering experience for
-      // no reason.
-      if (frame.src !== link) frame.src = link;
-      frame.style.display = 'block';
+  if (img && emptyEl) {
+    if (hasRealImage) {
+      if (img.src !== bg) img.src = bg;
+      img.style.display = 'block';
       emptyEl.style.display = 'none';
     } else {
-      frame.style.display = 'none';
+      img.style.display = 'none';
       emptyEl.style.display = 'flex';
     }
   }
 
-  if (!link) {
-    el.innerHTML = `<span style="color:#A03033;">No floor plan link set yet — click "Edit link" above to add one.</span>`;
-    return;
+  if (!rec || !rec.updatedAt || !hasRealImage) { el.textContent = ''; return; }
+  const updated = new Date(rec.updatedAt);
+  if (isNaN(updated)) { el.textContent = ''; return; }
+  const today = new Date(); today.setHours(0,0,0,0);
+  const updatedDay = new Date(updated); updatedDay.setHours(0,0,0,0);
+  const daysAgo = Math.round((today - updatedDay) / 86400000);
+  const dateStr = updated.toLocaleDateString('en-US', { month:'short', day:'numeric' });
+  if (daysAgo <= 0) {
+    el.innerHTML = `<span style="color:#0e7c3a;font-weight:700;">&#10003; Updated today</span>`;
+  } else if (daysAgo === 1) {
+    el.innerHTML = `<span style="color:#b45309;font-weight:700;">&#9888; Updated yesterday (${dateStr})</span>`;
+  } else {
+    el.innerHTML = `<span style="color:#A03033;font-weight:700;">&#9888; Updated ${daysAgo} days ago (${dateStr}) — may be out of date</span>`;
   }
-  // Most corporate SharePoint sites block being shown inside another
-  // page (X-Frame-Options/CSP) for security reasons, and there's no way
-  // for this page to detect that failure and warn automatically — it
-  // just renders blank inside the frame. This note and the "Open in New
-  // Tab" button are the honest, reliable fallback for that case.
-  el.textContent = 'If the floor plan doesn\'t appear below, your SharePoint site may block embedding — use "Open in New Tab" instead.';
-}
-function getFloorMapLink() {
-  const synced = unitIssues['__config__floormap_link'] && unitIssues['__config__floormap_link'].url;
-  if (synced) return synced;
-  return localStorage.getItem('floormap_link_local') || '';
-}
-function saveFloorMapLink(url) {
-  unitIssues['__config__floormap_link'] = { url, updatedAt: new Date().toISOString() };
-  localStorage.setItem('floormap_link_local', url);
-  saveIssues();
-}
-function fmEditLink() {
-  const editor = document.getElementById('fm-link-editor');
-  const input = document.getElementById('fm-link-input');
-  input.value = getFloorMapLink();
-  editor.style.display = 'block';
-  document.getElementById('fm-link-err').textContent = '';
-  input.focus();
-}
-function fmSaveLink() {
-  const input = document.getElementById('fm-link-input');
-  const errEl = document.getElementById('fm-link-err');
-  const url = input.value.trim();
-  if (!url) { errEl.textContent = 'Enter a link.'; return; }
-  try { new URL(url); } catch(e) { errEl.textContent = 'That doesn\'t look like a valid link.'; return; }
-  saveFloorMapLink(url);
-  document.getElementById('fm-link-editor').style.display = 'none';
-  renderFmLastUpdated();
 }
 function saveFloorMapBg(dataUrl) {
   unitIssues['__config__floormap_bg'] = { url: dataUrl, updatedAt: new Date().toISOString() };
@@ -12732,7 +12699,7 @@ function quickDismissReadyForPDI(unitId) {
    visible stamp every time a change is made, or version checks
    against a stale reference and never fires.
    ============================================================ */
-const BUILD_DATE = '2026-08-21-31';
+const BUILD_DATE = '2026-08-21-32';
 let updateBannerShown = false;
 function checkForNewVersion() {
   if (updateBannerShown) return;

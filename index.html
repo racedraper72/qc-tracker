@@ -1146,7 +1146,7 @@ label { font-size: 11px; font-weight: 600; color: var(--text-2); display: block;
 
 <!-- ============================================================ HEADER -->
 <div class="app-header">
-  <div id="build-stamp" title="If this looks out of date after an update was announced, hard-refresh with Ctrl+Shift+R (Cmd+Shift+R on Mac) to clear your browser's cached copy.">Build: <span id="build-stamp-text">2026-08-21-35</span></div>
+  <div id="build-stamp" title="If this looks out of date after an update was announced, hard-refresh with Ctrl+Shift+R (Cmd+Shift+R on Mac) to clear your browser's cached copy.">Build: <span id="build-stamp-text">2026-08-21-38</span></div>
   <div id="header-signed-in" style="position:absolute;top:26px;right:16px;font-size:11px;color:rgba(255,255,255,.75);white-space:nowrap;z-index:101;"></div>
   <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;flex:1;">
     <div style="background:#fff;border-radius:8px;padding:8px 14px;display:flex;align-items:center;box-shadow:0 1px 3px rgba(0,0,0,.15);">
@@ -1305,6 +1305,22 @@ label { font-size: 11px; font-weight: 600; color: var(--text-2); display: block;
   <!-- Admin-configured Dashboard cards — hidden until Admin adds at least one -->
   <div class="dash-card-wrap" data-card-id="custom">
     <div id="dashboard-custom-cards" style="display:none;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:10px;margin-bottom:18px;"></div>
+  </div>
+
+  <!-- Station Tracker Time report — filterable by Project, Unit, Station, Job and Person -->
+  <div class="dash-card-wrap" data-card-id="trackertime">
+    <div class="card" style="margin-bottom:18px;">
+      <div class="section-title">&#9201; Station Tracker Time</div>
+      <p style="font-size:12px;color:#605e5c;margin-bottom:10px;">Active / Material Hold / Engineering Hold time — Project &rarr; Unit &rarr; Station &rarr; Job &rarr; Person. Each unit always shows its own separate time, never combined with another unit's. Pick a project to start; narrow further with any of the other filters, or leave them on "All" for a fuller report.</p>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;">
+        <div><label style="font-size:10px;font-weight:700;color:var(--text-3,#8a96a8);text-transform:uppercase;">Project</label><select id="dash-tt-project" onchange="dashTTProjectChanged();"></select></div>
+        <div><label style="font-size:10px;font-weight:700;color:var(--text-3,#8a96a8);text-transform:uppercase;">Unit</label><select id="dash-tt-unit" onchange="dashTTUnitChanged();"></select></div>
+        <div><label style="font-size:10px;font-weight:700;color:var(--text-3,#8a96a8);text-transform:uppercase;">Station</label><select id="dash-tt-station" onchange="dashTTStationChanged();"></select></div>
+        <div><label style="font-size:10px;font-weight:700;color:var(--text-3,#8a96a8);text-transform:uppercase;">Job</label><select id="dash-tt-task" onchange="renderDashTrackerTime();"></select></div>
+        <div><label style="font-size:10px;font-weight:700;color:var(--text-3,#8a96a8);text-transform:uppercase;">Person</label><select id="dash-tt-person" onchange="renderDashTrackerTime();"></select></div>
+      </div>
+      <div id="dash-tt-body"></div>
+    </div>
   </div>
 
   <!-- Completed -->
@@ -2529,6 +2545,7 @@ function getS2TaskState(u, taskName, stationKey) {
     if (e.engineeringHoldSec === undefined) e.engineeringHoldSec = 0;
     if (e.currentSegmentStart === undefined) e.currentSegmentStart = null;
     if (e.isTrainee === undefined) e.isTrainee = false;
+    if (e.name === undefined) e.name = '';
     if (e.materialHoldNote === undefined) e.materialHoldNote = '';
     if (e.engineeringHoldNote === undefined) e.engineeringHoldNote = '';
     // Multiple reasons per hold, e.g. two different missing parts at once —
@@ -2583,18 +2600,21 @@ function s2ToggleLinkInput(sid) {
   if (!showing) setTimeout(() => document.getElementById('s2-link-input-'+sid)?.focus(), 50);
 }
 function s2AddEmployee(unitId, taskName, sid, stationKey) {
-  const input = document.getElementById('s2-emp-input-'+sid);
-  if (!input) return;
-  const num = input.value.trim();
+  const numInput = document.getElementById('s2-emp-input-'+sid);
+  const nameInput = document.getElementById('s2-emp-name-input-'+sid);
+  if (!numInput) return;
+  const num = numInput.value.trim();
+  const name = nameInput ? nameInput.value.trim() : '';
   if (!num) return;
   const u = ensureBoardTracked(unitId);
   const t = getS2TaskState(u, taskName, stationKey);
-  if (t.employees.some(e => e.num === num)) { input.value = ''; return; } // no duplicates
+  if (t.employees.some(e => e.num === num)) { numInput.value = ''; if (nameInput) nameInput.value = ''; return; } // no duplicates
   t.employees.push({
-    num, isTrainee: false, status: 'idle',
+    num, name, isTrainee: false, status: 'idle',
     activeSec: 0, materialHoldSec: 0, engineeringHoldSec: 0, currentSegmentStart: null,
   });
-  input.value = '';
+  numInput.value = '';
+  if (nameInput) nameInput.value = '';
   pushBoard();
   renderStationTracker(stationKey || 'Station 2');
 }
@@ -2988,10 +3008,12 @@ function renderStationTracker(stationKey) {
     const project = getProjectType(u.id);
     const taskList = getStationTaskList(stationKey, project);
     if (!taskList.length) {
-      return `<div style="background:var(--surface,#fff);border:1px solid var(--border,#edebe9);border-top:4px solid ${cs.border};border-radius:10px;padding:16px 18px;">
-        <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px;">
-          <span style="font-size:16px;font-weight:800;color:${cs.text};">${u.id}</span>
-          <span style="font-size:12px;font-weight:800;padding:4px 12px;border-radius:20px;background:${cs.border};color:#fff;letter-spacing:.3px;">${project}</span>
+      return `<div class="chart-card" style="border-top:4px solid ${cs.border};">
+        <div class="chart-title" style="margin-bottom:4px;">
+          <span style="display:flex;align-items:center;gap:10px;">
+            <span style="color:${cs.text};">${u.id}</span>
+            <span style="font-size:11px;font-weight:800;padding:3px 10px;border-radius:20px;background:${cs.border};color:#fff;letter-spacing:.3px;">${project}</span>
+          </span>
         </div>
         <p style="font-size:13px;color:var(--text-3,#8a96a8);">No tasks defined for ${project} at ${stationKey} yet — add some in Admin &rarr; Station Tracker Editor.</p>
       </div>`;
@@ -2999,7 +3021,7 @@ function renderStationTracker(stationKey) {
     const taskRows = taskList.map(taskName => {
       const t = getS2TaskState(u, taskName, stationKey);
       const tsid = safeId(u.id + '_' + stationKey + '_' + taskName);
-      const btnBase = 'font-size:15px;font-weight:700;padding:14px 18px;border-radius:10px;min-height:48px;cursor:pointer;flex:1;min-width:140px;';
+      const btnBase = 'font-size:14px;font-weight:700;padding:12px 16px;border-radius:8px;min-height:46px;cursor:pointer;flex:1;min-width:130px;';
 
       const taskEarned = t.employees.reduce((sum, emp) =>
         sum + s2LiveSeconds(emp,'active') + s2LiveSeconds(emp,'materialHold') + s2LiveSeconds(emp,'engineeringHold'), 0);
@@ -3016,9 +3038,9 @@ function renderStationTracker(stationKey) {
           buttons = `<button class="success" style="${btnBase}" onclick="s2TaskAction('${u.id}','${taskName}',${idx},'start',null,'${stationKey}')">&#9654; Start</button>`;
         } else if (e.status === 'running') {
           buttons = `
-            <button style="${btnBase}background:#fff;border:2px solid #b45309;color:#b45309;" onclick="s2TaskAction('${u.id}','${taskName}',${idx},'pause',null,'${stationKey}')">&#9208; Pause</button>
-            <button style="${btnBase}background:#fff;border:2px solid #4b3a9e;color:#4b3a9e;" onclick="s2OpenHoldNoteModal('${u.id}','${taskName}',${idx},'holdMaterial','${stationKey}')">&#128230; Hold: Material</button>
-            <button style="${btnBase}background:#fff;border:2px solid #006A8E;color:#006A8E;" onclick="s2OpenHoldNoteModal('${u.id}','${taskName}',${idx},'holdEngineering','${stationKey}')">&#128203; Hold: Engineering</button>
+            <button style="${btnBase}background:#fff;border:1.5px solid #b45309;color:#b45309;" onclick="s2TaskAction('${u.id}','${taskName}',${idx},'pause',null,'${stationKey}')">&#9208; Pause</button>
+            <button style="${btnBase}background:#fff;border:1.5px solid #4b3a9e;color:#4b3a9e;" onclick="s2OpenHoldNoteModal('${u.id}','${taskName}',${idx},'holdMaterial','${stationKey}')">&#128230; Hold: Material</button>
+            <button style="${btnBase}background:#fff;border:1.5px solid #006A8E;color:#006A8E;" onclick="s2OpenHoldNoteModal('${u.id}','${taskName}',${idx},'holdEngineering','${stationKey}')">&#128203; Hold: Engineering</button>
             <button class="success" style="${btnBase}" onclick="s2TaskAction('${u.id}','${taskName}',${idx},'finish',null,'${stationKey}')">&#10003; Finished</button>`;
         } else if (e.status === 'paused') {
           buttons = `
@@ -3030,33 +3052,34 @@ function renderStationTracker(stationKey) {
           buttons = `<button class="subtle" style="${btnBase}" onclick="s2TaskAction('${u.id}','${taskName}',${idx},'reopen',null,'${stationKey}')">&#8635; Reopen</button>`;
         }
 
-        return `<div style="border:1px solid var(--border,#edebe9);border-left:5px solid ${S2_STATUS_COLOR[e.status]};border-radius:10px;padding:12px 14px;margin-bottom:10px;background:${e.isTrainee?'#fffdf5':'transparent'};">
-          <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:10px;margin-bottom:10px;">
-            <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
-              <span style="font-size:17px;font-weight:800;color:var(--text-1,#323130);">${e.num}</span>
+        return `<div style="border:1px solid var(--border,#edebe9);border-left:4px solid ${S2_STATUS_COLOR[e.status]};border-radius:8px;padding:12px 14px;margin-bottom:8px;background:${e.isTrainee?'#fffdf5':'var(--surface,#fff)'};">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:10px;margin-bottom:8px;">
+            <div style="display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;">
+              <span style="font-size:16px;font-weight:800;color:var(--text-1,#323130);">${e.name ? e.name : e.num}</span>
+              ${e.name ? `<span style="font-size:12px;color:var(--text-3,#8a96a8);">#${e.num}</span>` : ''}
               <span style="font-size:11px;font-weight:700;padding:2px 9px;border-radius:20px;background:${S2_STATUS_COLOR[e.status]}22;color:${S2_STATUS_COLOR[e.status]};">${S2_STATUS_LABEL[e.status]}</span>
               ${e.isTrainee ? `<span style="font-size:11px;font-weight:700;padding:2px 9px;border-radius:20px;background:#fff4ce;color:#c17f00;">&#127891; Trainee</span>` : ''}
             </div>
             <div style="display:flex;gap:6px;">
               <button onclick="s2ToggleTrainee('${u.id}','${taskName}',${idx},'${stationKey}')" title="${e.isTrainee?'Trainee — tap to unmark':'Mark as trainee'}"
-                style="min-height:36px;padding:0 10px;font-size:12px;font-weight:700;border-radius:8px;cursor:pointer;background:${e.isTrainee?'#c17f00':'#fff'};border:2px solid ${e.isTrainee?'#c17f00':'#c8d0dc'};color:${e.isTrainee?'#fff':'#605e5c'};">&#127891;</button>
+                style="min-height:34px;padding:0 10px;font-size:12px;font-weight:700;border-radius:8px;cursor:pointer;background:${e.isTrainee?'#c17f00':'#fff'};border:1.5px solid ${e.isTrainee?'#c17f00':'#c8d0dc'};color:${e.isTrainee?'#fff':'#605e5c'};">&#127891;</button>
               ${(e.status==='running'||e.status==='paused'||e.status==='holdMaterial'||e.status==='holdEngineering') ? `<button onclick="s2OpenSupervisorClockOut('${u.id}','${taskName}',${idx},'${stationKey}')" title="Supervisor: clock out and/or adjust this person's time"
-                style="min-height:36px;padding:0 10px;font-size:12px;font-weight:700;border-radius:8px;cursor:pointer;background:#fff;border:2px solid #892729;color:#892729;">&#128274; Clock Out</button>` : ''}
+                style="min-height:34px;padding:0 10px;font-size:12px;font-weight:700;border-radius:8px;cursor:pointer;background:#fff;border:1.5px solid #892729;color:#892729;">&#128274; Clock Out</button>` : ''}
               <button onclick="s2RemoveEmployee('${u.id}','${taskName}',${idx},'${stationKey}')" title="Remove"
-                style="min-width:36px;min-height:36px;font-size:15px;border-radius:8px;cursor:pointer;background:#fff;border:2px solid #c8d0dc;color:#A03033;padding:0;">&#10005;</button>
+                style="min-width:34px;min-height:34px;font-size:14px;border-radius:8px;cursor:pointer;background:#fff;border:1.5px solid #c8d0dc;color:#A03033;padding:0;">&#10005;</button>
             </div>
           </div>
-          <div style="display:flex;gap:14px;flex-wrap:wrap;margin-bottom:10px;font-size:12px;">
-            <span style="color:var(--text-2,#605e5c);">Active: <strong id="s2-active-${esid}" style="color:#0e7c3a;">${s2FormatHM(activeSec)}</strong></span>
-            <span style="color:var(--text-2,#605e5c);">Material Hold: <strong id="s2-mat-${esid}" style="color:#4b3a9e;">${s2FormatHM(matSec)}</strong></span>
-            <span style="color:var(--text-2,#605e5c);">Engineering Hold: <strong id="s2-eng-${esid}" style="color:#006A8E;">${s2FormatHM(engSec)}</strong></span>
-            <span style="color:var(--text-1,#323130);">Earned: <strong id="s2-earned-${esid}">${s2FormatHM(earnedSec)}</strong></span>
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(100px,1fr));gap:4px 14px;margin-bottom:8px;font-size:12px;padding:8px 10px;background:var(--surface-2,#faf9f8);border-radius:6px;">
+            <span style="color:var(--text-2,#605e5c);">Active<br><strong id="s2-active-${esid}" style="font-size:13px;color:#0e7c3a;">${s2FormatHM(activeSec)}</strong></span>
+            <span style="color:var(--text-2,#605e5c);">Material Hold<br><strong id="s2-mat-${esid}" style="font-size:13px;color:#4b3a9e;">${s2FormatHM(matSec)}</strong></span>
+            <span style="color:var(--text-2,#605e5c);">Engineering Hold<br><strong id="s2-eng-${esid}" style="font-size:13px;color:#006A8E;">${s2FormatHM(engSec)}</strong></span>
+            <span style="color:var(--text-2,#605e5c);">Earned<br><strong id="s2-earned-${esid}" style="font-size:13px;color:var(--text-1,#323130);">${s2FormatHM(earnedSec)}</strong></span>
           </div>
-          ${e.status==='holdMaterial' && e.materialHoldNotes.length ? `<div style="margin-bottom:10px;">
+          ${e.status==='holdMaterial' && e.materialHoldNotes.length ? `<div style="margin-bottom:8px;">
             ${e.materialHoldNotes.map(n => `<div style="font-size:12px;color:#4b3a9e;background:#f0eeff;border-radius:6px;padding:6px 10px;margin-bottom:4px;">${n.note}<span style="opacity:.65;font-size:10px;margin-left:6px;">${n.ts}</span></div>`).join('')}
             <button class="sm" onclick="s2OpenHoldNoteModal('${u.id}','${taskName}',${idx},'addMaterialReason','${stationKey}')" style="border-color:#4b3a9e;color:#4b3a9e;">&#43; Add another reason</button>
           </div>` : ''}
-          ${e.status==='holdEngineering' && e.engineeringHoldNotes.length ? `<div style="margin-bottom:10px;">
+          ${e.status==='holdEngineering' && e.engineeringHoldNotes.length ? `<div style="margin-bottom:8px;">
             ${e.engineeringHoldNotes.map(n => `<div style="font-size:12px;color:#006A8E;background:#E6F0F3;border-radius:6px;padding:6px 10px;margin-bottom:4px;">${n.note}<span style="opacity:.65;font-size:10px;margin-left:6px;">${n.ts}</span></div>`).join('')}
             <button class="sm" onclick="s2OpenHoldNoteModal('${u.id}','${taskName}',${idx},'addEngineeringReason','${stationKey}')" style="border-color:#006A8E;color:#006A8E;">&#43; Add another reason</button>
           </div>` : ''}
@@ -3064,30 +3087,31 @@ function renderStationTracker(stationKey) {
         </div>`;
       }).join('');
 
-      return `<div style="border:1px solid var(--border,#edebe9);border-radius:10px;padding:16px 18px;margin-bottom:12px;background:var(--surface-2,#faf9f8);">
-        <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:12px;margin-bottom:12px;">
-          <div style="font-size:16px;font-weight:700;color:var(--text-1,#323130);">${taskName}</div>
-          <span style="font-size:13px;font-weight:700;color:var(--text-1,#323130);">Job total: <span id="s2-task-total-${tsid}">${s2FormatHM(taskEarned)}</span></span>
+      return `<div style="border:1px solid var(--border,#edebe9);border-radius:10px;padding:14px 16px;margin-bottom:10px;background:var(--surface,#fff);">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:10px;margin-bottom:10px;">
+          <div style="font-size:15px;font-weight:700;color:var(--text-1,#323130);">${taskName}</div>
+          <span style="font-size:12px;font-weight:700;color:var(--text-2,#605e5c);">Job total: <span id="s2-task-total-${tsid}" style="color:var(--text-1,#323130);">${s2FormatHM(taskEarned)}</span></span>
         </div>
-        <div style="margin-bottom:12px;">
+        <div style="margin-bottom:10px;">
           ${(() => {
             const defaultLink = getDefaultTaskLink(stationKey, project, taskName);
             if (!defaultLink) return `<p style="font-size:12px;color:var(--text-3,#8a96a8);font-style:italic;">No reference link set for this task — add one in Admin &rarr; Station Tracker Editor.</p>`;
-            return `<a href="${defaultLink}" target="_blank" rel="noopener" style="font-size:14px;color:#892729;text-decoration:none;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:320px;display:inline-block;" onmouseover="this.style.textDecoration='underline'" onmouseout="this.style.textDecoration='none'" title="${defaultLink}">&#128279; ${defaultLink.replace(/^https?:\/\//,'')}</a>`;
+            return `<a href="${defaultLink}" target="_blank" rel="noopener" style="font-size:13px;color:#892729;text-decoration:none;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:320px;display:inline-block;" onmouseover="this.style.textDecoration='underline'" onmouseout="this.style.textDecoration='none'" title="${defaultLink}">&#128279; ${defaultLink.replace(/^https?:\/\//,'')}</a>`;
           })()}
         </div>
-        <div style="margin-bottom:12px;">
-          <div style="font-size:11px;font-weight:700;color:var(--text-2,#605e5c);text-transform:uppercase;letter-spacing:.3px;margin-bottom:6px;">Job notes</div>
-          <textarea id="s2-notes-input-${tsid}" placeholder="Any notes about this job..." onchange="s2SetNotes('${u.id}','${taskName}','${tsid}','${stationKey}')"
-            style="width:100%;font-size:14px;padding:10px;min-height:44px;">${t.notes||''}</textarea>
-        </div>
         <div style="margin-bottom:10px;">
-          <div style="font-size:11px;font-weight:700;color:var(--text-2,#605e5c);text-transform:uppercase;letter-spacing:.3px;margin-bottom:8px;">Workers on this job — each has their own timer</div>
+          <div style="font-size:10px;font-weight:700;color:var(--text-3,#8a96a8);text-transform:uppercase;letter-spacing:.3px;margin-bottom:5px;">Job notes</div>
+          <textarea id="s2-notes-input-${tsid}" placeholder="Any notes about this job..." onchange="s2SetNotes('${u.id}','${taskName}','${tsid}','${stationKey}')"
+            style="width:100%;font-size:13px;padding:9px;min-height:40px;">${t.notes||''}</textarea>
+        </div>
+        <div>
+          <div style="font-size:10px;font-weight:700;color:var(--text-3,#8a96a8);text-transform:uppercase;letter-spacing:.3px;margin-bottom:6px;">Workers on this job — each has their own timer</div>
           ${empRows || '<p style="font-size:13px;color:var(--text-3,#8a96a8);font-style:italic;margin-bottom:8px;">No one added yet</p>'}
-          <div style="display:flex;gap:8px;">
+          <div style="display:flex;gap:8px;flex-wrap:wrap;">
+            <input id="s2-emp-name-input-${tsid}" type="text" placeholder="Employee name" style="flex:1;min-width:140px;max-width:220px;font-size:15px;padding:11px 10px;min-height:46px;" />
             <input id="s2-emp-input-${tsid}" type="text" placeholder="Employee #" onkeydown="if(event.key==='Enter')s2AddEmployee('${u.id}','${taskName}','${tsid}','${stationKey}')"
-              style="flex:1;max-width:200px;font-size:16px;padding:12px 10px;min-height:48px;" />
-            <button class="primary" style="font-size:15px;font-weight:700;padding:12px 20px;min-height:48px;border-radius:10px;" onclick="s2AddEmployee('${u.id}','${taskName}','${tsid}','${stationKey}')">+ Add Worker</button>
+              style="flex:1;min-width:110px;max-width:160px;font-size:15px;padding:11px 10px;min-height:46px;" />
+            <button class="primary" style="font-size:14px;font-weight:700;padding:11px 18px;min-height:46px;border-radius:8px;" onclick="s2AddEmployee('${u.id}','${taskName}','${tsid}','${stationKey}')">+ Add Worker</button>
           </div>
         </div>
       </div>`;
@@ -3099,13 +3123,13 @@ function renderStationTracker(stationKey) {
       return sum + t.employees.reduce((s,e) => s + s2LiveSeconds(e,'active') + s2LiveSeconds(e,'materialHold') + s2LiveSeconds(e,'engineeringHold'), 0);
     }, 0);
 
-    return `<div style="background:var(--surface,#fff);border:1px solid var(--border,#edebe9);border-top:4px solid ${cs.border};border-radius:10px;padding:16px 18px;">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:8px;">
-        <div style="display:flex;align-items:center;gap:10px;">
-          <span style="font-size:16px;font-weight:800;color:${cs.text};">${u.id}</span>
-          <span style="font-size:12px;font-weight:800;padding:4px 12px;border-radius:20px;background:${cs.border};color:#fff;letter-spacing:.3px;">${project}</span>
-        </div>
-        <span style="font-size:13px;font-weight:700;color:var(--text-1,#323130);">Unit total earned: ${s2FormatHM(unitEarnedSec)}</span>
+    return `<div class="chart-card" style="border-top:4px solid ${cs.border};">
+      <div class="chart-title">
+        <span style="display:flex;align-items:center;gap:10px;">
+          <span style="color:${cs.text};">${u.id}</span>
+          <span style="font-size:11px;font-weight:800;padding:3px 10px;border-radius:20px;background:${cs.border};color:#fff;letter-spacing:.3px;">${project}</span>
+        </span>
+        <span style="font-size:12px;font-weight:700;color:var(--text-2,#605e5c);">Unit total earned: <span style="color:var(--text-1,#323130);">${s2FormatHM(unitEarnedSec)}</span></span>
       </div>
       ${taskRows}
     </div>`;
@@ -6083,7 +6107,7 @@ function getBoardReadyForReleaseUnits() {
 
 /* ---- Dashboard card reordering ---- */
 const DASH_CARD_ORDER_KEY = 'dashboard_card_order';
-const DASH_CARD_DEFAULT_ORDER = ['lines','custom','completedboard'];
+const DASH_CARD_DEFAULT_ORDER = ['lines','custom','trackertime','completedboard'];
 let dashDraggedId = null;
 
 function getDashCardOrder() {
@@ -6137,6 +6161,7 @@ function resetDashboardOrder() {
 const DASH_SECTION_LABELS = {
   lines: '&#128203; Production lines',
   custom: '&#128200; Custom metric cards (below)',
+  trackertime: '&#9201; Station Tracker Time',
   completedboard: '&#9989; Completed — Board',
 };
 let secOrderDraggedId = null;
@@ -6224,6 +6249,7 @@ function renderAll() {
   renderBoardStats(); renderLineSummary(); renderBoardCompleted();
   renderChecklistKPI();
   renderDashboardCards();
+  renderDashTrackerTime();
   applyDashboardCardOrder();
   const typing = isTypingInUnitCard();
   if (currentPage==='tracker' && !typing) { renderUnifiedTabs(); renderUnifiedContent(); }
@@ -9470,23 +9496,29 @@ function getInspectorActivity() {
    finished entries, since those aren't "clocked in" right now. */
 // Totals Active/Material Hold/Engineering Hold time across EVERY unit
 // (including completed ones, since this is meant to be a full historical
-// picture, not just what's active right now) — broken down by station,
-// then by task within that station, then by the specific person within
-// that task. Time from an employee's segments still currently running is
-// included live via s2LiveSeconds, so the totals stay accurate for
-// anyone who's actively clocked in right now, not just banked time from
-// segments that have already finished.
+// picture, not just what's active right now) — broken down by project,
+// then unit (each unit's own entry, NEVER combined with another unit's
+// even for the same person on the same task — confirmed explicitly,
+// since summing across units would hide which specific unit the time
+// was actually spent on), then station, then job (task) within that
+// station, then the specific person on that job. Time from an
+// employee's segments still currently running is included live via
+// s2LiveSeconds, so totals stay accurate for anyone actively clocked in
+// right now, not just banked time from segments that have finished.
 function getStationTrackerTimeReport() {
-  const tree = {}; // station -> task -> empNum -> { activeSec, materialHoldSec, engineeringHoldSec, isTrainee }
+  const tree = {}; // project -> unitId -> station -> task -> empNum -> { activeSec, materialHoldSec, engineeringHoldSec, isTrainee }
   getAllBoardUnits().forEach(u => {
+    const project = getProjectType(u.id);
     const scan = (bucket, stationKey) => {
       if (!bucket) return;
       Object.keys(bucket).forEach(taskName => {
         (bucket[taskName].employees || []).forEach(e => {
-          if (!tree[stationKey]) tree[stationKey] = {};
-          if (!tree[stationKey][taskName]) tree[stationKey][taskName] = {};
-          if (!tree[stationKey][taskName][e.num]) tree[stationKey][taskName][e.num] = { activeSec: 0, materialHoldSec: 0, engineeringHoldSec: 0, isTrainee: false };
-          const agg = tree[stationKey][taskName][e.num];
+          if (!tree[project]) tree[project] = {};
+          if (!tree[project][u.id]) tree[project][u.id] = {};
+          if (!tree[project][u.id][stationKey]) tree[project][u.id][stationKey] = {};
+          if (!tree[project][u.id][stationKey][taskName]) tree[project][u.id][stationKey][taskName] = {};
+          if (!tree[project][u.id][stationKey][taskName][e.num]) tree[project][u.id][stationKey][taskName][e.num] = { activeSec: 0, materialHoldSec: 0, engineeringHoldSec: 0, isTrainee: false };
+          const agg = tree[project][u.id][stationKey][taskName][e.num];
           agg.activeSec += s2LiveSeconds(e, 'active');
           agg.materialHoldSec += s2LiveSeconds(e, 'materialHold');
           agg.engineeringHoldSec += s2LiveSeconds(e, 'engineeringHold');
@@ -9499,6 +9531,187 @@ function getStationTrackerTimeReport() {
   });
   return tree;
 }
+// Flattens the project→unit→station→task→person tree into a simpler
+// station→task→person view, summed across every project and unit — used
+// by the PM View report, which only picks by station and isn't meant to
+// break out by unit the way the Dashboard's fuller version does.
+function flattenTimeReportByStation(tree) {
+  const flat = {};
+  Object.values(tree).forEach(units => {
+    Object.values(units).forEach(stations => {
+      Object.keys(stations).forEach(stationKey => {
+        if (!flat[stationKey]) flat[stationKey] = {};
+        Object.keys(stations[stationKey]).forEach(taskName => {
+          if (!flat[stationKey][taskName]) flat[stationKey][taskName] = {};
+          Object.keys(stations[stationKey][taskName]).forEach(num => {
+            const src = stations[stationKey][taskName][num];
+            if (!flat[stationKey][taskName][num]) flat[stationKey][taskName][num] = { activeSec: 0, materialHoldSec: 0, engineeringHoldSec: 0, isTrainee: false };
+            const dst = flat[stationKey][taskName][num];
+            dst.activeSec += src.activeSec;
+            dst.materialHoldSec += src.materialHoldSec;
+            dst.engineeringHoldSec += src.engineeringHoldSec;
+            if (src.isTrainee) dst.isTrainee = true;
+          });
+        });
+      });
+    });
+  });
+  return flat;
+}
+
+/* ---- Dashboard: Station Tracker Time (filterable Project/Unit/Station/Job/Person) ----
+   Same underlying data as the PM View report, but with the full drill-
+   down hierarchy right on the Dashboard so anyone can build the specific
+   report they need — one unit's time at one station, one person across
+   every job they've touched, or the full picture — without leaving the
+   Dashboard. Units are NEVER combined together even when "All" is
+   selected — confirmed explicitly — so the table always shows which
+   specific unit each row's time belongs to.
+   Each "changed" handler resets everything BELOW it back to "All" (or
+   the first real option, for the two required selects), since a
+   selection from the old scope wouldn't mean anything in the new one. */
+function dashTTProjectChanged() {
+  const unitSel = document.getElementById('dash-tt-unit');
+  const stationSel = document.getElementById('dash-tt-station');
+  const taskSel = document.getElementById('dash-tt-task');
+  const personSel = document.getElementById('dash-tt-person');
+  if (unitSel) unitSel.value = '';
+  if (stationSel) stationSel.value = 'All';
+  if (taskSel) taskSel.value = 'All';
+  if (personSel) personSel.value = 'All';
+  renderDashTrackerTime();
+}
+function dashTTUnitChanged() {
+  const stationSel = document.getElementById('dash-tt-station');
+  const taskSel = document.getElementById('dash-tt-task');
+  const personSel = document.getElementById('dash-tt-person');
+  if (stationSel) stationSel.value = 'All';
+  if (taskSel) taskSel.value = 'All';
+  if (personSel) personSel.value = 'All';
+  renderDashTrackerTime();
+}
+function dashTTStationChanged() {
+  const taskSel = document.getElementById('dash-tt-task');
+  const personSel = document.getElementById('dash-tt-person');
+  if (taskSel) taskSel.value = 'All';
+  if (personSel) personSel.value = 'All';
+  renderDashTrackerTime();
+}
+// Repopulates a <select> only if its actual option list has changed —
+// rebuilding it every render would reset the user's mid-use selection
+// (e.g. on the next auto-sync cycle while they're actively using this).
+// Returns the value that should be treated as currently selected.
+function dashTTSyncSelect(sel, values, keepIfMissing) {
+  const currentOptions = Array.from(sel.options).map(o => o.value).join('\u0001');
+  const wanted = values.join('\u0001');
+  if (currentOptions !== wanted) {
+    const keep = values.includes(sel.value) ? sel.value : (keepIfMissing !== undefined ? keepIfMissing : values[0]);
+    sel.innerHTML = values.map(v => `<option value="${v}" ${v===keep?'selected':''}>${v}</option>`).join('');
+  }
+  return sel.value;
+}
+function renderDashTrackerTime() {
+  const projectSel = document.getElementById('dash-tt-project');
+  const unitSel = document.getElementById('dash-tt-unit');
+  const stationSel = document.getElementById('dash-tt-station');
+  const taskSel = document.getElementById('dash-tt-task');
+  const personSel = document.getElementById('dash-tt-person');
+  const bodyEl = document.getElementById('dash-tt-body');
+  if (!projectSel || !unitSel || !stationSel || !taskSel || !personSel || !bodyEl) return;
+
+  const tree = getStationTrackerTimeReport(); // project -> unitId -> station -> task -> empNum -> totals
+  const projects = Object.keys(tree);
+  if (!projects.length) {
+    projectSel.innerHTML = '<option>No activity yet</option>';
+    unitSel.innerHTML = '<option>—</option>';
+    stationSel.innerHTML = '<option>All</option>';
+    taskSel.innerHTML = '<option>All</option>';
+    personSel.innerHTML = '<option>All</option>';
+    bodyEl.innerHTML = `<p style="font-size:13px;color:#605e5c;">No Station Tracker activity recorded yet.</p>`;
+    return;
+  }
+
+  const pickedProject = dashTTSyncSelect(projectSel, projects);
+  const units = Object.keys(tree[pickedProject] || {});
+  const pickedUnit = dashTTSyncSelect(unitSel, units);
+  const unitData = tree[pickedProject][pickedUnit] || {};
+
+  const stations = Object.keys(unitData);
+  const pickedStation = dashTTSyncSelect(stationSel, ['All', ...stations]);
+  const relevantStations = pickedStation === 'All' ? stations : [pickedStation];
+
+  // Job (task) list depends on which station(s) are in scope.
+  const taskSet = new Set();
+  relevantStations.forEach(st => Object.keys(unitData[st] || {}).forEach(t => taskSet.add(t)));
+  const taskNames = Array.from(taskSet);
+  const pickedTask = dashTTSyncSelect(taskSel, ['All', ...taskNames]);
+  const relevantTasks = pickedTask === 'All' ? taskNames : [pickedTask];
+
+  // Person list depends on which station(s)+job(s) are in scope.
+  const peopleSet = new Set();
+  relevantStations.forEach(st => relevantTasks.forEach(t => Object.keys((unitData[st]||{})[t] || {}).forEach(num => peopleSet.add(num))));
+  const people = Array.from(peopleSet).sort();
+  const pickedPerson = dashTTSyncSelect(personSel, ['All', ...people]);
+
+  // Build the filtered rows — always tagged with the unit they belong
+  // to, one row per (station, task, person) currently in scope. Never
+  // summed together even across stations/tasks within the same unit,
+  // so the report always reads as "exactly what happened, where."
+  let rows = [];
+  relevantStations.forEach(st => {
+    relevantTasks.forEach(t => {
+      Object.keys((unitData[st]||{})[t] || {}).forEach(num => {
+        if (pickedPerson !== 'All' && num !== pickedPerson) return;
+        rows.push({ unit: pickedUnit, station: st, task: t, num, ...unitData[st][t][num] });
+      });
+    });
+  });
+
+  if (!rows.length) {
+    bodyEl.innerHTML = `<p style="font-size:13px;color:#605e5c;">No activity matches this filter.</p>`;
+    return;
+  }
+
+  let totalActive=0, totalMat=0, totalEng=0;
+  const tableRows = rows.map(r => {
+    const total = r.activeSec + r.materialHoldSec + r.engineeringHoldSec;
+    totalActive += r.activeSec; totalMat += r.materialHoldSec; totalEng += r.engineeringHoldSec;
+    return `<tr>
+      <td style="padding:5px 10px;font-size:12px;font-weight:700;">${r.unit}</td>
+      <td style="padding:5px 10px;font-size:12px;">${r.station}</td>
+      <td style="padding:5px 10px;font-size:12px;">${r.task}</td>
+      <td style="padding:5px 10px;font-size:12px;font-weight:700;">${r.num}${r.isTrainee?' &#127891;':''}</td>
+      <td style="padding:5px 10px;font-size:12px;color:#0e7c3a;">${s2FormatHM(r.activeSec)}</td>
+      <td style="padding:5px 10px;font-size:12px;color:#4b3a9e;">${s2FormatHM(r.materialHoldSec)}</td>
+      <td style="padding:5px 10px;font-size:12px;color:#006A8E;">${s2FormatHM(r.engineeringHoldSec)}</td>
+      <td style="padding:5px 10px;font-size:12px;font-weight:700;">${s2FormatHM(total)}</td>
+    </tr>`;
+  }).join('');
+  const grandTotal = totalActive + totalMat + totalEng;
+
+  bodyEl.innerHTML = `
+    <table style="width:100%;border-collapse:collapse;">
+      <thead><tr>
+        <th style="padding:5px 10px;font-size:10px;color:var(--text-3,#8a96a8);text-transform:uppercase;text-align:left;">Unit</th>
+        <th style="padding:5px 10px;font-size:10px;color:var(--text-3,#8a96a8);text-transform:uppercase;text-align:left;">Station</th>
+        <th style="padding:5px 10px;font-size:10px;color:var(--text-3,#8a96a8);text-transform:uppercase;text-align:left;">Job</th>
+        <th style="padding:5px 10px;font-size:10px;color:var(--text-3,#8a96a8);text-transform:uppercase;text-align:left;">Person</th>
+        <th style="padding:5px 10px;font-size:10px;color:var(--text-3,#8a96a8);text-transform:uppercase;text-align:left;">Active</th>
+        <th style="padding:5px 10px;font-size:10px;color:var(--text-3,#8a96a8);text-transform:uppercase;text-align:left;">Mat. Hold</th>
+        <th style="padding:5px 10px;font-size:10px;color:var(--text-3,#8a96a8);text-transform:uppercase;text-align:left;">Eng. Hold</th>
+        <th style="padding:5px 10px;font-size:10px;color:var(--text-3,#8a96a8);text-transform:uppercase;text-align:left;">Total</th>
+      </tr></thead>
+      <tbody>${tableRows}</tbody>
+      <tfoot><tr style="border-top:2px solid #edebe9;">
+        <td colspan="4" style="padding:6px 10px;font-size:12px;font-weight:800;">Total</td>
+        <td style="padding:6px 10px;font-size:12px;font-weight:800;color:#0e7c3a;">${s2FormatHM(totalActive)}</td>
+        <td style="padding:6px 10px;font-size:12px;font-weight:800;color:#4b3a9e;">${s2FormatHM(totalMat)}</td>
+        <td style="padding:6px 10px;font-size:12px;font-weight:800;color:#006A8E;">${s2FormatHM(totalEng)}</td>
+        <td style="padding:6px 10px;font-size:12px;font-weight:800;">${s2FormatHM(grandTotal)}</td>
+      </tr></tfoot>
+    </table>`;
+}
+
 function getCurrentlyClockedIn() {
   const rows = [];
   getAllBoardUnits().forEach(u => {
@@ -9566,7 +9779,7 @@ function renderPMClockedIn() {
 // dumping every station's data at once.
 function renderPMStationTrackerTime() {
   const el = document.getElementById('pm-station-tracker-time'); if (!el) return;
-  const tree = getStationTrackerTimeReport();
+  const tree = flattenTimeReportByStation(getStationTrackerTimeReport());
   const stations = Object.keys(tree);
   if (!stations.length) {
     el.innerHTML = `<div class="chart-title">Station Tracker Time — Station &rarr; Task &rarr; Person</div><p style="font-size:13px;color:#605e5c;">No Station Tracker activity recorded yet.</p>`;
@@ -12855,7 +13068,7 @@ function quickDismissReadyForPDI(unitId) {
    visible stamp every time a change is made, or version checks
    against a stale reference and never fires.
    ============================================================ */
-const BUILD_DATE = '2026-08-21-35';
+const BUILD_DATE = '2026-08-21-38';
 let updateBannerShown = false;
 function checkForNewVersion() {
   if (updateBannerShown) return;

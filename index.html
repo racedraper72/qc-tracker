@@ -1146,7 +1146,7 @@ label { font-size: 11px; font-weight: 600; color: var(--text-2); display: block;
 
 <!-- ============================================================ HEADER -->
 <div class="app-header">
-  <div id="build-stamp" title="If this looks out of date after an update was announced, hard-refresh with Ctrl+Shift+R (Cmd+Shift+R on Mac) to clear your browser's cached copy.">Build: <span id="build-stamp-text">2026-08-21-33</span></div>
+  <div id="build-stamp" title="If this looks out of date after an update was announced, hard-refresh with Ctrl+Shift+R (Cmd+Shift+R on Mac) to clear your browser's cached copy.">Build: <span id="build-stamp-text">2026-08-21-35</span></div>
   <div id="header-signed-in" style="position:absolute;top:26px;right:16px;font-size:11px;color:rgba(255,255,255,.75);white-space:nowrap;z-index:101;"></div>
   <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;flex:1;">
     <div style="background:#fff;border-radius:8px;padding:8px 14px;display:flex;align-items:center;box-shadow:0 1px 3px rgba(0,0,0,.15);">
@@ -1482,6 +1482,7 @@ label { font-size: 11px; font-weight: 600; color: var(--text-2); display: block;
     <div class="chart-card" id="pm-fail-overrides" style="margin-bottom:14px;"></div>
     <div class="chart-card" id="pm-inspector-activity" style="margin-bottom:14px;"></div>
     <div class="chart-card" id="pm-clocked-in" style="margin-bottom:14px;"></div>
+    <div class="chart-card" id="pm-station-tracker-time" style="margin-bottom:14px;"></div>
   </div>
 
   <!-- ===== TAB: UNITS ===== -->
@@ -2125,14 +2126,14 @@ const CONFIG = {
     'SAT93':{ bg:'#eef2e8',text:'#4a5240',border:'#A8B99A' }, // MSFT SAT 93 — sage green
     'CYS43':{ bg:'#f7ecf0',text:'#6b4552',border:'#C9A8B5' }, // MSFT CYS 43 — light pink/mauve
     'CYS20':{ bg:'#f7e8e0',text:'#7a3820',border:'#B5502F' }, // MSFT CYS 20 — rust/terracotta
-    'EQ10': { bg:'#f0eeff',text:'#4b3a9e',border:'#4b3a9e' },
-    'EQ11': { bg:'#f0eeff',text:'#4b3a9e',border:'#4b3a9e' },
+    'EQ10': { bg:'#f0eeff',text:'#4b3a9e',border:'#4b3a9e' }, // indigo
+    'EQ11': { bg:'#e6f0fa',text:'#1B5E8C',border:'#1B5E8C' }, // was identical to EQ10 — now a distinct blue
     'COMP': { bg:'#f0efee',text:'#A03033',border:'#4A4645' }, // COMPASS — gray/red
     'CPS':  { bg:'#dff6dd',text:'#0b6a0b',border:'#107c10' }, // CPS — green, matching its existing QC category color
     'DROP': { bg:'#f2f0ee',text:'#1A1A1A',border:'#D9A83D' }, // DROPOVER — black/gold
     'WDC':  { bg:'#fff4ce',text:'#7a5d00',border:'#f4c430' },
     'TITUS':{ bg:'#eaf2ea',text:'#2E5234',border:'#2E5234' }, // TITUS — dark green
-    'LKY':  { bg:'#faf3e0',text:'#7a5d00',border:'#D9A83D' }, // META LKY — gold
+    'LKY':  { bg:'#e0f5f3',text:'#0e6b62',border:'#0e6b62' }, // was matching WDC's text color and DROP's border — now a distinct teal
     'CYS':  { bg:'#fce8f3',text:'#8c1a5c',border:'#b52474' },
     'EDGE': { bg:'#fff0e0',text:'#8b4500',border:'#c46200' },
   },
@@ -2920,6 +2921,7 @@ function s2ShowClockOutModal(unitId, taskName, empIdx, stationKey) {
     overlay.remove();
     renderStationTracker(stationKey);
     if (document.getElementById('pm-clocked-in')) renderPMClockedIn();
+    if (document.getElementById('pm-station-tracker-time')) renderPMStationTrackerTime();
   });
   overlay.querySelector('#s2co-cancel').addEventListener('click', () => overlay.remove());
   overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
@@ -8736,6 +8738,7 @@ function renderPMPage() {
   renderPMFailOverrides();
   renderPMInspectorActivity();
   renderPMClockedIn();
+  renderPMStationTrackerTime();
   renderRTSPanel();
   renderSheetTabs();
   switchFTITab(ftiActiveTab === 'gantt' || ftiActiveTab === 'allgantt' ? 'calendar' : (ftiActiveTab || 'calendar'));
@@ -9465,6 +9468,37 @@ function getInspectorActivity() {
 /* Live view of everyone currently mid-task — running, paused, or on a
    hold — across every station's timer system. Doesn't include idle or
    finished entries, since those aren't "clocked in" right now. */
+// Totals Active/Material Hold/Engineering Hold time across EVERY unit
+// (including completed ones, since this is meant to be a full historical
+// picture, not just what's active right now) — broken down by station,
+// then by task within that station, then by the specific person within
+// that task. Time from an employee's segments still currently running is
+// included live via s2LiveSeconds, so the totals stay accurate for
+// anyone who's actively clocked in right now, not just banked time from
+// segments that have already finished.
+function getStationTrackerTimeReport() {
+  const tree = {}; // station -> task -> empNum -> { activeSec, materialHoldSec, engineeringHoldSec, isTrainee }
+  getAllBoardUnits().forEach(u => {
+    const scan = (bucket, stationKey) => {
+      if (!bucket) return;
+      Object.keys(bucket).forEach(taskName => {
+        (bucket[taskName].employees || []).forEach(e => {
+          if (!tree[stationKey]) tree[stationKey] = {};
+          if (!tree[stationKey][taskName]) tree[stationKey][taskName] = {};
+          if (!tree[stationKey][taskName][e.num]) tree[stationKey][taskName][e.num] = { activeSec: 0, materialHoldSec: 0, engineeringHoldSec: 0, isTrainee: false };
+          const agg = tree[stationKey][taskName][e.num];
+          agg.activeSec += s2LiveSeconds(e, 'active');
+          agg.materialHoldSec += s2LiveSeconds(e, 'materialHold');
+          agg.engineeringHoldSec += s2LiveSeconds(e, 'engineeringHold');
+          if (e.isTrainee) agg.isTrainee = true; // if they were ever flagged as training on any segment, keep showing that
+        });
+      });
+    };
+    scan(u.station2Tasks, 'Station 2');
+    if (u.stationTrackerTasks) Object.keys(u.stationTrackerTasks).forEach(sk => scan(u.stationTrackerTasks[sk], sk));
+  });
+  return tree;
+}
 function getCurrentlyClockedIn() {
   const rows = [];
   getAllBoardUnits().forEach(u => {
@@ -9523,6 +9557,75 @@ function renderPMClockedIn() {
       </table>
     </div>`;
 }
+
+// Station Tracker time totals — Station → Task → Person, with Active /
+// Material Hold / Engineering Hold broken out separately at every level
+// so it's clear not just how much time something took, but how much of
+// that was actually productive work versus waiting on parts or
+// engineering. A station picker keeps this manageable rather than
+// dumping every station's data at once.
+function renderPMStationTrackerTime() {
+  const el = document.getElementById('pm-station-tracker-time'); if (!el) return;
+  const tree = getStationTrackerTimeReport();
+  const stations = Object.keys(tree);
+  if (!stations.length) {
+    el.innerHTML = `<div class="chart-title">Station Tracker Time — Station &rarr; Task &rarr; Person</div><p style="font-size:13px;color:#605e5c;">No Station Tracker activity recorded yet.</p>`;
+    return;
+  }
+
+  const picked = pmStationTimePickedStation && stations.includes(pmStationTimePickedStation) ? pmStationTimePickedStation : stations[0];
+  const stationOptions = stations.map(s => `<option value="${s}" ${s===picked?'selected':''}>${s}</option>`).join('');
+
+  const tasks = tree[picked] || {};
+  const taskNames = Object.keys(tasks);
+  let stationActive=0, stationMat=0, stationEng=0;
+
+  const taskBlocks = taskNames.map(taskName => {
+    const people = tasks[taskName];
+    const empNums = Object.keys(people);
+    let taskActive=0, taskMat=0, taskEng=0;
+    const personRows = empNums.map(num => {
+      const p = people[num];
+      taskActive += p.activeSec; taskMat += p.materialHoldSec; taskEng += p.engineeringHoldSec;
+      const total = p.activeSec + p.materialHoldSec + p.engineeringHoldSec;
+      return `<tr>
+        <td style="padding:5px 10px;font-size:12px;font-weight:700;">${num}${p.isTrainee?' &#127891;':''}</td>
+        <td style="padding:5px 10px;font-size:12px;color:#0e7c3a;">${s2FormatHM(p.activeSec)}</td>
+        <td style="padding:5px 10px;font-size:12px;color:#4b3a9e;">${s2FormatHM(p.materialHoldSec)}</td>
+        <td style="padding:5px 10px;font-size:12px;color:#006A8E;">${s2FormatHM(p.engineeringHoldSec)}</td>
+        <td style="padding:5px 10px;font-size:12px;font-weight:700;">${s2FormatHM(total)}</td>
+      </tr>`;
+    }).join('');
+    stationActive += taskActive; stationMat += taskMat; stationEng += taskEng;
+    const taskTotal = taskActive + taskMat + taskEng;
+    return `<div style="margin-bottom:14px;border:1px solid #edebe9;border-radius:8px;overflow:hidden;">
+      <div style="padding:8px 12px;background:#f8f9fb;display:flex;justify-content:space-between;align-items:center;">
+        <span style="font-size:13px;font-weight:700;">${taskName}</span>
+        <span style="font-size:11px;color:var(--text-2,#605e5c);">Active ${s2FormatHM(taskActive)} &middot; Mat. Hold ${s2FormatHM(taskMat)} &middot; Eng. Hold ${s2FormatHM(taskEng)} &middot; <strong>Total ${s2FormatHM(taskTotal)}</strong></span>
+      </div>
+      <table style="width:100%;border-collapse:collapse;">
+        <thead><tr>
+          <th style="padding:5px 10px;font-size:10px;color:var(--text-3,#8a96a8);text-transform:uppercase;text-align:left;">Person</th>
+          <th style="padding:5px 10px;font-size:10px;color:var(--text-3,#8a96a8);text-transform:uppercase;text-align:left;">Active</th>
+          <th style="padding:5px 10px;font-size:10px;color:var(--text-3,#8a96a8);text-transform:uppercase;text-align:left;">Mat. Hold</th>
+          <th style="padding:5px 10px;font-size:10px;color:var(--text-3,#8a96a8);text-transform:uppercase;text-align:left;">Eng. Hold</th>
+          <th style="padding:5px 10px;font-size:10px;color:var(--text-3,#8a96a8);text-transform:uppercase;text-align:left;">Total</th>
+        </tr></thead>
+        <tbody>${personRows}</tbody>
+      </table>
+    </div>`;
+  }).join('');
+
+  const stationTotal = stationActive + stationMat + stationEng;
+  el.innerHTML = `
+    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:10px;">
+      <div class="chart-title" style="margin-bottom:0;">Station Tracker Time — Station &rarr; Task &rarr; Person</div>
+      <select id="pm-station-time-picker" onchange="pmStationTimePickedStation=this.value;renderPMStationTrackerTime();" style="font-size:12px;padding:5px 8px;">${stationOptions}</select>
+    </div>
+    <p style="font-size:11px;color:var(--text-2,#605e5c);margin-bottom:10px;">${picked} total &mdash; Active ${s2FormatHM(stationActive)} &middot; Material Hold ${s2FormatHM(stationMat)} &middot; Engineering Hold ${s2FormatHM(stationEng)} &middot; <strong>${s2FormatHM(stationTotal)}</strong></p>
+    ${taskBlocks}`;
+}
+let pmStationTimePickedStation = null;
 
 function renderPMInspectorActivity() {
   const el = document.getElementById('pm-inspector-activity'); if (!el) return;
@@ -12752,7 +12855,7 @@ function quickDismissReadyForPDI(unitId) {
    visible stamp every time a change is made, or version checks
    against a stale reference and never fires.
    ============================================================ */
-const BUILD_DATE = '2026-08-21-33';
+const BUILD_DATE = '2026-08-21-35';
 let updateBannerShown = false;
 function checkForNewVersion() {
   if (updateBannerShown) return;

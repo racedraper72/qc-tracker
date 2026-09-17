@@ -1155,7 +1155,7 @@ label { font-size: 11px; font-weight: 600; color: var(--text-2); display: block;
 
 <!-- ============================================================ HEADER -->
 <div class="app-header">
-  <div id="build-stamp" title="If this looks out of date after an update was announced, hard-refresh with Ctrl+Shift+R (Cmd+Shift+R on Mac) to clear your browser's cached copy.">Build: <span id="build-stamp-text">2026-08-21-42</span></div>
+  <div id="build-stamp" title="If this looks out of date after an update was announced, hard-refresh with Ctrl+Shift+R (Cmd+Shift+R on Mac) to clear your browser's cached copy.">Build: <span id="build-stamp-text">2026-08-21-43</span></div>
   <div id="header-signed-in" style="position:absolute;top:26px;right:16px;font-size:11px;color:rgba(255,255,255,.75);white-space:nowrap;z-index:101;"></div>
   <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;flex:1;">
     <div style="background:#fff;border-radius:8px;padding:8px 14px;display:flex;align-items:center;box-shadow:0 1px 3px rgba(0,0,0,.15);">
@@ -3016,6 +3016,17 @@ const S2_STATUS_COLOR = {
 // Same .floor-stat pattern as Floor Mode's own stats bar — a quick,
 // at-a-glance summary of what's happening at this specific station right
 // now, rather than having to scan every card to add it up manually.
+// Tracks which Station Tracker jobs are collapsed, keyed by task ID —
+// module-level so it survives every re-render (auto-sync, the live
+// ticker, someone else's edit coming in) rather than resetting the
+// instant the page refreshes, which would otherwise make an explicit
+// expand/collapse choice pointless within seconds.
+let s2TaskCollapseState = {};
+function s2ToggleTaskCollapse(tsid) {
+  s2TaskCollapseState[tsid] = !s2TaskCollapseState[tsid];
+  const stationKey = currentPage === 'station2' ? 'Station 2' : STATION_TRACKER_STATIONS.find(s => 'stationtracker_' + s.replace(/\s+/g,'') === currentPage);
+  renderStationTracker(stationKey);
+}
 function renderStationTrackerStats(stationKey) {
   const statsId = stationKey === 'Station 2' ? 'station2-stats-bar' : 'stationtracker-stats-' + safeId(stationKey);
   const el = document.getElementById(statsId); if (!el) return;
@@ -3081,6 +3092,15 @@ function renderStationTracker(stationKey) {
     const taskRows = taskList.map(taskName => {
       const t = getS2TaskState(u, taskName, stationKey);
       const tsid = safeId(u.id + '_' + stationKey + '_' + taskName);
+      const hasActiveWorker = t.employees.some(e => e.status==='running'||e.status==='paused'||e.status==='holdMaterial'||e.status==='holdEngineering');
+      // Defaults to expanded only when someone's actually mid-task here —
+      // otherwise starts collapsed to save space, since a card can have
+      // several jobs and most aren't the one someone needs right now.
+      // Once a person explicitly toggles a job, that choice sticks across
+      // re-renders (auto-sync, the live ticker, etc.) rather than
+      // snapping back to the default every few seconds.
+      if (!(tsid in s2TaskCollapseState)) s2TaskCollapseState[tsid] = !hasActiveWorker;
+      const collapsed = s2TaskCollapseState[tsid];
 
       const taskEarned = t.employees.reduce((sum, emp) =>
         sum + s2LiveSeconds(emp,'active') + s2LiveSeconds(emp,'materialHold') + s2LiveSeconds(emp,'engineeringHold'), 0);
@@ -3158,10 +3178,15 @@ function renderStationTracker(stationKey) {
       }).join('');
 
       return `<div style="border:1px solid var(--border,#edebe9);border-radius:10px;padding:14px 16px;margin-bottom:10px;background:var(--surface-2,#faf9f8);">
-        <div class="unit-header">
-          <span class="unit-serial">${taskName}</span>
+        <div class="unit-header" style="cursor:pointer;margin-bottom:${collapsed?'0':'8px'};" onclick="s2ToggleTaskCollapse('${tsid}')">
+          <span class="unit-serial" style="display:flex;align-items:center;gap:8px;">
+            <span style="display:inline-block;transition:transform .15s;transform:rotate(${collapsed?'-90deg':'0deg'});">&#9660;</span>
+            ${taskName}
+            ${collapsed && t.employees.length ? `<span style="font-size:11px;font-weight:600;color:var(--text-3,#8a96a8);">(${t.employees.length} worker${t.employees.length!==1?'s':''}${hasActiveWorker?' — active':''})</span>` : ''}
+          </span>
           <span style="font-size:12px;font-weight:700;color:var(--text-2,#605e5c);">Job total: <span id="s2-task-total-${tsid}" style="color:var(--text-1,#0f1923);">${s2FormatHM(taskEarned)}</span></span>
         </div>
+        <div style="display:${collapsed?'none':'block'};">
         <div style="margin-bottom:10px;">
           ${(() => {
             const defaultLink = getDefaultTaskLink(stationKey, project, taskName);
@@ -3183,6 +3208,7 @@ function renderStationTracker(stationKey) {
               style="flex:1;min-width:120px;max-width:170px;font-size:16px;padding:13px 12px;min-height:48px;" />
             <button class="primary" style="font-size:15px;font-weight:700;padding:13px 20px;min-height:48px;border-radius:8px;" onclick="s2AddEmployee('${u.id}','${taskName}','${tsid}','${stationKey}')">+ Add Worker</button>
           </div>
+        </div>
         </div>
       </div>`;
     }).join('');
@@ -13137,7 +13163,7 @@ function quickDismissReadyForPDI(unitId) {
    visible stamp every time a change is made, or version checks
    against a stale reference and never fires.
    ============================================================ */
-const BUILD_DATE = '2026-08-21-42';
+const BUILD_DATE = '2026-08-21-43';
 let updateBannerShown = false;
 function checkForNewVersion() {
   if (updateBannerShown) return;

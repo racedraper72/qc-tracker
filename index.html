@@ -1155,7 +1155,7 @@ label { font-size: 11px; font-weight: 600; color: var(--text-2); display: block;
 
 <!-- ============================================================ HEADER -->
 <div class="app-header">
-  <div id="build-stamp" title="If this looks out of date after an update was announced, hard-refresh with Ctrl+Shift+R (Cmd+Shift+R on Mac) to clear your browser's cached copy.">Build: <span id="build-stamp-text">2026-08-21-43</span></div>
+  <div id="build-stamp" title="If this looks out of date after an update was announced, hard-refresh with Ctrl+Shift+R (Cmd+Shift+R on Mac) to clear your browser's cached copy.">Build: <span id="build-stamp-text">2026-08-21-44</span></div>
   <div id="header-signed-in" style="position:absolute;top:26px;right:16px;font-size:11px;color:rgba(255,255,255,.75);white-space:nowrap;z-index:101;"></div>
   <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;flex:1;">
     <div style="background:#fff;border-radius:8px;padding:8px 14px;display:flex;align-items:center;box-shadow:0 1px 3px rgba(0,0,0,.15);">
@@ -2116,7 +2116,7 @@ const CONFIG = {
   /* QC PRODUCTS */
   products: [
     { name: 'SAT82', category: 'SAT' }, { name: 'SAT93', category: 'SAT' },
-    { name: 'CPS',   category: 'CPS' }, { name: 'EQ10',  category: 'EQ'  },
+    { name: 'EQ10',  category: 'EQ'  },
     { name: 'EQ11',  category: 'EQ'  }, { name: 'WDC',   category: 'WDC' },
     { name: 'TITUS', category: 'TITUS'},{ name: 'LKY',   category: 'LKY' },
     { name: 'CYS',   category: 'CYS' }, { name: 'EDGE',  category: 'EDGE'},
@@ -2163,7 +2163,6 @@ const CONFIG = {
     'EQ10': { bg:'#f0eeff',text:'#4b3a9e',border:'#4b3a9e' }, // indigo
     'EQ11': { bg:'#e6f0fa',text:'#1B5E8C',border:'#1B5E8C' }, // was identical to EQ10 — now a distinct blue
     'COMP': { bg:'#f0efee',text:'#A03033',border:'#4A4645' }, // COMPASS — gray/red
-    'CPS':  { bg:'#dff6dd',text:'#0b6a0b',border:'#107c10' }, // CPS — green, matching its existing QC category color
     'DROP': { bg:'#f2f0ee',text:'#1A1A1A',border:'#D9A83D' }, // DROPOVER — black/gold
     'WDC':  { bg:'#fff4ce',text:'#7a5d00',border:'#f4c430' },
     'TITUS':{ bg:'#eaf2ea',text:'#2E5234',border:'#2E5234' }, // TITUS — dark green
@@ -3182,7 +3181,7 @@ function renderStationTracker(stationKey) {
           <span class="unit-serial" style="display:flex;align-items:center;gap:8px;">
             <span style="display:inline-block;transition:transform .15s;transform:rotate(${collapsed?'-90deg':'0deg'});">&#9660;</span>
             ${taskName}
-            ${collapsed && t.employees.length ? `<span style="font-size:11px;font-weight:600;color:var(--text-3,#8a96a8);">(${t.employees.length} worker${t.employees.length!==1?'s':''}${hasActiveWorker?' — active':''})</span>` : ''}
+            ${collapsed && t.employees.length ? `<span style="font-size:11px;font-weight:600;color:var(--text-3,#8a96a8);">(${t.employees.map(e => e.name || e.num).join(', ')}${hasActiveWorker?' — active':''})</span>` : ''}
           </span>
           <span style="font-size:12px;font-weight:700;color:var(--text-2,#605e5c);">Job total: <span id="s2-task-total-${tsid}" style="color:var(--text-1,#0f1923);">${s2FormatHM(taskEarned)}</span></span>
         </div>
@@ -13163,7 +13162,7 @@ function quickDismissReadyForPDI(unitId) {
    visible stamp every time a change is made, or version checks
    against a stale reference and never fires.
    ============================================================ */
-const BUILD_DATE = '2026-08-21-43';
+const BUILD_DATE = '2026-08-21-44';
 let updateBannerShown = false;
 function checkForNewVersion() {
   if (updateBannerShown) return;

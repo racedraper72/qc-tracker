@@ -965,6 +965,15 @@ label { font-size: 11px; font-weight: 600; color: var(--text-2); display: block;
   gap: 12px;
   padding: 16px;
 }
+/* Station Tracker pages share .floor-units-grid with Floor Mode itself,
+   but their cards carry a lot more per unit — multiple jobs, multiple
+   workers, a metrics grid, buttons. 300px (Floor Mode's own card width)
+   reads as cramped for that much content on an iPad; this widens the
+   minimum specifically for these pages via their own unique container
+   IDs, leaving Floor Mode's own grid completely untouched. */
+[id^="stationtracker-body-"], #station2-tracker-body {
+  grid-template-columns: repeat(auto-fill, minmax(380px, 1fr)) !important;
+}
 .floor-unit-card {
   background: #1e2738;
   border: 1.5px solid rgba(255,255,255,.1);
@@ -1146,7 +1155,7 @@ label { font-size: 11px; font-weight: 600; color: var(--text-2); display: block;
 
 <!-- ============================================================ HEADER -->
 <div class="app-header">
-  <div id="build-stamp" title="If this looks out of date after an update was announced, hard-refresh with Ctrl+Shift+R (Cmd+Shift+R on Mac) to clear your browser's cached copy.">Build: <span id="build-stamp-text">2026-08-21-40</span></div>
+  <div id="build-stamp" title="If this looks out of date after an update was announced, hard-refresh with Ctrl+Shift+R (Cmd+Shift+R on Mac) to clear your browser's cached copy.">Build: <span id="build-stamp-text">2026-08-21-42</span></div>
   <div id="header-signed-in" style="position:absolute;top:26px;right:16px;font-size:11px;color:rgba(255,255,255,.75);white-space:nowrap;z-index:101;"></div>
   <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;flex:1;">
     <div style="background:#fff;border-radius:8px;padding:8px 14px;display:flex;align-items:center;box-shadow:0 1px 3px rgba(0,0,0,.15);">
@@ -1876,111 +1885,120 @@ label { font-size: 11px; font-weight: 600; color: var(--text-2); display: block;
 <!-- ============================================================ END TV MODE PAGE -->
 
 <!-- ============================================================ STATION 2 PRODUCTION TRACKER PAGE -->
-<div id="page-station2" class="app-body" style="display:none;">
-  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:8px;">
+<div id="page-station2" style="display:none;padding:0;background:#0f1923;min-height:100vh;">
+  <div class="floor-header">
     <div>
-      <h2 style="font-size:16px;font-weight:800;letter-spacing:-.3px;">&#9201; Station 2 Production Tracker</h2>
-      <p style="font-size:12px;color:var(--text-2);margin-top:3px;">Per-task time clock — Start, Pause, Hold for Material, Hold for Engineering. Tracks earned hours per task, per unit.</p>
+      <div class="floor-header-title">&#9201; Station 2 Production Tracker</div>
+      <div style="font-size:11px;color:rgba(255,255,255,.5);margin-top:2px;">Per-task time clock — Start, Pause, Hold for Material, Hold for Engineering. Tracks earned hours per task, per unit.</div>
     </div>
-    <button class="subtle sm" onclick="renderStation2Tracker()">&#8635; Refresh</button>
+    <button onclick="renderStation2Tracker()" style="padding:8px 14px;border-radius:20px;border:1.5px solid rgba(255,255,255,.2);background:transparent;color:rgba(255,255,255,.7);font-size:12px;font-weight:600;font-family:var(--font);cursor:pointer;">&#8635; Refresh</button>
   </div>
-  <div id="station2-tracker-body" style="display:flex;flex-direction:column;gap:16px;"></div>
+  <div class="floor-stats-bar" id="station2-stats-bar"></div>
+  <div id="station2-tracker-body" class="floor-units-grid"></div>
 </div>
 <!-- ============================================================ END STATION 2 PRODUCTION TRACKER PAGE -->
 
-<div id="page-stationtracker_Station1" class="app-body" style="display:none;">
-  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:8px;">
+<div id="page-stationtracker_Station1" style="display:none;padding:0;background:#0f1923;min-height:100vh;">
+  <div class="floor-header">
     <div>
-      <h2 style="font-size:16px;font-weight:800;letter-spacing:-.3px;">&#128736; Station 1 Tracker</h2>
-      <p style="font-size:12px;color:var(--text-2);margin-top:3px;">Per-task time clock — Start, Pause, Hold for Material, Hold for Engineering. Tracks earned hours per task, per unit.</p>
+      <div class="floor-header-title">&#128736; Station 1 Tracker</div>
+      <div style="font-size:11px;color:rgba(255,255,255,.5);margin-top:2px;">Per-task time clock — Start, Pause, Hold for Material, Hold for Engineering. Tracks earned hours per task, per unit.</div>
     </div>
-    <button class="subtle sm" onclick="renderStationTracker('Station 1')">&#8635; Refresh</button>
+    <button onclick="renderStationTracker('Station 1')" style="padding:8px 14px;border-radius:20px;border:1.5px solid rgba(255,255,255,.2);background:transparent;color:rgba(255,255,255,.7);font-size:12px;font-weight:600;font-family:var(--font);cursor:pointer;">&#8635; Refresh</button>
   </div>
-  <div id="stationtracker-body-Station_1" style="display:flex;flex-direction:column;gap:16px;"></div>
+  <div class="floor-stats-bar" id="stationtracker-stats-Station_1"></div>
+  <div id="stationtracker-body-Station_1" class="floor-units-grid"></div>
 </div>
 <!-- ============================================================ END STATION 1 TRACKER PAGE -->
 
-<div id="page-stationtracker_Station3" class="app-body" style="display:none;">
-  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:8px;">
+<div id="page-stationtracker_Station3" style="display:none;padding:0;background:#0f1923;min-height:100vh;">
+  <div class="floor-header">
     <div>
-      <h2 style="font-size:16px;font-weight:800;letter-spacing:-.3px;">&#128736; Station 3 Tracker</h2>
-      <p style="font-size:12px;color:var(--text-2);margin-top:3px;">Per-task time clock — Start, Pause, Hold for Material, Hold for Engineering. Tracks earned hours per task, per unit.</p>
+      <div class="floor-header-title">&#128736; Station 3 Tracker</div>
+      <div style="font-size:11px;color:rgba(255,255,255,.5);margin-top:2px;">Per-task time clock — Start, Pause, Hold for Material, Hold for Engineering. Tracks earned hours per task, per unit.</div>
     </div>
-    <button class="subtle sm" onclick="renderStationTracker('Station 3')">&#8635; Refresh</button>
+    <button onclick="renderStationTracker('Station 3')" style="padding:8px 14px;border-radius:20px;border:1.5px solid rgba(255,255,255,.2);background:transparent;color:rgba(255,255,255,.7);font-size:12px;font-weight:600;font-family:var(--font);cursor:pointer;">&#8635; Refresh</button>
   </div>
-  <div id="stationtracker-body-Station_3" style="display:flex;flex-direction:column;gap:16px;"></div>
+  <div class="floor-stats-bar" id="stationtracker-stats-Station_3"></div>
+  <div id="stationtracker-body-Station_3" class="floor-units-grid"></div>
 </div>
 <!-- ============================================================ END STATION 3 TRACKER PAGE -->
 
-<div id="page-stationtracker_Station4" class="app-body" style="display:none;">
-  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:8px;">
+<div id="page-stationtracker_Station4" style="display:none;padding:0;background:#0f1923;min-height:100vh;">
+  <div class="floor-header">
     <div>
-      <h2 style="font-size:16px;font-weight:800;letter-spacing:-.3px;">&#128736; Station 4 Tracker</h2>
-      <p style="font-size:12px;color:var(--text-2);margin-top:3px;">Per-task time clock — Start, Pause, Hold for Material, Hold for Engineering. Tracks earned hours per task, per unit.</p>
+      <div class="floor-header-title">&#128736; Station 4 Tracker</div>
+      <div style="font-size:11px;color:rgba(255,255,255,.5);margin-top:2px;">Per-task time clock — Start, Pause, Hold for Material, Hold for Engineering. Tracks earned hours per task, per unit.</div>
     </div>
-    <button class="subtle sm" onclick="renderStationTracker('Station 4')">&#8635; Refresh</button>
+    <button onclick="renderStationTracker('Station 4')" style="padding:8px 14px;border-radius:20px;border:1.5px solid rgba(255,255,255,.2);background:transparent;color:rgba(255,255,255,.7);font-size:12px;font-weight:600;font-family:var(--font);cursor:pointer;">&#8635; Refresh</button>
   </div>
-  <div id="stationtracker-body-Station_4" style="display:flex;flex-direction:column;gap:16px;"></div>
+  <div class="floor-stats-bar" id="stationtracker-stats-Station_4"></div>
+  <div id="stationtracker-body-Station_4" class="floor-units-grid"></div>
 </div>
 <!-- ============================================================ END STATION 4 TRACKER PAGE -->
 
-<div id="page-stationtracker_Station5" class="app-body" style="display:none;">
-  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:8px;">
+<div id="page-stationtracker_Station5" style="display:none;padding:0;background:#0f1923;min-height:100vh;">
+  <div class="floor-header">
     <div>
-      <h2 style="font-size:16px;font-weight:800;letter-spacing:-.3px;">&#128736; Station 5 Tracker</h2>
-      <p style="font-size:12px;color:var(--text-2);margin-top:3px;">Per-task time clock — Start, Pause, Hold for Material, Hold for Engineering. Tracks earned hours per task, per unit.</p>
+      <div class="floor-header-title">&#128736; Station 5 Tracker</div>
+      <div style="font-size:11px;color:rgba(255,255,255,.5);margin-top:2px;">Per-task time clock — Start, Pause, Hold for Material, Hold for Engineering. Tracks earned hours per task, per unit.</div>
     </div>
-    <button class="subtle sm" onclick="renderStationTracker('Station 5')">&#8635; Refresh</button>
+    <button onclick="renderStationTracker('Station 5')" style="padding:8px 14px;border-radius:20px;border:1.5px solid rgba(255,255,255,.2);background:transparent;color:rgba(255,255,255,.7);font-size:12px;font-weight:600;font-family:var(--font);cursor:pointer;">&#8635; Refresh</button>
   </div>
-  <div id="stationtracker-body-Station_5" style="display:flex;flex-direction:column;gap:16px;"></div>
+  <div class="floor-stats-bar" id="stationtracker-stats-Station_5"></div>
+  <div id="stationtracker-body-Station_5" class="floor-units-grid"></div>
 </div>
 <!-- ============================================================ END STATION 5 TRACKER PAGE -->
 
-<div id="page-stationtracker_Station6" class="app-body" style="display:none;">
-  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:8px;">
+<div id="page-stationtracker_Station6" style="display:none;padding:0;background:#0f1923;min-height:100vh;">
+  <div class="floor-header">
     <div>
-      <h2 style="font-size:16px;font-weight:800;letter-spacing:-.3px;">&#128736; Station 6 Tracker</h2>
-      <p style="font-size:12px;color:var(--text-2);margin-top:3px;">Per-task time clock — Start, Pause, Hold for Material, Hold for Engineering. Tracks earned hours per task, per unit.</p>
+      <div class="floor-header-title">&#128736; Station 6 Tracker</div>
+      <div style="font-size:11px;color:rgba(255,255,255,.5);margin-top:2px;">Per-task time clock — Start, Pause, Hold for Material, Hold for Engineering. Tracks earned hours per task, per unit.</div>
     </div>
-    <button class="subtle sm" onclick="renderStationTracker('Station 6')">&#8635; Refresh</button>
+    <button onclick="renderStationTracker('Station 6')" style="padding:8px 14px;border-radius:20px;border:1.5px solid rgba(255,255,255,.2);background:transparent;color:rgba(255,255,255,.7);font-size:12px;font-weight:600;font-family:var(--font);cursor:pointer;">&#8635; Refresh</button>
   </div>
-  <div id="stationtracker-body-Station_6" style="display:flex;flex-direction:column;gap:16px;"></div>
+  <div class="floor-stats-bar" id="stationtracker-stats-Station_6"></div>
+  <div id="stationtracker-body-Station_6" class="floor-units-grid"></div>
 </div>
 <!-- ============================================================ END STATION 6 TRACKER PAGE -->
 
-<div id="page-stationtracker_Station7" class="app-body" style="display:none;">
-  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:8px;">
+<div id="page-stationtracker_Station7" style="display:none;padding:0;background:#0f1923;min-height:100vh;">
+  <div class="floor-header">
     <div>
-      <h2 style="font-size:16px;font-weight:800;letter-spacing:-.3px;">&#128736; Station 7 Tracker</h2>
-      <p style="font-size:12px;color:var(--text-2);margin-top:3px;">Per-task time clock — Start, Pause, Hold for Material, Hold for Engineering. Tracks earned hours per task, per unit.</p>
+      <div class="floor-header-title">&#128736; Station 7 Tracker</div>
+      <div style="font-size:11px;color:rgba(255,255,255,.5);margin-top:2px;">Per-task time clock — Start, Pause, Hold for Material, Hold for Engineering. Tracks earned hours per task, per unit.</div>
     </div>
-    <button class="subtle sm" onclick="renderStationTracker('Station 7')">&#8635; Refresh</button>
+    <button onclick="renderStationTracker('Station 7')" style="padding:8px 14px;border-radius:20px;border:1.5px solid rgba(255,255,255,.2);background:transparent;color:rgba(255,255,255,.7);font-size:12px;font-weight:600;font-family:var(--font);cursor:pointer;">&#8635; Refresh</button>
   </div>
-  <div id="stationtracker-body-Station_7" style="display:flex;flex-direction:column;gap:16px;"></div>
+  <div class="floor-stats-bar" id="stationtracker-stats-Station_7"></div>
+  <div id="stationtracker-body-Station_7" class="floor-units-grid"></div>
 </div>
 <!-- ============================================================ END STATION 7 TRACKER PAGE -->
 
-<div id="page-stationtracker_Station8" class="app-body" style="display:none;">
-  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:8px;">
+<div id="page-stationtracker_Station8" style="display:none;padding:0;background:#0f1923;min-height:100vh;">
+  <div class="floor-header">
     <div>
-      <h2 style="font-size:16px;font-weight:800;letter-spacing:-.3px;">&#128736; Station 8 Tracker</h2>
-      <p style="font-size:12px;color:var(--text-2);margin-top:3px;">Per-task time clock — Start, Pause, Hold for Material, Hold for Engineering. Tracks earned hours per task, per unit.</p>
+      <div class="floor-header-title">&#128736; Station 8 Tracker</div>
+      <div style="font-size:11px;color:rgba(255,255,255,.5);margin-top:2px;">Per-task time clock — Start, Pause, Hold for Material, Hold for Engineering. Tracks earned hours per task, per unit.</div>
     </div>
-    <button class="subtle sm" onclick="renderStationTracker('Station 8')">&#8635; Refresh</button>
+    <button onclick="renderStationTracker('Station 8')" style="padding:8px 14px;border-radius:20px;border:1.5px solid rgba(255,255,255,.2);background:transparent;color:rgba(255,255,255,.7);font-size:12px;font-weight:600;font-family:var(--font);cursor:pointer;">&#8635; Refresh</button>
   </div>
-  <div id="stationtracker-body-Station_8" style="display:flex;flex-direction:column;gap:16px;"></div>
+  <div class="floor-stats-bar" id="stationtracker-stats-Station_8"></div>
+  <div id="stationtracker-body-Station_8" class="floor-units-grid"></div>
 </div>
 <!-- ============================================================ END STATION 8 TRACKER PAGE -->
 
-<div id="page-stationtracker_Station9" class="app-body" style="display:none;">
-  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:8px;">
+<div id="page-stationtracker_Station9" style="display:none;padding:0;background:#0f1923;min-height:100vh;">
+  <div class="floor-header">
     <div>
-      <h2 style="font-size:16px;font-weight:800;letter-spacing:-.3px;">&#128736; Station 9 Tracker</h2>
-      <p style="font-size:12px;color:var(--text-2);margin-top:3px;">Per-task time clock — Start, Pause, Hold for Material, Hold for Engineering. Tracks earned hours per task, per unit.</p>
+      <div class="floor-header-title">&#128736; Station 9 Tracker</div>
+      <div style="font-size:11px;color:rgba(255,255,255,.5);margin-top:2px;">Per-task time clock — Start, Pause, Hold for Material, Hold for Engineering. Tracks earned hours per task, per unit.</div>
     </div>
-    <button class="subtle sm" onclick="renderStationTracker('Station 9')">&#8635; Refresh</button>
+    <button onclick="renderStationTracker('Station 9')" style="padding:8px 14px;border-radius:20px;border:1.5px solid rgba(255,255,255,.2);background:transparent;color:rgba(255,255,255,.7);font-size:12px;font-weight:600;font-family:var(--font);cursor:pointer;">&#8635; Refresh</button>
   </div>
-  <div id="stationtracker-body-Station_9" style="display:flex;flex-direction:column;gap:16px;"></div>
+  <div class="floor-stats-bar" id="stationtracker-stats-Station_9"></div>
+  <div id="stationtracker-body-Station_9" class="floor-units-grid"></div>
 </div>
 <!-- ============================================================ END STATION 9 TRACKER PAGE -->
 
@@ -2995,13 +3013,56 @@ const S2_STATUS_COLOR = {
   holdMaterial: '#4b3a9e', holdEngineering: '#006A8E', finished: '#373A36',
 };
 
+// Same .floor-stat pattern as Floor Mode's own stats bar — a quick,
+// at-a-glance summary of what's happening at this specific station right
+// now, rather than having to scan every card to add it up manually.
+function renderStationTrackerStats(stationKey) {
+  const statsId = stationKey === 'Station 2' ? 'station2-stats-bar' : 'stationtracker-stats-' + safeId(stationKey);
+  const el = document.getElementById(statsId); if (!el) return;
+  const units = getAllBoardUnits().filter(u => u.col === stationKey);
+
+  let working = 0, onHold = 0, idle = 0, finished = 0, totalEarnedSec = 0;
+  units.forEach(u => {
+    const project = getProjectType(u.id);
+    getStationTaskList(stationKey, project).forEach(taskName => {
+      const t = getS2TaskState(u, taskName, stationKey);
+      t.employees.forEach(e => {
+        if (e.status === 'running') working++;
+        else if (e.status === 'holdMaterial' || e.status === 'holdEngineering') onHold++;
+        else if (e.status === 'idle' || e.status === 'paused') idle++;
+        else if (e.status === 'finished') finished++;
+        totalEarnedSec += s2LiveSeconds(e,'active') + s2LiveSeconds(e,'materialHold') + s2LiveSeconds(e,'engineeringHold');
+      });
+    });
+  });
+
+  el.innerHTML = [
+    { val: units.length,        label: 'Units Here',  color: '#60a5fa' },
+    { val: working,              label: 'Working',     color: '#4ade80' },
+    { val: onHold,                label: 'On Hold',     color: '#fbbf24' },
+    { val: idle,                  label: 'Not Started', color: '#e2e8f0' },
+    { val: finished,             label: 'Finished',    color: '#a3e635' },
+    { val: s2FormatHM(totalEarnedSec), label: 'Total Earned', color: '#e2e8f0' },
+  ].map(s => `<div class="floor-stat">
+    <div class="floor-stat-val" style="color:${s.color};">${s.val}</div>
+    <div class="floor-stat-label">${s.label}</div>
+  </div>`).join('');
+}
 function renderStationTracker(stationKey) {
   stationKey = stationKey || 'Station 2';
   const el = document.getElementById(stationKey === 'Station 2' ? 'station2-tracker-body' : 'stationtracker-body-' + safeId(stationKey));
   if (!el) return;
+  renderStationTrackerStats(stationKey);
   const units = getAllBoardUnits().filter(u => u.col === stationKey);
 
-  if (!units.length) { el.innerHTML = `<p style="font-size:13px;color:var(--text-3,#8a96a8);">No units currently at ${stationKey}.</p>`; return; }
+  if (!units.length) {
+    el.innerHTML = `<div class="floor-empty" style="grid-column:1/-1;">
+      <div class="floor-empty-icon">&#9989;</div>
+      <div class="floor-empty-msg">No units at ${stationKey}</div>
+      <div class="floor-empty-sub">Nothing currently sitting here</div>
+    </div>`;
+    return;
+  }
 
   el.innerHTML = units.map(u => {
     const project = getProjectType(u.id);
@@ -3033,26 +3094,34 @@ function renderStationTracker(stationKey) {
 
         // Same button-row pattern as the main Tracker card's Release/Hold
         // row — one primary action plus secondary options side by side.
+        // Sized specifically for reliable iPad tapping — the app's
+        // default button size (7px padding, 13px text) is built for a
+        // mouse, not a finger, and these get tapped repeatedly all shift.
+        const btnBase = 'font-size:15px;font-weight:700;padding:13px 18px;min-height:48px;border-radius:8px;flex:1;min-width:130px;';
         let buttons = '';
         if (e.status === 'idle') {
-          buttons = `<button class="success" onclick="s2TaskAction('${u.id}','${taskName}',${idx},'start',null,'${stationKey}')">&#9654; Start</button>`;
+          buttons = `<button class="success" style="${btnBase}" onclick="s2TaskAction('${u.id}','${taskName}',${idx},'start',null,'${stationKey}')">&#9654; Start</button>`;
         } else if (e.status === 'running') {
           buttons = `
-            <button onclick="s2TaskAction('${u.id}','${taskName}',${idx},'pause',null,'${stationKey}')">&#9208; Pause</button>
-            <button onclick="s2OpenHoldNoteModal('${u.id}','${taskName}',${idx},'holdMaterial','${stationKey}')">&#128230; Hold: Material</button>
-            <button onclick="s2OpenHoldNoteModal('${u.id}','${taskName}',${idx},'holdEngineering','${stationKey}')">&#128203; Hold: Engineering</button>
-            <button class="success" onclick="s2TaskAction('${u.id}','${taskName}',${idx},'finish',null,'${stationKey}')">&#10003; Finished</button>`;
+            <button style="${btnBase}" onclick="s2TaskAction('${u.id}','${taskName}',${idx},'pause',null,'${stationKey}')">&#9208; Pause</button>
+            <button style="${btnBase}" onclick="s2OpenHoldNoteModal('${u.id}','${taskName}',${idx},'holdMaterial','${stationKey}')">&#128230; Hold: Material</button>
+            <button style="${btnBase}" onclick="s2OpenHoldNoteModal('${u.id}','${taskName}',${idx},'holdEngineering','${stationKey}')">&#128203; Hold: Engineering</button>
+            <button class="success" style="${btnBase}" onclick="s2TaskAction('${u.id}','${taskName}',${idx},'finish',null,'${stationKey}')">&#10003; Finished</button>`;
         } else if (e.status === 'paused') {
           buttons = `
-            <button class="success" onclick="s2TaskAction('${u.id}','${taskName}',${idx},'start',null,'${stationKey}')">&#9654; Resume</button>
-            <button class="success" onclick="s2TaskAction('${u.id}','${taskName}',${idx},'finish',null,'${stationKey}')">&#10003; Finished</button>`;
+            <button class="success" style="${btnBase}" onclick="s2TaskAction('${u.id}','${taskName}',${idx},'start',null,'${stationKey}')">&#9654; Resume</button>
+            <button class="success" style="${btnBase}" onclick="s2TaskAction('${u.id}','${taskName}',${idx},'finish',null,'${stationKey}')">&#10003; Finished</button>`;
         } else if (e.status === 'holdMaterial' || e.status === 'holdEngineering') {
-          buttons = `<button class="success" onclick="s2TaskAction('${u.id}','${taskName}',${idx},'start',null,'${stationKey}')">&#9654; Resume (end hold)</button>`;
+          buttons = `<button class="success" style="${btnBase}" onclick="s2TaskAction('${u.id}','${taskName}',${idx},'start',null,'${stationKey}')">&#9654; Resume (end hold)</button>`;
         } else if (e.status === 'finished') {
-          buttons = `<button onclick="s2TaskAction('${u.id}','${taskName}',${idx},'reopen',null,'${stationKey}')">&#8635; Reopen</button>`;
+          buttons = `<button style="${btnBase}" onclick="s2TaskAction('${u.id}','${taskName}',${idx},'reopen',null,'${stationKey}')">&#8635; Reopen</button>`;
         }
 
         const statusBadgeClass = e.status==='running' ? 'badge-green' : e.status==='paused' ? 'badge-orange' : (e.status==='holdMaterial'||e.status==='holdEngineering') ? 'badge-purple' : e.status==='finished' ? 'badge-gray' : 'badge-blue';
+        // Secondary icon buttons also get bumped up from the default
+        // "sm" size — small enough visually to stay secondary, but still
+        // a real touch target rather than a tiny mouse-era hit area.
+        const iconBtn = 'min-width:42px;min-height:42px;padding:0 12px;font-size:13px;';
 
         return `<div class="unit-card" style="margin-bottom:8px;${e.isTrainee?'background:#fffdf5;':''}">
           <div class="unit-header">
@@ -3062,29 +3131,29 @@ function renderStationTracker(stationKey) {
               <span class="badge ${statusBadgeClass}">${S2_STATUS_LABEL[e.status]}</span>
               ${e.isTrainee ? `<span class="badge badge-orange">&#127891; Trainee</span>` : ''}
             </span>
-            <span style="display:flex;gap:6px;">
-              <button class="sm" onclick="s2ToggleTrainee('${u.id}','${taskName}',${idx},'${stationKey}')" title="${e.isTrainee?'Trainee — tap to unmark':'Mark as trainee'}">&#127891;</button>
-              ${(e.status==='running'||e.status==='paused'||e.status==='holdMaterial'||e.status==='holdEngineering') ? `<button class="sm" onclick="s2OpenSupervisorClockOut('${u.id}','${taskName}',${idx},'${stationKey}')" title="Supervisor: clock out and/or adjust this person's time">&#128274; Clock Out</button>` : ''}
-              <button class="sm" onclick="s2RemoveEmployee('${u.id}','${taskName}',${idx},'${stationKey}')" title="Remove">&#10005;</button>
+            <span style="display:flex;gap:8px;">
+              <button style="${iconBtn}" onclick="s2ToggleTrainee('${u.id}','${taskName}',${idx},'${stationKey}')" title="${e.isTrainee?'Trainee — tap to unmark':'Mark as trainee'}">&#127891;</button>
+              ${(e.status==='running'||e.status==='paused'||e.status==='holdMaterial'||e.status==='holdEngineering') ? `<button style="${iconBtn}" onclick="s2OpenSupervisorClockOut('${u.id}','${taskName}',${idx},'${stationKey}')" title="Supervisor: clock out and/or adjust this person's time">&#128274; Clock Out</button>` : ''}
+              <button style="${iconBtn}" onclick="s2RemoveEmployee('${u.id}','${taskName}',${idx},'${stationKey}')" title="Remove">&#10005;</button>
             </span>
           </div>
-          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(100px,1fr));gap:4px 14px;margin-bottom:10px;font-size:12px;padding:8px 10px;background:var(--surface-2,#faf9f8);border-radius:8px;">
-            <span style="color:var(--text-2,#605e5c);">Active<br><strong id="s2-active-${esid}" style="font-size:13px;color:var(--green,#0e7c3a);">${s2FormatHM(activeSec)}</strong></span>
-            <span style="color:var(--text-2,#605e5c);">Material Hold<br><strong id="s2-mat-${esid}" style="font-size:13px;color:#4b3a9e;">${s2FormatHM(matSec)}</strong></span>
-            <span style="color:var(--text-2,#605e5c);">Engineering Hold<br><strong id="s2-eng-${esid}" style="font-size:13px;color:#006A8E;">${s2FormatHM(engSec)}</strong></span>
-            <span style="color:var(--text-2,#605e5c);">Earned<br><strong id="s2-earned-${esid}" style="font-size:13px;color:var(--text-1,#0f1923);">${s2FormatHM(earnedSec)}</strong></span>
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(100px,1fr));gap:4px 14px;margin-bottom:10px;font-size:13px;padding:10px 12px;background:var(--surface-2,#faf9f8);border-radius:8px;">
+            <span style="color:var(--text-2,#605e5c);">Active<br><strong id="s2-active-${esid}" style="font-size:15px;color:var(--green,#0e7c3a);">${s2FormatHM(activeSec)}</strong></span>
+            <span style="color:var(--text-2,#605e5c);">Material Hold<br><strong id="s2-mat-${esid}" style="font-size:15px;color:#4b3a9e;">${s2FormatHM(matSec)}</strong></span>
+            <span style="color:var(--text-2,#605e5c);">Engineering Hold<br><strong id="s2-eng-${esid}" style="font-size:15px;color:#006A8E;">${s2FormatHM(engSec)}</strong></span>
+            <span style="color:var(--text-2,#605e5c);">Earned<br><strong id="s2-earned-${esid}" style="font-size:15px;color:var(--text-1,#0f1923);">${s2FormatHM(earnedSec)}</strong></span>
           </div>
           ${e.status==='holdMaterial' && e.materialHoldNotes.length ? `<div style="border:1px solid #b45309;border-radius:8px;padding:10px 12px;background:var(--amber-lt,#fef3e2);margin-bottom:10px;">
-            <div style="font-size:11px;font-weight:800;color:#b45309;text-transform:uppercase;margin-bottom:6px;">&#128230; Material Hold</div>
-            ${e.materialHoldNotes.map(n => `<div style="font-size:12px;color:#7a4a08;background:#fff;border-radius:6px;padding:6px 10px;margin-bottom:4px;">${n.note}<span style="opacity:.65;font-size:10px;margin-left:6px;">${n.ts}</span></div>`).join('')}
-            <button class="sm" onclick="s2OpenHoldNoteModal('${u.id}','${taskName}',${idx},'addMaterialReason','${stationKey}')" style="border-color:#b45309;color:#b45309;">&#43; Add another reason</button>
+            <div style="font-size:12px;font-weight:800;color:#b45309;text-transform:uppercase;margin-bottom:6px;">&#128230; Material Hold</div>
+            ${e.materialHoldNotes.map(n => `<div style="font-size:13px;color:#7a4a08;background:#fff;border-radius:6px;padding:8px 10px;margin-bottom:4px;">${n.note}<span style="opacity:.65;font-size:11px;margin-left:6px;">${n.ts}</span></div>`).join('')}
+            <button style="min-height:42px;padding:0 14px;font-size:13px;border-color:#b45309;color:#b45309;" onclick="s2OpenHoldNoteModal('${u.id}','${taskName}',${idx},'addMaterialReason','${stationKey}')">&#43; Add another reason</button>
           </div>` : ''}
           ${e.status==='holdEngineering' && e.engineeringHoldNotes.length ? `<div style="border:1px solid #006A8E;border-radius:8px;padding:10px 12px;background:#E6F0F3;margin-bottom:10px;">
-            <div style="font-size:11px;font-weight:800;color:#006A8E;text-transform:uppercase;margin-bottom:6px;">&#128203; Engineering Hold</div>
-            ${e.engineeringHoldNotes.map(n => `<div style="font-size:12px;color:#004a63;background:#fff;border-radius:6px;padding:6px 10px;margin-bottom:4px;">${n.note}<span style="opacity:.65;font-size:10px;margin-left:6px;">${n.ts}</span></div>`).join('')}
-            <button class="sm" onclick="s2OpenHoldNoteModal('${u.id}','${taskName}',${idx},'addEngineeringReason','${stationKey}')" style="border-color:#006A8E;color:#006A8E;">&#43; Add another reason</button>
+            <div style="font-size:12px;font-weight:800;color:#006A8E;text-transform:uppercase;margin-bottom:6px;">&#128203; Engineering Hold</div>
+            ${e.engineeringHoldNotes.map(n => `<div style="font-size:13px;color:#004a63;background:#fff;border-radius:6px;padding:8px 10px;margin-bottom:4px;">${n.note}<span style="opacity:.65;font-size:11px;margin-left:6px;">${n.ts}</span></div>`).join('')}
+            <button style="min-height:42px;padding:0 14px;font-size:13px;border-color:#006A8E;color:#006A8E;" onclick="s2OpenHoldNoteModal('${u.id}','${taskName}',${idx},'addEngineeringReason','${stationKey}')">&#43; Add another reason</button>
           </div>` : ''}
-          <div style="display:flex;gap:8px;flex-wrap:wrap;">${buttons}</div>
+          <div style="display:flex;gap:10px;flex-wrap:wrap;">${buttons}</div>
         </div>`;
       }).join('');
 
@@ -3097,22 +3166,22 @@ function renderStationTracker(stationKey) {
           ${(() => {
             const defaultLink = getDefaultTaskLink(stationKey, project, taskName);
             if (!defaultLink) return `<p style="font-size:12px;color:var(--text-3,#8a96a8);font-style:italic;">No reference link set for this task — add one in Admin &rarr; Station Tracker Editor.</p>`;
-            return `<a href="${defaultLink}" target="_blank" rel="noopener" style="font-size:13px;color:var(--blue,#892729);text-decoration:none;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:320px;display:inline-block;" onmouseover="this.style.textDecoration='underline'" onmouseout="this.style.textDecoration='none'" title="${defaultLink}">&#128279; ${defaultLink.replace(/^https?:\/\//,'')}</a>`;
+            return `<a href="${defaultLink}" target="_blank" rel="noopener" style="font-size:14px;color:var(--blue,#892729);text-decoration:none;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:320px;display:inline-block;padding:6px 0;" onmouseover="this.style.textDecoration='underline'" onmouseout="this.style.textDecoration='none'" title="${defaultLink}">&#128279; ${defaultLink.replace(/^https?:\/\//,'')}</a>`;
           })()}
         </div>
         <div style="margin-bottom:10px;">
-          <div style="font-size:10px;font-weight:700;color:var(--text-3,#8a96a8);text-transform:uppercase;letter-spacing:.3px;margin-bottom:5px;">Job notes</div>
+          <div style="font-size:11px;font-weight:700;color:var(--text-3,#8a96a8);text-transform:uppercase;letter-spacing:.3px;margin-bottom:5px;">Job notes</div>
           <textarea id="s2-notes-input-${tsid}" placeholder="Any notes about this job..." onchange="s2SetNotes('${u.id}','${taskName}','${tsid}','${stationKey}')"
-            style="width:100%;font-size:13px;padding:9px;min-height:40px;">${t.notes||''}</textarea>
+            style="width:100%;font-size:16px;padding:12px;min-height:48px;">${t.notes||''}</textarea>
         </div>
         <div>
-          <div style="font-size:10px;font-weight:700;color:var(--text-3,#8a96a8);text-transform:uppercase;letter-spacing:.3px;margin-bottom:6px;">Workers on this job — each has their own timer</div>
+          <div style="font-size:11px;font-weight:700;color:var(--text-3,#8a96a8);text-transform:uppercase;letter-spacing:.3px;margin-bottom:6px;">Workers on this job — each has their own timer</div>
           ${empRows || '<p style="font-size:13px;color:var(--text-3,#8a96a8);font-style:italic;margin-bottom:8px;">No one added yet</p>'}
-          <div style="display:flex;gap:8px;flex-wrap:wrap;">
-            <input id="s2-emp-name-input-${tsid}" type="text" placeholder="Employee name" style="flex:1;min-width:140px;max-width:220px;font-size:15px;padding:11px 10px;min-height:46px;" />
+          <div style="display:flex;gap:10px;flex-wrap:wrap;">
+            <input id="s2-emp-name-input-${tsid}" type="text" placeholder="Employee name" style="flex:1;min-width:150px;max-width:220px;font-size:16px;padding:13px 12px;min-height:48px;" />
             <input id="s2-emp-input-${tsid}" type="text" placeholder="Employee #" onkeydown="if(event.key==='Enter')s2AddEmployee('${u.id}','${taskName}','${tsid}','${stationKey}')"
-              style="flex:1;min-width:110px;max-width:160px;font-size:15px;padding:11px 10px;min-height:46px;" />
-            <button class="primary" style="font-size:14px;font-weight:700;padding:11px 18px;min-height:46px;border-radius:8px;" onclick="s2AddEmployee('${u.id}','${taskName}','${tsid}','${stationKey}')">+ Add Worker</button>
+              style="flex:1;min-width:120px;max-width:170px;font-size:16px;padding:13px 12px;min-height:48px;" />
+            <button class="primary" style="font-size:15px;font-weight:700;padding:13px 20px;min-height:48px;border-radius:8px;" onclick="s2AddEmployee('${u.id}','${taskName}','${tsid}','${stationKey}')">+ Add Worker</button>
           </div>
         </div>
       </div>`;
@@ -13068,7 +13137,7 @@ function quickDismissReadyForPDI(unitId) {
    visible stamp every time a change is made, or version checks
    against a stale reference and never fires.
    ============================================================ */
-const BUILD_DATE = '2026-08-21-40';
+const BUILD_DATE = '2026-08-21-42';
 let updateBannerShown = false;
 function checkForNewVersion() {
   if (updateBannerShown) return;

@@ -1155,7 +1155,7 @@ label { font-size: 11px; font-weight: 600; color: var(--text-2); display: block;
 
 <!-- ============================================================ HEADER -->
 <div class="app-header">
-  <div id="build-stamp" title="If this looks out of date after an update was announced, hard-refresh with Ctrl+Shift+R (Cmd+Shift+R on Mac) to clear your browser's cached copy.">Build: <span id="build-stamp-text">2026-08-21-49</span></div>
+  <div id="build-stamp" title="If this looks out of date after an update was announced, hard-refresh with Ctrl+Shift+R (Cmd+Shift+R on Mac) to clear your browser's cached copy.">Build: <span id="build-stamp-text">2026-08-21-50</span></div>
   <div id="header-signed-in" style="position:absolute;top:26px;right:16px;font-size:11px;color:rgba(255,255,255,.75);white-space:nowrap;z-index:101;"></div>
   <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;flex:1;">
     <div style="background:#fff;border-radius:8px;padding:8px 14px;display:flex;align-items:center;box-shadow:0 1px 3px rgba(0,0,0,.15);">
@@ -2027,6 +2027,10 @@ label { font-size: 11px; font-weight: 600; color: var(--text-2); display: block;
       <button class="subtle sm" onclick="fmClearBg()">&#10005; Clear Floor Plan</button>
       <button class="subtle sm" onclick="fmToggleFullscreen()" id="fm-fullscreen-btn">&#10530; Fit to Screen</button>
       <span style="width:1px;height:20px;background:var(--border,#e1dfdd);margin:0 2px;"></span>
+      <span style="width:1px;height:20px;background:var(--border,#e1dfdd);margin:0 2px;"></span>
+      <button class="subtle sm" onclick="fmToggleCalibrationMode()" id="fm-calib-btn">&#128204; Calibrate Grid</button>
+      <button class="primary sm" onclick="fmAutoPlaceFromLocations()" title="Places every unit whose Location field matches an already-calibrated grid label">&#9889; Auto-Place from Location</button>
+      <span style="width:1px;height:20px;background:var(--border,#e1dfdd);margin:0 2px;"></span>
       <label style="display:flex;align-items:center;gap:5px;font-size:12px;color:var(--text-2);cursor:pointer;">
         <input type="checkbox" id="fm-grid-toggle" checked onchange="fmSaveGridConfig();renderFloorMap();" /> Grid
       </label>
@@ -2038,6 +2042,9 @@ label { font-size: 11px; font-weight: 600; color: var(--text-2); display: block;
       </label>
     </div>
   </div>
+  <div id="fm-calib-banner" style="display:none;background:#f0eeff;border:1px solid #892729;border-radius:8px;padding:8px 12px;margin-bottom:12px;font-size:12px;color:#892729;">
+    <strong>Calibration mode on.</strong> Click any grid label's exact spot on the map, then type that label (e.g. "L2") when prompted. Click "Done Calibrating" above when finished.
+  </div>
   <div style="display:grid;grid-template-columns:220px 1fr;gap:16px;align-items:start;">
     <div class="card" style="padding:12px;">
       <div style="font-size:11px;font-weight:700;color:var(--text-2,#605e5c);text-transform:uppercase;margin-bottom:8px;">Place by grid reference</div>
@@ -2047,12 +2054,15 @@ label { font-size: 11px; font-weight: 600; color: var(--text-2); display: block;
         <button class="primary sm" onclick="fmPlaceByGridRef()">Place</button>
       </div>
       <div id="fm-grid-ref-err" style="color:#A03033;font-size:11px;min-height:14px;margin-top:4px;"></div>
-      <div style="font-size:11px;font-weight:700;color:var(--text-2,#605e5c);text-transform:uppercase;margin:14px 0 8px;">Unplaced Units</div>
+      <div style="font-size:11px;font-weight:700;color:var(--text-2,#605e5c);text-transform:uppercase;margin:14px 0 8px;">Calibrated Grid Points</div>
+      <div id="fm-calib-list" style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:14px;"></div>
+      <div style="font-size:11px;font-weight:700;color:var(--text-2,#605e5c);text-transform:uppercase;margin-bottom:8px;">Unplaced Units</div>
       <div id="fm-unplaced-list" style="display:flex;flex-direction:column;gap:6px;max-height:60vh;overflow-y:auto;"></div>
     </div>
-    <div id="fm-map-container" style="position:relative;width:100%;aspect-ratio:16/10;background:#f0f2f5;border:2px dashed #c8d0dc;border-radius:10px;overflow:hidden;">
+    <div id="fm-map-container" onclick="fmMapClickForCalibration(event)" style="position:relative;width:100%;aspect-ratio:16/10;background:#f0f2f5;border:2px dashed #c8d0dc;border-radius:10px;overflow:hidden;">
       <div id="fm-map-empty" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#8a96a8;font-size:13px;text-align:center;padding:20px;">No floor plan uploaded yet — click "Upload Screenshot" to add one, or place units on this blank canvas for now.</div>
       <div id="fm-grid-layer" style="position:absolute;inset:0;pointer-events:none;"></div>
+      <div id="fm-calib-layer" style="position:absolute;inset:0;"></div>
       <div id="fm-markers-layer" style="position:absolute;inset:0;"></div>
     </div>
   </div>
@@ -4012,6 +4022,83 @@ const DEFAULT_FLOOR_MAP_BG = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAiIA
 // reassembling them here allows a much larger, sharper image overall.
 // Falls back to the old single-key format for anyone whose already-
 // synced floor plan predates this change.
+/* ---- Floor Map grid calibration ----
+   Real floor plans (like this warehouse's) usually have their own
+   printed grid labels (L2, K4, G7...) that aren't evenly spaced — the
+   columns and sections are genuinely different widths. Rather than
+   assuming a uniform grid, this records the actual on-image position of
+   each label as someone marks it once by clicking it — works correctly
+   for this exact kind of irregular layout, and survives a future floor
+   plan swap as long as it's recalibrated for the new image. Synced like
+   the other floor map config so everyone sees the same calibration. */
+function getFloorMapGridCalibration() {
+  const synced = unitIssues['__config__floormap_calib'] && unitIssues['__config__floormap_calib'].url;
+  if (synced) { try { return JSON.parse(synced); } catch(e) {} }
+  try { return JSON.parse(localStorage.getItem('floormap_calib_local') || '{}'); } catch(e) { return {}; }
+}
+function saveFloorMapGridCalibration(calib) {
+  const json = JSON.stringify(calib);
+  unitIssues['__config__floormap_calib'] = { url: json, updatedAt: new Date().toISOString() };
+  localStorage.setItem('floormap_calib_local', json);
+  saveIssues();
+}
+let fmCalibrationMode = false;
+function fmToggleCalibrationMode() {
+  fmCalibrationMode = !fmCalibrationMode;
+  const btn = document.getElementById('fm-calib-btn');
+  if (btn) {
+    btn.textContent = fmCalibrationMode ? '&#10003; Done Calibrating' : '&#128204; Calibrate Grid';
+    btn.innerHTML = fmCalibrationMode ? '&#10003; Done Calibrating' : '&#128204; Calibrate Grid';
+  }
+  renderFloorMap();
+}
+// Click handler on the map itself while calibration mode is active —
+// separate from fmMarkerMouseDown (dragging an already-placed unit), so
+// the two never conflict with each other.
+function fmMapClickForCalibration(e) {
+  if (!fmCalibrationMode) return;
+  if (e.target.closest('[id^="fm-marker-"]') || e.target.closest('[id^="fm-calibpoint-"]')) return; // don't trigger while clicking an existing marker/point
+  const rect = e.currentTarget.getBoundingClientRect();
+  const xPct = ((e.clientX - rect.left) / rect.width) * 100;
+  const yPct = ((e.clientY - rect.top) / rect.height) * 100;
+  const label = prompt('What grid label is at this spot? (e.g. L2, G7)');
+  if (!label) return;
+  const trimmed = label.trim().toUpperCase();
+  if (!trimmed) return;
+  const calib = getFloorMapGridCalibration();
+  calib[trimmed] = { x: xPct, y: yPct };
+  saveFloorMapGridCalibration(calib);
+  renderFloorMap();
+}
+function fmRemoveCalibPoint(label) {
+  const calib = getFloorMapGridCalibration();
+  delete calib[label];
+  saveFloorMapGridCalibration(calib);
+  renderFloorMap();
+}
+// Places every active unit whose Location field matches an already-
+// calibrated grid label — case-insensitive, trimmed, so "l2", "L2 ",
+// "l2" all match the same calibrated "L2" point. Units with no location,
+// or a location that doesn't match any calibrated label, are left alone
+// rather than guessed at.
+function fmAutoPlaceFromLocations() {
+  const calib = getFloorMapGridCalibration();
+  const labels = Object.keys(calib);
+  if (!labels.length) { alert('No grid points calibrated yet — click "Calibrate Grid" and mark a few labels on the map first.'); return; }
+  const units = getAllBoardUnits().filter(u => !u.completed && u.location);
+  let placedCount = 0;
+  units.forEach(u => {
+    const key = u.location.trim().toUpperCase();
+    if (calib[key]) {
+      u.mapX = calib[key].x;
+      u.mapY = calib[key].y;
+      placedCount++;
+    }
+  });
+  if (placedCount) { pushBoard(); }
+  renderFloorMap();
+  alert(placedCount + ' unit'+(placedCount!==1?'s':'')+' placed from their Location field. '+(units.length-placedCount)+' had a Location that didn\'t match a calibrated grid label.');
+}
 function getFloorMapBg() {
   const meta = unitIssues['__config__floormap_bg_meta'] && unitIssues['__config__floormap_bg_meta'].url;
   if (meta) {
@@ -4497,6 +4584,32 @@ function fmResetUnitRotation(e, unitId) {
 // which uses the uploaded image (see getFloorMapBg) as a CSS background
 // rather than an <img> tag, so the marker layer can sit correctly
 // positioned on top of it via absolute positioning.
+// Renders the calibration banner, the sidebar list of already-marked
+// points (with a remove button each, in case one was mis-clicked), and a
+// small numbered dot on the map itself for every calibrated point, so
+// it's obvious at a glance what's already been marked versus what still
+// needs it while calibrating.
+function renderFmCalibration() {
+  const banner = document.getElementById('fm-calib-banner');
+  if (banner) banner.style.display = fmCalibrationMode ? 'block' : 'none';
+  const mapEl = document.getElementById('fm-map-container');
+  if (mapEl) mapEl.style.cursor = fmCalibrationMode ? 'crosshair' : '';
+
+  const calib = getFloorMapGridCalibration();
+  const labels = Object.keys(calib).sort();
+
+  const listEl = document.getElementById('fm-calib-list');
+  if (listEl) {
+    listEl.innerHTML = labels.length
+      ? labels.map(l => `<span style="display:inline-flex;align-items:center;gap:3px;font-size:11px;padding:3px 6px;border-radius:12px;background:var(--surface-2,#faf9f8);border:1px solid var(--border,#edebe9);">${l}<button onclick="fmRemoveCalibPoint('${l}')" title="Remove" style="border:none;background:transparent;color:#A03033;font-weight:900;cursor:pointer;padding:0;font-size:11px;">&times;</button></span>`).join('')
+      : '<p style="font-size:11px;color:var(--text-3,#8a96a8);font-style:italic;">None yet — click "Calibrate Grid" to start marking.</p>';
+  }
+
+  const calibLayer = document.getElementById('fm-calib-layer');
+  if (calibLayer) {
+    calibLayer.innerHTML = labels.map(l => `<div style="position:absolute;left:${calib[l].x}%;top:${calib[l].y}%;transform:translate(-50%,-50%);width:14px;height:14px;border-radius:50%;background:#892729;border:2px solid #fff;box-shadow:0 1px 3px rgba(0,0,0,.4);pointer-events:none;" id="fm-calibpoint-${safeId(l)}" title="${l}"></div>`).join('');
+  }
+}
 function renderFloorMap() {
   const bgEl = document.getElementById('fm-map-container');
   const emptyEl = document.getElementById('fm-map-empty');
@@ -4507,6 +4620,7 @@ function renderFloorMap() {
   renderFmLastUpdated();
   fmRenderGridOverlay();
   fmRenderGridUnitPicker();
+  renderFmCalibration();
 
   const bg = getFloorMapBg();
   const hasRealImage = bg && bg !== DEFAULT_FLOOR_MAP_BG;
@@ -13321,7 +13435,7 @@ function quickDismissReadyForPDI(unitId) {
    visible stamp every time a change is made, or version checks
    against a stale reference and never fires.
    ============================================================ */
-const BUILD_DATE = '2026-08-21-49';
+const BUILD_DATE = '2026-08-21-50';
 let updateBannerShown = false;
 function checkForNewVersion() {
   if (updateBannerShown) return;

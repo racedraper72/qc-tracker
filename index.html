@@ -1155,7 +1155,7 @@ label { font-size: 11px; font-weight: 600; color: var(--text-2); display: block;
 
 <!-- ============================================================ HEADER -->
 <div class="app-header">
-  <div id="build-stamp" title="If this looks out of date after an update was announced, hard-refresh with Ctrl+Shift+R (Cmd+Shift+R on Mac) to clear your browser's cached copy.">Build: <span id="build-stamp-text">2026-08-21-45</span></div>
+  <div id="build-stamp" title="If this looks out of date after an update was announced, hard-refresh with Ctrl+Shift+R (Cmd+Shift+R on Mac) to clear your browser's cached copy.">Build: <span id="build-stamp-text">2026-08-21-46</span></div>
   <div id="header-signed-in" style="position:absolute;top:26px;right:16px;font-size:11px;color:rgba(255,255,255,.75);white-space:nowrap;z-index:101;"></div>
   <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;flex:1;">
     <div style="background:#fff;border-radius:8px;padding:8px 14px;display:flex;align-items:center;box-shadow:0 1px 3px rgba(0,0,0,.15);">
@@ -7505,7 +7505,7 @@ function renderBoardUnitCard(u) {
       const currentRemediators = (u.remediationCheckins||[]).map((c,i)=>({...c,idx:i}));
       actions += `<div style="width:100%;display:flex;flex-direction:column;gap:6px;">`;
       actions += currentRemediators.map(c => `<div style="display:flex;justify-content:space-between;align-items:center;background:#fdecea;border:1px solid #A03033;border-radius:8px;padding:6px 10px;gap:8px;">
-        <span style="font-size:12px;font-weight:600;color:#A03033;">&#9888; ${c.name} — Remediation since ${c.startTs}</span>
+        <span style="font-size:12px;font-weight:600;color:#A03033;">&#9888; ${c.name}${c.num?' (#'+c.num+')':''} — Remediation since ${c.startTs}</span>
         <div style="display:flex;gap:6px;flex-shrink:0;">
           <button class="success sm" onclick="quickFinishOneRemediator('${u.id}',${c.idx})" title="This person is done — remediation successfully completed.">&#10003; Finish</button>
           <button class="warn-btn sm" onclick="quickStopOneRemediator('${u.id}',${c.idx})" title="Pausing — not done yet. Can resume later.">&#9208; Stop</button>
@@ -7523,6 +7523,8 @@ function renderBoardUnitCard(u) {
       panels += `<div class="action-group" id="bd-startremed-${sid}">
         <label>Name</label>
         <input id="bd-startremed-name-${sid}" type="text" placeholder="Their name" />
+        <label>Employee #</label>
+        <input id="bd-startremed-num-${sid}" type="text" placeholder="Employee number" />
         <label>Reason</label>
         <textarea id="bd-startremed-note-${sid}" rows="2" placeholder="Describe the issue..."></textarea>
         <button class="danger sm" onclick="quickStartRemediation('${u.id}')">&#9888; Confirm Start</button>
@@ -8017,19 +8019,21 @@ function quickReopenInspection(unitId) {
 function quickStartRemediation(unitId) {
   const sid = safeId(unitId);
   const nameEl = document.getElementById('bd-startremed-name-'+sid);
+  const numEl = document.getElementById('bd-startremed-num-'+sid);
   const noteEl = document.getElementById('bd-startremed-note-'+sid);
   const name = nameEl ? nameEl.value.trim() : '';
   if (!name) { alert('Enter a name first.'); return; }
+  const num = numEl ? numEl.value.trim() : '';
   const note = noteEl ? noteEl.value.trim() : '';
   const u = ensureBoardTracked(unitId);
   if (!u.remediationCheckins) u.remediationCheckins = [];
   if (!u.remediations) u.remediations = [];
-  u.remediationCheckins.push({ name, startTs: now() });
+  u.remediationCheckins.push({ name, num, startTs: now() });
   if (note) u.remediations.push({ note, ts: now(), operator: name });
   u.remediationNeeded = true;
   u.remediationStarted = true;
   u.remediationComplete = false;
-  u.history.push({ action: name+' started remediation at '+u.col+(note?' — '+note:''), ts: now(), notes: note });
+  u.history.push({ action: name+(num?' (#'+num+')':'')+' started remediation at '+u.col+(note?' — '+note:''), ts: now(), notes: note });
   pushBoard(); renderAll();
 }
 function quickFinishOneRemediator(unitId, idx) {
@@ -8053,7 +8057,7 @@ function quickFinishOneRemediator(unitId, idx) {
       u.remediationFlags = [];
     }
   }
-  u.history.push({ action: 'Remediation finished at '+u.col+' — '+person.name+(stillWorking?'':' (last remediator — unit now Ready for Release)'), ts: now(), notes: '' });
+  u.history.push({ action: 'Remediation finished at '+u.col+' — '+person.name+(person.num?' (#'+person.num+')':'')+(stillWorking?'':' (last remediator — unit now Ready for Release)'), ts: now(), notes: '' });
   pushBoard(); renderAll();
 }
 function quickStopOneRemediator(unitId, idx) {
@@ -8063,7 +8067,7 @@ function quickStopOneRemediator(unitId, idx) {
   u.remediationCheckins.splice(idx, 1);
   const stillWorking = u.remediationCheckins.length > 0;
   u.remediationStarted = stillWorking;
-  u.history.push({ action: 'Remediation stopped at '+u.col+' — '+person.name+(stillWorking?'':' (last remediator — paused, not yet complete)'), ts: now(), notes: '' });
+  u.history.push({ action: 'Remediation stopped at '+u.col+' — '+person.name+(person.num?' (#'+person.num+')':'')+(stillWorking?'':' (last remediator — paused, not yet complete)'), ts: now(), notes: '' });
   pushBoard(); renderAll();
 }
 function quickReopenRemediation(unitId) {
@@ -13188,7 +13192,7 @@ function quickDismissReadyForPDI(unitId) {
    visible stamp every time a change is made, or version checks
    against a stale reference and never fires.
    ============================================================ */
-const BUILD_DATE = '2026-08-21-45';
+const BUILD_DATE = '2026-08-21-46';
 let updateBannerShown = false;
 function checkForNewVersion() {
   if (updateBannerShown) return;

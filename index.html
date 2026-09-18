@@ -1155,7 +1155,7 @@ label { font-size: 11px; font-weight: 600; color: var(--text-2); display: block;
 
 <!-- ============================================================ HEADER -->
 <div class="app-header">
-  <div id="build-stamp" title="If this looks out of date after an update was announced, hard-refresh with Ctrl+Shift+R (Cmd+Shift+R on Mac) to clear your browser's cached copy.">Build: <span id="build-stamp-text">2026-08-21-44</span></div>
+  <div id="build-stamp" title="If this looks out of date after an update was announced, hard-refresh with Ctrl+Shift+R (Cmd+Shift+R on Mac) to clear your browser's cached copy.">Build: <span id="build-stamp-text">2026-08-21-45</span></div>
   <div id="header-signed-in" style="position:absolute;top:26px;right:16px;font-size:11px;color:rgba(255,255,255,.75);white-space:nowrap;z-index:101;"></div>
   <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;flex:1;">
     <div style="background:#fff;border-radius:8px;padding:8px 14px;display:flex;align-items:center;box-shadow:0 1px 3px rgba(0,0,0,.15);">
@@ -5457,7 +5457,8 @@ function syncFromSheetsViaGAS(onDone) {
     if (!err && rows && rows.length>1) {
       bumpRowFloor('QC', rows.length - 1);
     }
-    if (!err && rows && rows.length>1 && Date.now() - qcLastLocalEditAt > 45000) {
+    if (!err && rows && rows.length>1 && shouldAllowPull(qcLastLocalEditAt, lastSuccessfulQcPullAt)) {
+      lastSuccessfulQcPullAt = Date.now();
       qcUnits = rows.slice(1).filter(r=>r[0]).map(r => {
         let history=[]; try{history=JSON.parse(r[9]||'[]');}catch(e){}
         return {serial:r[0],type:r[1],station:r[2],inspectionStarted:r[3]==='TRUE'||r[3]===true,
@@ -5469,7 +5470,8 @@ function syncFromSheetsViaGAS(onDone) {
       if (!err2 && rows2 && rows2.length>1) {
         bumpRowFloor('Board', rows2.length - 1);
       }
-      if (!err2 && rows2 && rows2.length>1 && Date.now() - boardLastLocalEditAt > 45000) {
+      if (!err2 && rows2 && rows2.length>1 && shouldAllowPull(boardLastLocalEditAt, lastSuccessfulBoardPullAt)) {
+        lastSuccessfulBoardPullAt = Date.now();
         boardUnits = rows2.slice(1).filter(r=>r[0]).map(r => {
           let history=[]; try{history=JSON.parse(r[10]||'[]');}catch(e){}
           let checklist={}; try{checklist=JSON.parse(r[16]||'{}');}catch(e){}
@@ -5512,7 +5514,8 @@ function syncFromSheetsViaGAS(onDone) {
         // remote value slip back in. Skipping the merge entirely while a
         // local edit is this recent removes that window rather than
         // relying on timestamp comparison alone to catch every case.
-        if (!err3 && rows3 && rows3.length>1 && Date.now() - issuesLastLocalEditAt > 45000) {
+        if (!err3 && rows3 && rows3.length>1 && shouldAllowPull(issuesLastLocalEditAt, lastSuccessfulIssuesPullAt)) {
+          lastSuccessfulIssuesPullAt = Date.now();
           // Merge, don't overwrite — the remote sheet may not have caught up
           // to a very recent local save yet (Apps Script write lag, or the
           // push simply hasn't landed). Keep whichever version of each key
@@ -5923,7 +5926,8 @@ function syncFromSheetsViaSmartsheet(onDone) {
     if (rows && rows.length>1) {
       bumpRowFloor('QC', rows.length - 1);
     }
-    if (rows && rows.length>1 && Date.now() - qcLastLocalEditAt > 45000) {
+    if (rows && rows.length>1 && shouldAllowPull(qcLastLocalEditAt, lastSuccessfulQcPullAt)) {
+      lastSuccessfulQcPullAt = Date.now();
       qcUnits = rows.slice(1).filter(r=>r[0]).map(r => {
         let history=[]; try{history=JSON.parse(r[9]||'[]');}catch(e){}
         return {serial:r[0],type:r[1],station:r[2],inspectionStarted:r[3]==='TRUE'||r[3]===true,
@@ -5934,7 +5938,8 @@ function syncFromSheetsViaSmartsheet(onDone) {
     if (rows2 && rows2.length>1) {
       bumpRowFloor('Board', rows2.length - 1);
     }
-    if (rows2 && rows2.length>1 && Date.now() - boardLastLocalEditAt > 45000) {
+    if (rows2 && rows2.length>1 && shouldAllowPull(boardLastLocalEditAt, lastSuccessfulBoardPullAt)) {
+      lastSuccessfulBoardPullAt = Date.now();
       boardUnits = rows2.slice(1).filter(r=>r[0]).map(r => {
         let history=[]; try{history=JSON.parse(r[10]||'[]');}catch(e){}
         let checklist={}; try{checklist=JSON.parse(r[16]||'{}');}catch(e){}
@@ -5965,7 +5970,8 @@ function syncFromSheetsViaSmartsheet(onDone) {
           deviationNeeded:r[13]==='TRUE'||r[13]===true,deviationNote:r[14]||'',deviationTs:r[15]||'',checklist,qcChecklist,failOverrides,station2Tasks,solutionsEso:r[20]||'',dueDate:normalizeDueDate(r[21]),leadCheckins,stationTrackerTasks,fuelTankSerial:r[24]||'',location:r[25]||'',mapX:r[26]!==undefined&&r[26]!==''?parseFloat(r[26]):null,mapY:r[27]!==undefined&&r[27]!==''?parseFloat(r[27]):null,mapRotation:r[28]!==undefined&&r[28]!==''?parseFloat(r[28]):0,deviations,inspectionComplete:r[30]==='TRUE'||r[30]===true,weatherReadySignoffs,checklistMeta,qcChecklistMeta,issueClosures,remediations,issueClosingSessions,cleaningSessions,remediationCheckins,remediationStarted:r[39]==='TRUE'||r[39]===true,remediationComplete:r[40]==='TRUE'||r[40]===true,remediationFlags,materialHold:r[42]==='TRUE'||r[42]===true,materialHoldNote:r[43]||'',materialHoldTs:r[44]||'',materialHoldHistory,moveRequest,readyForPDI,heldByTracker:r[48]==='TRUE'||r[48]===true};
       });
     }
-    if (rows3 && rows3.length>1 && Date.now() - issuesLastLocalEditAt > 45000) {
+    if (rows3 && rows3.length>1 && shouldAllowPull(issuesLastLocalEditAt, lastSuccessfulIssuesPullAt)) {
+      lastSuccessfulIssuesPullAt = Date.now();
       // Same merge logic and recency guard as the Google Sheets path — see
       // syncFromSheetsViaGAS for the full reasoning.
       const remoteIssues = {};
@@ -6009,6 +6015,26 @@ function syncFromSheets() {
 let boardLastLocalEditAt = 0;
 let qcLastLocalEditAt = 0;
 let issuesLastLocalEditAt = 0;
+// Tracks when each of these last actually pulled fresh data in, separate
+// from the "local edit" timestamps above. The 45s guards exist so a pull
+// can't overwrite an edit that hasn't finished pushing yet — but on a
+// page where edits happen constantly (Station Tracker's Start/Pause/Hold
+// buttons especially), every new edit resets that same 45s clock, which
+// on a continuously-active device meant it could go far longer than
+// intended — in practice indefinitely — without ever actually pulling
+// anyone else's changes in. shouldAllowPull forces a pull through once
+// too much real time has passed since the last one actually landed,
+// regardless of how recently a local edit happened, so a busy device
+// still eventually sees everyone else's changes rather than staying
+// permanently stuck on its own view of the data.
+let lastSuccessfulBoardPullAt = 0;
+let lastSuccessfulQcPullAt = 0;
+let lastSuccessfulIssuesPullAt = 0;
+const PULL_GUARD_MS = 45000;
+const PULL_MAX_STALE_MS = 120000;
+function shouldAllowPull(lastLocalEditAt, lastSuccessfulPullAt) {
+  return (Date.now() - lastLocalEditAt > PULL_GUARD_MS) || (Date.now() - lastSuccessfulPullAt > PULL_MAX_STALE_MS);
+}
 function saveLocalCache() {
   try { localStorage.setItem('qc_units_cache', JSON.stringify(qcUnits)); } catch(e) { console.error('Local QC cache save failed:', e); }
   try { localStorage.setItem('board_units_cache', JSON.stringify(boardUnits)); } catch(e) { console.error('Local Board cache save failed:', e); }
@@ -13162,7 +13188,7 @@ function quickDismissReadyForPDI(unitId) {
    visible stamp every time a change is made, or version checks
    against a stale reference and never fires.
    ============================================================ */
-const BUILD_DATE = '2026-08-21-44';
+const BUILD_DATE = '2026-08-21-45';
 let updateBannerShown = false;
 function checkForNewVersion() {
   if (updateBannerShown) return;

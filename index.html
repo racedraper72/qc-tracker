@@ -1155,7 +1155,7 @@ label { font-size: 11px; font-weight: 600; color: var(--text-2); display: block;
 
 <!-- ============================================================ HEADER -->
 <div class="app-header">
-  <div id="build-stamp" title="If this looks out of date after an update was announced, hard-refresh with Ctrl+Shift+R (Cmd+Shift+R on Mac) to clear your browser's cached copy.">Build: <span id="build-stamp-text">2026-08-21-46</span></div>
+  <div id="build-stamp" title="If this looks out of date after an update was announced, hard-refresh with Ctrl+Shift+R (Cmd+Shift+R on Mac) to clear your browser's cached copy.">Build: <span id="build-stamp-text">2026-08-21-48</span></div>
   <div id="header-signed-in" style="position:absolute;top:26px;right:16px;font-size:11px;color:rgba(255,255,255,.75);white-space:nowrap;z-index:101;"></div>
   <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;flex:1;">
     <div style="background:#fff;border-radius:8px;padding:8px 14px;display:flex;align-items:center;box-shadow:0 1px 3px rgba(0,0,0,.15);">
@@ -7397,22 +7397,70 @@ function renderBoardUnitCard(u) {
     actions+=`<button class="${u.deviationNeeded?'danger':''}" onclick="toggleDeviation('${u.id}')">&#9888; ${u.deviationNeeded?'Deviation ('+u.deviations.length+') — Add another':'Deviation'}</button>`;
     // FLAG FOR REMEDIATION — its own dedicated, always-visible box
     // (not a modal popup, not mixed in with Hold/Deviation as a plain
-    // button) — separate from the Start Remediation roster right below
-    // it. Purely informational: logs that this unit needs remediation,
-    // shows every existing flag with its own remove button, but never
-    // blocks Release on its own — only the roster below does that.
+    // button). Purely informational on its own: logs that this unit
+    // needs remediation, shows every existing flag with its own remove
+    // button — but the actual Start Remediation roster now lives inside
+    // this same box too, rather than as a separate section elsewhere on
+    // the card, so seeing a unit is flagged and actually starting work
+    // on it happen in one place instead of needing to go find a second,
+    // disconnected section further down. Never blocks Release on its
+    // own just from a flag being present — only an actually-started,
+    // not-yet-finished remediation does that.
     {
       const flags = u.remediationFlags || [];
+      const currentRemediators = (u.remediationCheckins||[]).map((c,i)=>({...c,idx:i}));
       actions += `<div style="width:100%;padding:10px 12px;border:2px solid #A03033;border-radius:8px;background:#fdecea;">
         <div style="font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.3px;color:#A03033;margin-bottom:8px;">&#9888; Flag for Remediation${flags.length?' — '+flags.length+' flagged':''}</div>
-        ${flags.map((f, idx) => `<div style="margin-bottom:6px;font-size:12px;color:#A03033;background:#fff;border:1px solid rgba(160,48,51,.25);border-radius:6px;padding:6px 8px;display:flex;justify-content:space-between;align-items:flex-start;gap:8px;">
-          <div>${f.note} <span style="opacity:.7;font-size:10px;">(${f.operator} — ${f.ts})</span></div>
-          <button onclick="removeRemediationFlag('${u.id}',${idx})" title="Remove" style="border:none;background:transparent;color:#A03033;font-weight:900;cursor:pointer;font-size:14px;padding:0 2px;flex-shrink:0;">&times;</button>
-        </div>`).join('')}
-        <div style="display:flex;gap:6px;">
+        ${flags.map((f, idx) => {
+          const flagCheckins = (f.checkins||[]).map((c,ci)=>({...c,ci}));
+          return `<div style="margin-bottom:8px;background:#fff;border:1px solid rgba(160,48,51,.25);border-radius:8px;padding:8px;">
+            <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:${flagCheckins.length?'8px':'0'};">
+              <div style="font-size:12px;color:#A03033;">${f.note} <span style="opacity:.7;font-size:10px;">(${f.operator} — ${f.ts})</span></div>
+              <button onclick="removeRemediationFlag('${u.id}',${idx})" title="Remove" style="border:none;background:transparent;color:#A03033;font-weight:900;cursor:pointer;font-size:14px;padding:0 2px;flex-shrink:0;">&times;</button>
+            </div>
+            ${flagCheckins.map(c => `<div style="display:flex;justify-content:space-between;align-items:center;background:#fdecea;border:1px solid #A03033;border-radius:8px;padding:5px 8px;gap:8px;margin-bottom:5px;">
+              <span style="font-size:11px;font-weight:600;color:#A03033;">&#9888; ${c.name}${c.num?' (#'+c.num+')':''} — since ${c.startTs}</span>
+              <div style="display:flex;gap:5px;flex-shrink:0;">
+                <button class="success sm" onclick="quickFinishFlagRemediator('${u.id}',${idx},${c.ci})" title="This person is done — this specific issue is resolved.">&#10003; Finish</button>
+                <button class="warn-btn sm" onclick="quickStopFlagRemediator('${u.id}',${idx},${c.ci})" title="Pausing — not done yet. Can resume later.">&#9208; Stop</button>
+              </div>
+            </div>`).join('')}
+            <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;">
+              <input id="bd-flagremed-name-${sid}-${idx}" type="text" placeholder="Name" style="flex:1;min-width:80px;font-size:11px;padding:5px 6px;" />
+              <input id="bd-flagremed-num-${sid}-${idx}" type="text" placeholder="Emp #" style="flex:1;min-width:70px;font-size:11px;padding:5px 6px;" />
+              <button class="danger sm" onclick="quickStartFlagRemediation('${u.id}',${idx})" title="Start working on THIS specific issue — click again for each additional person on it.">&#9888; ${flagCheckins.length?'Add another':'Start'}</button>
+            </div>
+          </div>`;
+        }).join('')}
+        <div style="display:flex;gap:6px;margin-bottom:${flags.length||currentRemediators.length||u.remediationComplete?'10px':'0'};">
           <input id="bd-remedflag-note-${sid}" type="text" placeholder="Describe the issue..." style="flex:1;font-size:12px;padding:6px 8px;" />
           <button class="danger sm" onclick="quickAddRemediationFlag('${u.id}')">&#9888; Add Flag</button>
         </div>
+        ${currentRemediators.length ? `<div style="border-top:1px solid rgba(160,48,51,.25);padding-top:10px;display:flex;flex-direction:column;gap:6px;">
+          <div style="font-size:10px;font-weight:700;color:#A03033;text-transform:uppercase;">General remediation (not tied to a specific flag above)</div>
+          ${currentRemediators.map(c => `<div style="display:flex;justify-content:space-between;align-items:center;background:#fff;border:1px solid #A03033;border-radius:8px;padding:6px 10px;gap:8px;">
+            <span style="font-size:12px;font-weight:600;color:#A03033;">&#9888; ${c.name}${c.num?' (#'+c.num+')':''} — Remediation since ${c.startTs}</span>
+            <div style="display:flex;gap:6px;flex-shrink:0;">
+              <button class="success sm" onclick="quickFinishOneRemediator('${u.id}',${c.idx})" title="This person is done — remediation successfully completed.">&#10003; Finish</button>
+              <button class="warn-btn sm" onclick="quickStopOneRemediator('${u.id}',${c.idx})" title="Pausing — not done yet. Can resume later.">&#9208; Stop</button>
+            </div>
+          </div>`).join('')}
+        </div>` : ''}
+        ${u.remediationComplete && !currentRemediators.length ? `<div style="border-top:1px solid rgba(160,48,51,.25);padding-top:10px;display:flex;gap:6px;align-items:center;">
+          <span class="badge" style="background:#e6f7ed;color:#0e7c3a;border:1px solid #0e7c3a;font-weight:800;flex:1;text-align:center;padding:6px;">&#10003; Remediation complete</span>
+          <button class="subtle sm" onclick="quickReopenRemediation('${u.id}')" title="Finished by mistake? Undo it and bring back Start Remediation.">&#8634; Re-open</button>
+        </div>` : `<div style="${currentRemediators.length?'border-top:1px solid rgba(160,48,51,.25);padding-top:10px;':''}">
+          <button class="${u.remediationNeeded?'danger':''} sm" onclick="togglePanel('bd-startremed-${sid}')" title="Starts a general remediation not tied to a specific flag above.">&#9888; Start General Remediation${currentRemediators.length?' — add another':''}</button>
+        </div>`}
+      </div>`;
+      panels += `<div class="action-group" id="bd-startremed-${sid}">
+        <label>Name</label>
+        <input id="bd-startremed-name-${sid}" type="text" placeholder="Their name" />
+        <label>Employee #</label>
+        <input id="bd-startremed-num-${sid}" type="text" placeholder="Employee number" />
+        <label>Reason</label>
+        <textarea id="bd-startremed-note-${sid}" rows="2" placeholder="Describe the issue..."></textarea>
+        <button class="danger sm" onclick="quickStartRemediation('${u.id}')">&#9888; Confirm Start</button>
       </div>`;
     }
     // MATERIAL HOLD — its own dedicated box, separate from the regular
@@ -7494,41 +7542,6 @@ function renderBoardUnitCard(u) {
           </div>
         </div>`;
       }
-    }
-    // REMEDIATION — full lifecycle now (Start → Finished → Release),
-    // mirroring the Inspection roster exactly: any number of people can
-    // independently start and stop their own remediation session on this
-    // unit. Release stays blocked (see showRelease below) the whole time
-    // remediation has been started and not yet marked complete — the
-    // same pattern as inspectionStarted/inspectionComplete.
-    {
-      const currentRemediators = (u.remediationCheckins||[]).map((c,i)=>({...c,idx:i}));
-      actions += `<div style="width:100%;display:flex;flex-direction:column;gap:6px;">`;
-      actions += currentRemediators.map(c => `<div style="display:flex;justify-content:space-between;align-items:center;background:#fdecea;border:1px solid #A03033;border-radius:8px;padding:6px 10px;gap:8px;">
-        <span style="font-size:12px;font-weight:600;color:#A03033;">&#9888; ${c.name}${c.num?' (#'+c.num+')':''} — Remediation since ${c.startTs}</span>
-        <div style="display:flex;gap:6px;flex-shrink:0;">
-          <button class="success sm" onclick="quickFinishOneRemediator('${u.id}',${c.idx})" title="This person is done — remediation successfully completed.">&#10003; Finish</button>
-          <button class="warn-btn sm" onclick="quickStopOneRemediator('${u.id}',${c.idx})" title="Pausing — not done yet. Can resume later.">&#9208; Stop</button>
-        </div>
-      </div>`).join('');
-      if (u.remediationComplete && !currentRemediators.length) {
-        actions += `<div style="display:flex;gap:6px;align-items:center;">
-          <span class="badge" style="background:#e6f7ed;color:#0e7c3a;border:1px solid #0e7c3a;font-weight:800;flex:1;text-align:center;padding:6px;">&#10003; Remediation complete</span>
-          <button class="subtle sm" onclick="quickReopenRemediation('${u.id}')" title="Finished by mistake? Undo it and bring back Start Remediation.">&#8634; Re-open</button>
-        </div>`;
-      } else {
-        actions += `<button class="${u.remediationNeeded?'danger':''}" onclick="togglePanel('bd-startremed-${sid}')" title="Adds one more person as a remediator on this unit right now — click again for each additional person.">&#9888; Start Remediation${currentRemediators.length?' — add another':''}</button>`;
-      }
-      actions += `</div>`;
-      panels += `<div class="action-group" id="bd-startremed-${sid}">
-        <label>Name</label>
-        <input id="bd-startremed-name-${sid}" type="text" placeholder="Their name" />
-        <label>Employee #</label>
-        <input id="bd-startremed-num-${sid}" type="text" placeholder="Employee number" />
-        <label>Reason</label>
-        <textarea id="bd-startremed-note-${sid}" rows="2" placeholder="Describe the issue..."></textarea>
-        <button class="danger sm" onclick="quickStartRemediation('${u.id}')">&#9888; Confirm Start</button>
-      </div>`;
     }
   }
   if (u.history.length) actions+=`<button class="subtle" onclick="togglePanel('bd-hist-${sid}')">History (${u.history.length})</button>`;
@@ -8075,6 +8088,54 @@ function quickReopenRemediation(unitId) {
   if (!u.remediationComplete) return;
   u.remediationComplete = false;
   u.history.push({ action: 'Re-opened for remediation at '+u.col+' (Finish undone)', ts: now(), notes: '' });
+  pushBoard(); renderAll();
+}
+/* ---- PER-FLAG REMEDIATION ROSTER ----
+   Each flagged issue is its own independent remediation task, with its
+   own roster — confirmed explicitly: different people can work different
+   flagged issues on the same unit at the same time, and finishing one
+   issue only resolves that one, never the others. Mirrors the generic
+   Start/Finish/Stop pattern above exactly, just scoped to one specific
+   flag's own checkins array instead of the unit-level one. */
+function quickStartFlagRemediation(unitId, flagIdx) {
+  const sid = safeId(unitId);
+  const nameEl = document.getElementById('bd-flagremed-name-'+sid+'-'+flagIdx);
+  const numEl = document.getElementById('bd-flagremed-num-'+sid+'-'+flagIdx);
+  const name = nameEl ? nameEl.value.trim() : '';
+  if (!name) { alert('Enter a name first.'); return; }
+  const num = numEl ? numEl.value.trim() : '';
+  const u = ensureBoardTracked(unitId);
+  syncRemediationFlagSummary(u);
+  const flag = u.remediationFlags[flagIdx];
+  if (!flag) return;
+  flag.checkins.push({ name, num, startTs: now() });
+  u.history.push({ action: name+(num?' (#'+num+')':'')+' started remediation at '+u.col+' — '+flag.note, ts: now(), notes: '' });
+  pushBoard(); renderAll();
+}
+function quickFinishFlagRemediator(unitId, flagIdx, checkinIdx) {
+  const u = ensureBoardTracked(unitId);
+  syncRemediationFlagSummary(u);
+  const flag = u.remediationFlags[flagIdx];
+  if (!flag || !flag.checkins[checkinIdx]) return;
+  const person = flag.checkins[checkinIdx];
+  flag.checkins.splice(checkinIdx, 1);
+  const stillWorking = flag.checkins.length > 0;
+  if (!stillWorking) {
+    // This one specific issue is resolved — remove just this flag, not
+    // any others still open on the unit.
+    u.remediationFlags.splice(flagIdx, 1);
+  }
+  u.history.push({ action: 'Remediation finished at '+u.col+' — '+person.name+(person.num?' (#'+person.num+')':'')+' — '+flag.note+(stillWorking?'':' (resolved)'), ts: now(), notes: '' });
+  pushBoard(); renderAll();
+}
+function quickStopFlagRemediator(unitId, flagIdx, checkinIdx) {
+  const u = ensureBoardTracked(unitId);
+  syncRemediationFlagSummary(u);
+  const flag = u.remediationFlags[flagIdx];
+  if (!flag || !flag.checkins[checkinIdx]) return;
+  const person = flag.checkins[checkinIdx];
+  flag.checkins.splice(checkinIdx, 1);
+  u.history.push({ action: 'Remediation stopped at '+u.col+' — '+person.name+(person.num?' (#'+person.num+')':'')+' — '+flag.note+' (paused, not yet resolved)', ts: now(), notes: '' });
   pushBoard(); renderAll();
 }
 // Weather Ready sign-offs — requires the entering password to actually
@@ -13020,6 +13081,11 @@ function openDeviationNoteModal(unitId) {
    right now." */
 function syncRemediationFlagSummary(u) {
   if (!Array.isArray(u.remediationFlags)) u.remediationFlags = [];
+  // Each flag is its own independent remediation task with its own
+  // roster — gives every flag a checkins array if it doesn't have one
+  // yet, covering both a genuinely new flag and an older one synced from
+  // before per-flag rosters existed.
+  u.remediationFlags.forEach(f => { if (!Array.isArray(f.checkins)) f.checkins = []; });
 }
 // Inline, dedicated-box version — no modal popup. Reads directly from
 // the always-visible input in the Flag for Remediation box on the card
@@ -13033,7 +13099,7 @@ function quickAddRemediationFlag(unitId) {
     if (!note) { alert('Describe the issue first.'); return; }
     const u = ensureBoardTracked(unitId);
     syncRemediationFlagSummary(u);
-    u.remediationFlags.push({ note, ts: now(), operator: getOperator().name });
+    u.remediationFlags.push({ note, ts: now(), operator: getOperator().name, checkins: [] });
     u.history.push({ action: 'Flagged for remediation', ts: now(), notes: note });
     pushBoard(); renderAll();
   }, 'Sign to flag Remediation');
@@ -13192,7 +13258,7 @@ function quickDismissReadyForPDI(unitId) {
    visible stamp every time a change is made, or version checks
    against a stale reference and never fires.
    ============================================================ */
-const BUILD_DATE = '2026-08-21-46';
+const BUILD_DATE = '2026-08-21-48';
 let updateBannerShown = false;
 function checkForNewVersion() {
   if (updateBannerShown) return;

@@ -1155,7 +1155,7 @@ label { font-size: 11px; font-weight: 600; color: var(--text-2); display: block;
 
 <!-- ============================================================ HEADER -->
 <div class="app-header">
-  <div id="build-stamp" title="If this looks out of date after an update was announced, hard-refresh with Ctrl+Shift+R (Cmd+Shift+R on Mac) to clear your browser's cached copy.">Build: <span id="build-stamp-text">2026-08-21-48</span></div>
+  <div id="build-stamp" title="If this looks out of date after an update was announced, hard-refresh with Ctrl+Shift+R (Cmd+Shift+R on Mac) to clear your browser's cached copy.">Build: <span id="build-stamp-text">2026-08-21-49</span></div>
   <div id="header-signed-in" style="position:absolute;top:26px;right:16px;font-size:11px;color:rgba(255,255,255,.75);white-space:nowrap;z-index:101;"></div>
   <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;flex:1;">
     <div style="background:#fff;border-radius:8px;padding:8px 14px;display:flex;align-items:center;box-shadow:0 1px 3px rgba(0,0,0,.15);">
@@ -2014,26 +2014,51 @@ label { font-size: 11px; font-weight: 600; color: var(--text-2); display: block;
 <!-- ============================================================ END CLEANER DASHBOARD PAGE -->
 
 <!-- ============================================================ FLOOR MAP PAGE -->
-<div id="page-floormap" class="app-body" style="display:none;padding:0;">
-  <div style="display:flex;justify-content:space-between;align-items:center;padding:14px 20px;flex-wrap:wrap;gap:10px;border-bottom:1px solid #edebe9;">
+<div id="page-floormap" class="app-body" style="display:none;">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:8px;">
     <div>
-      <h2 style="font-size:16px;font-weight:800;letter-spacing:-.3px;">&#128506; Floor Plan</h2>
-      <p id="fm-last-updated" style="font-size:11px;margin-top:3px;color:var(--text-2,#605e5c);"></p>
+      <h2 style="font-size:16px;font-weight:800;letter-spacing:-.3px;">&#128506; Floor Map</h2>
+      <p style="font-size:12px;color:var(--text-2);margin-top:3px;">Drag a unit marker to update where it physically sits on the floor right now. Click a marker's &#8635; to rotate it 90&deg; (Shift+click = 15&deg;, Alt+click = -15&deg;; double-click a marker to reset its rotation).</p>
+      <p id="fm-last-updated" style="font-size:11px;margin-top:4px;"></p>
     </div>
-    <div style="display:flex;gap:8px;align-items:center;">
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
       <input type="file" id="fm-bg-upload" accept="image/*" style="display:none;" onchange="fmHandleBgUpload(event)" />
-      <button class="primary sm" onclick="document.getElementById('fm-bg-upload').click()">&#8593; Upload Screenshot</button>
-      <button class="subtle sm" onclick="fmClearBg()">&#10005; Clear</button>
+      <button class="subtle sm" onclick="document.getElementById('fm-bg-upload').click()">&#8593; Upload Screenshot</button>
+      <button class="subtle sm" onclick="fmClearBg()">&#10005; Clear Floor Plan</button>
+      <button class="subtle sm" onclick="fmToggleFullscreen()" id="fm-fullscreen-btn">&#10530; Fit to Screen</button>
+      <span style="width:1px;height:20px;background:var(--border,#e1dfdd);margin:0 2px;"></span>
+      <label style="display:flex;align-items:center;gap:5px;font-size:12px;color:var(--text-2);cursor:pointer;">
+        <input type="checkbox" id="fm-grid-toggle" checked onchange="fmSaveGridConfig();renderFloorMap();" /> Grid
+      </label>
+      <label style="display:flex;align-items:center;gap:4px;font-size:12px;color:var(--text-2);">Cols
+        <input type="number" id="fm-grid-cols" value="12" min="1" max="52" style="width:48px;padding:4px 6px;font-size:12px;" onchange="fmSaveGridConfig();renderFloorMap();" />
+      </label>
+      <label style="display:flex;align-items:center;gap:4px;font-size:12px;color:var(--text-2);">Rows
+        <input type="number" id="fm-grid-rows" value="8" min="1" max="52" style="width:48px;padding:4px 6px;font-size:12px;" onchange="fmSaveGridConfig();renderFloorMap();" />
+      </label>
     </div>
   </div>
-  <div id="fm-embed-wrap" style="position:relative;width:100%;height:86vh;background:#0f1923;overflow:hidden;">
-    <div id="fm-embed-empty" style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:24px;color:#8a96a8;">
-      <div style="font-size:40px;margin-bottom:10px;">&#128506;</div>
-      <p style="font-size:13px;">No floor plan uploaded yet — click "Upload Screenshot" above to add one.</p>
+  <div style="display:grid;grid-template-columns:220px 1fr;gap:16px;align-items:start;">
+    <div class="card" style="padding:12px;">
+      <div style="font-size:11px;font-weight:700;color:var(--text-2,#605e5c);text-transform:uppercase;margin-bottom:8px;">Place by grid reference</div>
+      <select id="fm-grid-unit-picker" style="margin-bottom:6px;width:100%;"></select>
+      <div style="display:flex;gap:6px;">
+        <input type="text" id="fm-grid-ref-input" placeholder="e.g. C4" style="flex:1;min-width:0;text-transform:uppercase;" onkeydown="if(event.key==='Enter')fmPlaceByGridRef();" />
+        <button class="primary sm" onclick="fmPlaceByGridRef()">Place</button>
+      </div>
+      <div id="fm-grid-ref-err" style="color:#A03033;font-size:11px;min-height:14px;margin-top:4px;"></div>
+      <div style="font-size:11px;font-weight:700;color:var(--text-2,#605e5c);text-transform:uppercase;margin:14px 0 8px;">Unplaced Units</div>
+      <div id="fm-unplaced-list" style="display:flex;flex-direction:column;gap:6px;max-height:60vh;overflow-y:auto;"></div>
     </div>
-    <img id="fm-embed-img" style="display:none;width:100%;height:100%;object-fit:contain;" alt="Floor Plan" />
+    <div id="fm-map-container" style="position:relative;width:100%;aspect-ratio:16/10;background:#f0f2f5;border:2px dashed #c8d0dc;border-radius:10px;overflow:hidden;">
+      <div id="fm-map-empty" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#8a96a8;font-size:13px;text-align:center;padding:20px;">No floor plan uploaded yet — click "Upload Screenshot" to add one, or place units on this blank canvas for now.</div>
+      <div id="fm-grid-layer" style="position:absolute;inset:0;pointer-events:none;"></div>
+      <div id="fm-markers-layer" style="position:absolute;inset:0;"></div>
+    </div>
   </div>
 </div>
+<!-- ============================================================ END FLOOR MAP PAGE -->
+
 <!-- ============================================================ END FLOOR MAP PAGE -->
 
 <!-- ============================================================ EDIT/ADD UNIT PAGE -->
@@ -4467,13 +4492,62 @@ function fmResetUnitRotation(e, unitId) {
   renderFloorMap();
 }
 
-// The interactive drag-to-place map has been replaced by a direct link to
-// the live SharePoint floor plan (which changes daily) — this now just
-// renders the "last updated"/link status banner, the rest of the old
-// grid/marker logic below this file no longer runs from here but is left
-// in place in case the interactive map is ever brought back.
+// Interactive drag-to-place restored on top of the uploaded-screenshot
+// background — units listed in the sidebar can be dragged onto the map,
+// which uses the uploaded image (see getFloorMapBg) as a CSS background
+// rather than an <img> tag, so the marker layer can sit correctly
+// positioned on top of it via absolute positioning.
 function renderFloorMap() {
+  const bgEl = document.getElementById('fm-map-container');
+  const emptyEl = document.getElementById('fm-map-empty');
+  const markersEl = document.getElementById('fm-markers-layer');
+  const listEl = document.getElementById('fm-unplaced-list');
+  if (!bgEl || !markersEl || !listEl) return;
+
   renderFmLastUpdated();
+  fmRenderGridOverlay();
+  fmRenderGridUnitPicker();
+
+  const bg = getFloorMapBg();
+  const hasRealImage = bg && bg !== DEFAULT_FLOOR_MAP_BG;
+  if (hasRealImage) {
+    bgEl.style.backgroundImage = `url(${bg})`;
+    bgEl.style.backgroundSize = 'contain';
+    bgEl.style.backgroundRepeat = 'no-repeat';
+    bgEl.style.backgroundPosition = 'center';
+    if (emptyEl) emptyEl.style.display = 'none';
+  } else {
+    bgEl.style.backgroundImage = '';
+    if (emptyEl) emptyEl.style.display = 'flex';
+  }
+
+  const active = getAllBoardUnits().filter(u => !u.completed);
+  const placed = active.filter(u => u.mapX != null && u.mapY != null);
+  const unplaced = active.filter(u => u.mapX == null || u.mapY == null);
+
+  markersEl.innerHTML = placed.map(u => {
+    const cs = getBoardCatStyle(u.id);
+    const rot = u.mapRotation || 0;
+    const gridRef = fmPctToGridRef(u.mapX, u.mapY);
+    return `<div id="fm-marker-${safeId(u.id)}" onmousedown="fmMarkerMouseDown(event,'${u.id}')" ondblclick="fmResetUnitRotation(event,'${u.id}')"
+      style="position:absolute;left:${u.mapX}%;top:${u.mapY}%;z-index:10;cursor:grab;user-select:none;">
+      <div style="min-width:46px;padding:3px 14px 3px 6px;border-radius:3px;background:${cs.border};border:1.5px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.35);display:flex;align-items:center;justify-content:center;font-size:8.5px;font-weight:800;color:#fff;white-space:nowrap;line-height:1.1;transform:rotate(${rot}deg);transition:transform .1s ease;" title="${u.id} — ${u.col} — cell ${gridRef} — drag to move — rotation ${rot}&deg;">
+        ${u.id}
+      </div>
+      <button onmousedown="event.stopPropagation()" onclick="fmUnplaceUnit('${u.id}')" title="Remove from map" style="position:absolute;top:-6px;right:-6px;width:13px;height:13px;border-radius:50%;background:#fff;border:1px solid ${cs.border};color:${cs.border};font-size:8px;line-height:1;cursor:pointer;padding:0;display:flex;align-items:center;justify-content:center;font-weight:900;">&#10005;</button>
+      <button onmousedown="event.stopPropagation()" onclick="fmRotateUnit(event,'${u.id}')" title="Rotate 90&deg; (Shift+click: 15&deg;, Alt+click: -15&deg;; dbl-click marker to reset)" style="position:absolute;top:-6px;left:-6px;width:13px;height:13px;border-radius:50%;background:#fff;border:1px solid ${cs.border};color:${cs.border};font-size:8px;line-height:1;cursor:pointer;padding:0;display:flex;align-items:center;justify-content:center;font-weight:900;">&#8635;</button>
+    </div>`;
+  }).join('');
+
+  listEl.innerHTML = unplaced.length
+    ? unplaced.map(u => {
+        const cs = getBoardCatStyle(u.id);
+        return `<button onclick="fmPlaceUnit('${u.id}')" style="text-align:left;font-size:12px;padding:8px 10px;border-radius:8px;border:1px solid ${cs.border};background:#fff;color:${cs.text};cursor:pointer;">
+          <div style="font-weight:700;">${u.id}</div>
+          <div style="font-size:10px;color:var(--text-3,#8a96a8);">${u.col}</div>
+        </button>`;
+      }).join('')
+    : '<p style="font-size:12px;color:var(--text-3,#8a96a8);font-style:italic;">Every active unit has a placed position.</p>';
 }
 
 function getDefaultTaskLink(station, project, taskName) {
@@ -7449,18 +7523,7 @@ function renderBoardUnitCard(u) {
         ${u.remediationComplete && !currentRemediators.length ? `<div style="border-top:1px solid rgba(160,48,51,.25);padding-top:10px;display:flex;gap:6px;align-items:center;">
           <span class="badge" style="background:#e6f7ed;color:#0e7c3a;border:1px solid #0e7c3a;font-weight:800;flex:1;text-align:center;padding:6px;">&#10003; Remediation complete</span>
           <button class="subtle sm" onclick="quickReopenRemediation('${u.id}')" title="Finished by mistake? Undo it and bring back Start Remediation.">&#8634; Re-open</button>
-        </div>` : `<div style="${currentRemediators.length?'border-top:1px solid rgba(160,48,51,.25);padding-top:10px;':''}">
-          <button class="${u.remediationNeeded?'danger':''} sm" onclick="togglePanel('bd-startremed-${sid}')" title="Starts a general remediation not tied to a specific flag above.">&#9888; Start General Remediation${currentRemediators.length?' — add another':''}</button>
-        </div>`}
-      </div>`;
-      panels += `<div class="action-group" id="bd-startremed-${sid}">
-        <label>Name</label>
-        <input id="bd-startremed-name-${sid}" type="text" placeholder="Their name" />
-        <label>Employee #</label>
-        <input id="bd-startremed-num-${sid}" type="text" placeholder="Employee number" />
-        <label>Reason</label>
-        <textarea id="bd-startremed-note-${sid}" rows="2" placeholder="Describe the issue..."></textarea>
-        <button class="danger sm" onclick="quickStartRemediation('${u.id}')">&#9888; Confirm Start</button>
+        </div>` : ''}
       </div>`;
     }
     // MATERIAL HOLD — its own dedicated box, separate from the regular
@@ -13258,7 +13321,7 @@ function quickDismissReadyForPDI(unitId) {
    visible stamp every time a change is made, or version checks
    against a stale reference and never fires.
    ============================================================ */
-const BUILD_DATE = '2026-08-21-48';
+const BUILD_DATE = '2026-08-21-49';
 let updateBannerShown = false;
 function checkForNewVersion() {
   if (updateBannerShown) return;

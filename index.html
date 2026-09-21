@@ -1155,7 +1155,7 @@ label { font-size: 11px; font-weight: 600; color: var(--text-2); display: block;
 
 <!-- ============================================================ HEADER -->
 <div class="app-header">
-  <div id="build-stamp" title="If this looks out of date after an update was announced, hard-refresh with Ctrl+Shift+R (Cmd+Shift+R on Mac) to clear your browser's cached copy.">Build: <span id="build-stamp-text">2026-08-21-51</span></div>
+  <div id="build-stamp" title="If this looks out of date after an update was announced, hard-refresh with Ctrl+Shift+R (Cmd+Shift+R on Mac) to clear your browser's cached copy.">Build: <span id="build-stamp-text">2026-08-21-52</span></div>
   <div id="header-signed-in" style="position:absolute;top:26px;right:16px;font-size:11px;color:rgba(255,255,255,.75);white-space:nowrap;z-index:101;"></div>
   <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;flex:1;">
     <div style="background:#fff;border-radius:8px;padding:8px 14px;display:flex;align-items:center;box-shadow:0 1px 3px rgba(0,0,0,.15);">
@@ -2902,6 +2902,30 @@ function s2OpenHoldNoteModal(unitId, taskName, empIdx, holdType, stationKey) {
    for when someone forgot to clock out and a timer's been running way
    longer than it should have. Requires the supervisor password, same as
    Deviation flags and Supervisor Release elsewhere in the app. */
+// Formats a Date as "HH:MM" (24h) for an <input type="time"> value.
+function fmtTimeInput(d) {
+  return String(d.getHours()).padStart(2,'0') + ':' + String(d.getMinutes()).padStart(2,'0');
+}
+// Computes a duration in seconds from two "HH:MM" clock times. If the
+// "out" time is earlier than "in", it's treated as having crossed
+// midnight (out + 24h) rather than a negative duration — the far more
+// likely real situation for an overnight shift than someone actually
+// meaning a negative amount of time worked.
+function s2ClockRangeToSeconds(inStr, outStr) {
+  if (!inStr || !outStr) return 0;
+  const [inH, inM] = inStr.split(':').map(Number);
+  const [outH, outM] = outStr.split(':').map(Number);
+  let mins = (outH*60+outM) - (inH*60+inM);
+  if (mins < 0) mins += 24*60;
+  return mins * 60;
+}
+function s2UpdateClockOutComputed() {
+  const inEl = document.getElementById('s2co-act-in');
+  const outEl = document.getElementById('s2co-act-out');
+  const computedEl = document.getElementById('s2co-act-computed');
+  if (!inEl || !outEl || !computedEl) return;
+  computedEl.textContent = '= ' + s2FormatHM(s2ClockRangeToSeconds(inEl.value, outEl.value));
+}
 function s2OpenSupervisorClockOut(unitId, taskName, empIdx, stationKey) {
   requireSupervisorPassword(() => s2ShowClockOutModal(unitId, taskName, empIdx, stationKey));
 }
@@ -2932,11 +2956,13 @@ function s2ShowClockOutModal(unitId, taskName, empIdx, stationKey) {
       <h2 style="font-size:16px;font-weight:800;color:#0f1923;margin-bottom:4px;letter-spacing:-.3px;">Clock Out — ${emp.num}</h2>
       <p style="font-size:12px;color:#4a5568;margin-bottom:16px;">${taskName} &middot; ${u.id}</p>
 
-      <label style="font-size:11px;font-weight:700;color:#4a5568;text-transform:uppercase;">Active time</label>
-      <div style="display:flex;align-items:center;gap:6px;margin-bottom:12px;">
-        <input id="s2co-act-h" type="number" min="0" value="${a.h}" style="${fieldStyle}" /><span style="font-size:12px;color:#8a96a8;">hr</span>
-        <input id="s2co-act-m" type="number" min="0" max="59" value="${a.m}" style="${fieldStyle}" /><span style="font-size:12px;color:#8a96a8;">min</span>
+      <label style="font-size:11px;font-weight:700;color:#4a5568;text-transform:uppercase;">Active time — clock in / clock out</label>
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
+        <input id="s2co-act-in" type="time" value="${fmtTimeInput(new Date(Date.now() - liveActive*1000))}" oninput="s2UpdateClockOutComputed()" style="flex:1;font-size:14px;padding:8px;border:2px solid #e2e6ea;border-radius:8px;" />
+        <span style="font-size:12px;color:#8a96a8;">to</span>
+        <input id="s2co-act-out" type="time" value="${fmtTimeInput(new Date())}" oninput="s2UpdateClockOutComputed()" style="flex:1;font-size:14px;padding:8px;border:2px solid #e2e6ea;border-radius:8px;" />
       </div>
+      <div id="s2co-act-computed" style="font-size:11px;color:#4a5568;margin-bottom:12px;">= ${s2FormatHM(liveActive)}</div>
 
       <label style="font-size:11px;font-weight:700;color:#4a5568;text-transform:uppercase;">Material hold time</label>
       <div style="display:flex;align-items:center;gap:6px;margin-bottom:12px;">
@@ -2970,7 +2996,7 @@ function s2ShowClockOutModal(unitId, taskName, empIdx, stationKey) {
     const errEl = overlay.querySelector('#s2co-err');
     if (!reason) { errEl.textContent = 'A reason is required.'; return; }
 
-    const newActiveSec = (parseInt(overlay.querySelector('#s2co-act-h').value)||0)*3600 + (parseInt(overlay.querySelector('#s2co-act-m').value)||0)*60;
+    const newActiveSec = s2ClockRangeToSeconds(overlay.querySelector('#s2co-act-in').value, overlay.querySelector('#s2co-act-out').value);
     const newMatSec = (parseInt(overlay.querySelector('#s2co-mat-h').value)||0)*3600 + (parseInt(overlay.querySelector('#s2co-mat-m').value)||0)*60;
     const newEngSec = (parseInt(overlay.querySelector('#s2co-eng-h').value)||0)*3600 + (parseInt(overlay.querySelector('#s2co-eng-m').value)||0)*60;
     const finish = overlay.querySelector('#s2co-finish').checked;
@@ -9243,20 +9269,27 @@ function renderPMStationLeads() {
   const el = document.getElementById('pm-station-leads-body'); if (!el) return;
   const leads = getStationLeads();
   el.innerHTML = CONFIG.lines.map(line => {
-    const rows = line.columns.map(col => {
+    const chips = line.columns.map(col => {
       const key = stationLeadKey(line.id, col.label);
       const existing = leads[key] || { name: '', email: '' };
       const sid = safeId(key);
-      return `<div style="display:grid;grid-template-columns:110px 1fr 1fr auto;gap:8px;align-items:center;padding:5px 0;border-bottom:1px solid #f0f2f5;">
-        <span style="font-size:12px;color:#605e5c;">${col.label}</span>
-        <input id="pmsl-name-${sid}" type="text" placeholder="Lead name" value="${existing.name}" style="font-size:12px;padding:5px 8px;" />
-        <input id="pmsl-email-${sid}" type="email" placeholder="name@company.com" value="${existing.email}" style="font-size:12px;padding:5px 8px;" />
-        <button class="sm" onclick="pmSaveStationLead('${jsq(line.id)}','${jsq(col.label)}')">Save</button>
+      const hasLead = !!existing.name;
+      return `<div style="display:inline-block;">
+        <button onclick="togglePanel('pmsl-panel-${sid}')" style="display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border-radius:20px;cursor:pointer;font-size:12px;background:${hasLead?'#e6f3ea':'var(--surface-2,#faf9f8)'};border:1.5px solid ${hasLead?'#0e7c3a':'var(--border,#edebe9)'};color:${hasLead?'#0e7c3a':'var(--text-2,#605e5c)'};font-weight:${hasLead?'700':'500'};">
+          <span style="opacity:.75;">${col.label}</span>${hasLead ? ': '+existing.name : ' &mdash; &#43; add lead'}
+        </button>
+        <div id="pmsl-panel-${sid}" class="action-group" style="display:none;margin-top:6px;">
+          <label>Name</label>
+          <input id="pmsl-name-${sid}" type="text" placeholder="Lead name" value="${existing.name}" style="font-size:12px;padding:6px 8px;" />
+          <label>Email</label>
+          <input id="pmsl-email-${sid}" type="email" placeholder="name@company.com" value="${existing.email}" style="font-size:12px;padding:6px 8px;" />
+          <button class="sm" onclick="pmSaveStationLead('${jsq(line.id)}','${jsq(col.label)}')">Save</button>
+        </div>
       </div>`;
     }).join('');
     return `<div style="margin-bottom:14px;">
-      <div style="font-size:12px;font-weight:700;color:${line.headerColor};padding:4px 0;border-bottom:2px solid ${line.headerColor};margin-bottom:4px;">${line.name}</div>
-      ${rows}
+      <div style="font-size:12px;font-weight:700;color:${line.headerColor};padding:4px 0;border-bottom:2px solid ${line.headerColor};margin-bottom:8px;">${line.name}</div>
+      <div style="display:flex;flex-wrap:wrap;gap:8px;">${chips}</div>
     </div>`;
   }).join('');
 }
@@ -10083,7 +10116,7 @@ function getCurrentlyClockedIn() {
         (bucket[taskName].employees || []).forEach((e, empIdx) => {
           if (e.status === 'running' || e.status === 'paused' || e.status === 'holdMaterial' || e.status === 'holdEngineering') {
             rows.push({
-              num: e.num, isTrainee: e.isTrainee, status: e.status,
+              num: e.num, name: e.name, isTrainee: e.isTrainee, status: e.status,
               unitId: u.id, station: stationKey, task: taskName, empIdx,
               sinceMs: e.currentSegmentStart || null,
             });
@@ -10104,33 +10137,18 @@ function renderPMClockedIn() {
     return;
   }
   const runningCount = rows.filter(r=>r.status==='running').length;
-  const tableRows = rows.map(r => {
+  const chips = rows.map(r => {
     const sinceLabel = (r.status==='running' && r.sinceMs) ? s2FormatHM(Math.floor((Date.now()-r.sinceMs)/1000)) + ' ago' : '—';
-    return `<tr>
-    <td style="padding:6px 10px;font-size:12px;font-weight:700;">${r.num}${r.isTrainee?' &#127891;':''}</td>
-    <td style="padding:6px 10px;font-size:12px;"><span style="font-size:11px;font-weight:700;padding:2px 9px;border-radius:20px;background:${S2_STATUS_COLOR[r.status]}22;color:${S2_STATUS_COLOR[r.status]};">${S2_STATUS_LABEL[r.status]}</span></td>
-    <td style="padding:6px 10px;font-size:12px;">${r.unitId}</td>
-    <td style="padding:6px 10px;font-size:12px;">${r.station}</td>
-    <td style="padding:6px 10px;font-size:12px;">${r.task}</td>
-    <td style="padding:6px 10px;font-size:11px;color:var(--text-3,#8a96a8);">${sinceLabel}</td>
-    <td style="padding:6px 10px;"><button onclick="s2OpenSupervisorClockOut('${r.unitId}','${r.task}',${r.empIdx},'${r.station}')" style="font-size:11px;font-weight:700;padding:5px 10px;border-radius:8px;cursor:pointer;background:#fff;border:2px solid #892729;color:#892729;white-space:nowrap;">&#128274; Clock Out</button></td>
-  </tr>`;
+    return `<div style="display:inline-flex;align-items:center;gap:8px;padding:6px 8px 6px 12px;border-radius:20px;background:${S2_STATUS_COLOR[r.status]}14;border:1.5px solid ${S2_STATUS_COLOR[r.status]}55;">
+      <span style="font-size:12px;font-weight:700;">${r.name || r.num}${r.name?' <span style="font-weight:500;color:var(--text-3,#8a96a8);">#'+r.num+'</span>':''}${r.isTrainee?' &#127891;':''}</span>
+      <span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:20px;background:${S2_STATUS_COLOR[r.status]}25;color:${S2_STATUS_COLOR[r.status]};">${S2_STATUS_LABEL[r.status]}</span>
+      <span style="font-size:11px;color:var(--text-2,#605e5c);">${r.unitId} &middot; ${r.station} &middot; ${r.task}</span>
+      <span style="font-size:10px;color:var(--text-3,#8a96a8);">${sinceLabel}</span>
+      <button onclick="s2OpenSupervisorClockOut('${r.unitId}','${r.task}',${r.empIdx},'${r.station}')" style="font-size:10px;font-weight:700;padding:4px 9px;border-radius:14px;cursor:pointer;background:#fff;border:1.5px solid #892729;color:#892729;white-space:nowrap;">&#128274; Clock Out</button>
+    </div>`;
   }).join('');
   el.innerHTML = `<div class="chart-title">Currently Clocked In <span class="chart-subtitle">${rows.length} active &middot; ${runningCount} running right now</span></div>
-    <div style="overflow-x:auto;">
-      <table style="width:100%;border-collapse:collapse;">
-        <thead><tr style="border-bottom:2px solid #edebe9;text-align:left;">
-          <th style="padding:6px 10px;font-size:11px;color:var(--text-3,#8a96a8);text-transform:uppercase;">Employee #</th>
-          <th style="padding:6px 10px;font-size:11px;color:var(--text-3,#8a96a8);text-transform:uppercase;">Status</th>
-          <th style="padding:6px 10px;font-size:11px;color:var(--text-3,#8a96a8);text-transform:uppercase;">Unit</th>
-          <th style="padding:6px 10px;font-size:11px;color:var(--text-3,#8a96a8);text-transform:uppercase;">Station</th>
-          <th style="padding:6px 10px;font-size:11px;color:var(--text-3,#8a96a8);text-transform:uppercase;">Task</th>
-          <th style="padding:6px 10px;font-size:11px;color:var(--text-3,#8a96a8);text-transform:uppercase;">Running since</th>
-          <th style="padding:6px 10px;font-size:11px;color:var(--text-3,#8a96a8);text-transform:uppercase;"></th>
-        </tr></thead>
-        <tbody>${tableRows}</tbody>
-      </table>
-    </div>`;
+    <div style="display:flex;flex-wrap:wrap;gap:8px;">${chips}</div>`;
 }
 
 // Station Tracker time totals — Station → Task → Person, with Active /
@@ -10159,35 +10177,26 @@ function renderPMStationTrackerTime() {
     const people = tasks[taskName];
     const empNums = Object.keys(people);
     let taskActive=0, taskMat=0, taskEng=0;
-    const personRows = empNums.map(num => {
+    const personChips = empNums.map(num => {
       const p = people[num];
       taskActive += p.activeSec; taskMat += p.materialHoldSec; taskEng += p.engineeringHoldSec;
       const total = p.activeSec + p.materialHoldSec + p.engineeringHoldSec;
-      return `<tr>
-        <td style="padding:5px 10px;font-size:12px;font-weight:700;">${num}${p.isTrainee?' &#127891;':''}</td>
-        <td style="padding:5px 10px;font-size:12px;color:#0e7c3a;">${s2FormatHM(p.activeSec)}</td>
-        <td style="padding:5px 10px;font-size:12px;color:#4b3a9e;">${s2FormatHM(p.materialHoldSec)}</td>
-        <td style="padding:5px 10px;font-size:12px;color:#006A8E;">${s2FormatHM(p.engineeringHoldSec)}</td>
-        <td style="padding:5px 10px;font-size:12px;font-weight:700;">${s2FormatHM(total)}</td>
-      </tr>`;
+      return `<div style="display:inline-flex;align-items:center;gap:7px;padding:6px 10px;border-radius:20px;background:var(--surface-2,#faf9f8);border:1px solid var(--border,#edebe9);">
+        <span style="font-size:12px;font-weight:700;">${num}${p.isTrainee?' &#127891;':''}</span>
+        <span style="font-size:11px;color:#0e7c3a;">${s2FormatHM(p.activeSec)}</span>
+        <span style="font-size:11px;color:#4b3a9e;">${s2FormatHM(p.materialHoldSec)}</span>
+        <span style="font-size:11px;color:#006A8E;">${s2FormatHM(p.engineeringHoldSec)}</span>
+        <span style="font-size:11px;font-weight:700;color:var(--text-1,#0f1923);">= ${s2FormatHM(total)}</span>
+      </div>`;
     }).join('');
     stationActive += taskActive; stationMat += taskMat; stationEng += taskEng;
     const taskTotal = taskActive + taskMat + taskEng;
     return `<div style="margin-bottom:14px;border:1px solid #edebe9;border-radius:8px;overflow:hidden;">
-      <div style="padding:8px 12px;background:#f8f9fb;display:flex;justify-content:space-between;align-items:center;">
+      <div style="padding:8px 12px;background:#f8f9fb;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px;">
         <span style="font-size:13px;font-weight:700;">${taskName}</span>
         <span style="font-size:11px;color:var(--text-2,#605e5c);">Active ${s2FormatHM(taskActive)} &middot; Mat. Hold ${s2FormatHM(taskMat)} &middot; Eng. Hold ${s2FormatHM(taskEng)} &middot; <strong>Total ${s2FormatHM(taskTotal)}</strong></span>
       </div>
-      <table style="width:100%;border-collapse:collapse;">
-        <thead><tr>
-          <th style="padding:5px 10px;font-size:10px;color:var(--text-3,#8a96a8);text-transform:uppercase;text-align:left;">Person</th>
-          <th style="padding:5px 10px;font-size:10px;color:var(--text-3,#8a96a8);text-transform:uppercase;text-align:left;">Active</th>
-          <th style="padding:5px 10px;font-size:10px;color:var(--text-3,#8a96a8);text-transform:uppercase;text-align:left;">Mat. Hold</th>
-          <th style="padding:5px 10px;font-size:10px;color:var(--text-3,#8a96a8);text-transform:uppercase;text-align:left;">Eng. Hold</th>
-          <th style="padding:5px 10px;font-size:10px;color:var(--text-3,#8a96a8);text-transform:uppercase;text-align:left;">Total</th>
-        </tr></thead>
-        <tbody>${personRows}</tbody>
-      </table>
+      <div style="padding:10px 12px;display:flex;flex-wrap:wrap;gap:8px;">${personChips}</div>
     </div>`;
   }).join('');
 
@@ -13435,7 +13444,7 @@ function quickDismissReadyForPDI(unitId) {
    visible stamp every time a change is made, or version checks
    against a stale reference and never fires.
    ============================================================ */
-const BUILD_DATE = '2026-08-21-51';
+const BUILD_DATE = '2026-08-21-52';
 let updateBannerShown = false;
 function checkForNewVersion() {
   if (updateBannerShown) return;

@@ -1155,7 +1155,7 @@ label { font-size: 11px; font-weight: 600; color: var(--text-2); display: block;
 
 <!-- ============================================================ HEADER -->
 <div class="app-header">
-  <div id="build-stamp" title="If this looks out of date after an update was announced, hard-refresh with Ctrl+Shift+R (Cmd+Shift+R on Mac) to clear your browser's cached copy.">Build: <span id="build-stamp-text">2026-08-21-52</span></div>
+  <div id="build-stamp" title="If this looks out of date after an update was announced, hard-refresh with Ctrl+Shift+R (Cmd+Shift+R on Mac) to clear your browser's cached copy.">Build: <span id="build-stamp-text">2026-08-21-53</span></div>
   <div id="header-signed-in" style="position:absolute;top:26px;right:16px;font-size:11px;color:rgba(255,255,255,.75);white-space:nowrap;z-index:101;"></div>
   <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;flex:1;">
     <div style="background:#fff;border-radius:8px;padding:8px 14px;display:flex;align-items:center;box-shadow:0 1px 3px rgba(0,0,0,.15);">
@@ -9953,6 +9953,35 @@ function flattenTimeReportByStation(tree) {
   });
   return flat;
 }
+// Flattens the project→unit→station→task→person tree into
+// station→project→task→person — summed across every unit WITHIN each
+// project, but keeping projects themselves separate (unlike
+// flattenTimeReportByStation above, which sums across projects too).
+function flattenTimeReportByStationAndProject(tree) {
+  const flat = {};
+  Object.keys(tree).forEach(project => {
+    const units = tree[project];
+    Object.values(units).forEach(stations => {
+      Object.keys(stations).forEach(stationKey => {
+        if (!flat[stationKey]) flat[stationKey] = {};
+        if (!flat[stationKey][project]) flat[stationKey][project] = {};
+        Object.keys(stations[stationKey]).forEach(taskName => {
+          if (!flat[stationKey][project][taskName]) flat[stationKey][project][taskName] = {};
+          Object.keys(stations[stationKey][taskName]).forEach(num => {
+            const src = stations[stationKey][taskName][num];
+            if (!flat[stationKey][project][taskName][num]) flat[stationKey][project][taskName][num] = { activeSec: 0, materialHoldSec: 0, engineeringHoldSec: 0, isTrainee: false };
+            const dst = flat[stationKey][project][taskName][num];
+            dst.activeSec += src.activeSec;
+            dst.materialHoldSec += src.materialHoldSec;
+            dst.engineeringHoldSec += src.engineeringHoldSec;
+            if (src.isTrainee) dst.isTrainee = true;
+          });
+        });
+      });
+    });
+  });
+  return flat;
+}
 
 /* ---- Dashboard: Station Tracker Time (filterable Project/Unit/Station/Job/Person) ----
    Same underlying data as the PM View report, but with the full drill-
@@ -10159,55 +10188,72 @@ function renderPMClockedIn() {
 // dumping every station's data at once.
 function renderPMStationTrackerTime() {
   const el = document.getElementById('pm-station-tracker-time'); if (!el) return;
-  const tree = flattenTimeReportByStation(getStationTrackerTimeReport());
+  const tree = flattenTimeReportByStationAndProject(getStationTrackerTimeReport());
   const stations = Object.keys(tree);
   if (!stations.length) {
-    el.innerHTML = `<div class="chart-title">Station Tracker Time — Station &rarr; Task &rarr; Person</div><p style="font-size:13px;color:#605e5c;">No Station Tracker activity recorded yet.</p>`;
+    el.innerHTML = `<div class="chart-title">Station Tracker Time — Station &rarr; Project &rarr; Job &rarr; Person</div><p style="font-size:13px;color:#605e5c;">No Station Tracker activity recorded yet.</p>`;
     return;
   }
 
   const picked = pmStationTimePickedStation && stations.includes(pmStationTimePickedStation) ? pmStationTimePickedStation : stations[0];
   const stationOptions = stations.map(s => `<option value="${s}" ${s===picked?'selected':''}>${s}</option>`).join('');
 
-  const tasks = tree[picked] || {};
-  const taskNames = Object.keys(tasks);
+  const projects = tree[picked] || {};
+  const projectNames = Object.keys(projects);
   let stationActive=0, stationMat=0, stationEng=0;
 
-  const taskBlocks = taskNames.map(taskName => {
-    const people = tasks[taskName];
-    const empNums = Object.keys(people);
-    let taskActive=0, taskMat=0, taskEng=0;
-    const personChips = empNums.map(num => {
-      const p = people[num];
-      taskActive += p.activeSec; taskMat += p.materialHoldSec; taskEng += p.engineeringHoldSec;
-      const total = p.activeSec + p.materialHoldSec + p.engineeringHoldSec;
-      return `<div style="display:inline-flex;align-items:center;gap:7px;padding:6px 10px;border-radius:20px;background:var(--surface-2,#faf9f8);border:1px solid var(--border,#edebe9);">
-        <span style="font-size:12px;font-weight:700;">${num}${p.isTrainee?' &#127891;':''}</span>
-        <span style="font-size:11px;color:#0e7c3a;">${s2FormatHM(p.activeSec)}</span>
-        <span style="font-size:11px;color:#4b3a9e;">${s2FormatHM(p.materialHoldSec)}</span>
-        <span style="font-size:11px;color:#006A8E;">${s2FormatHM(p.engineeringHoldSec)}</span>
-        <span style="font-size:11px;font-weight:700;color:var(--text-1,#0f1923);">= ${s2FormatHM(total)}</span>
+  const projectBlocks = projectNames.map(projectName => {
+    const tasks = projects[projectName];
+    const taskNames = Object.keys(tasks);
+    let projActive=0, projMat=0, projEng=0;
+
+    const taskBlocks = taskNames.map(taskName => {
+      const people = tasks[taskName];
+      const empNums = Object.keys(people);
+      let taskActive=0, taskMat=0, taskEng=0;
+      const personChips = empNums.map(num => {
+        const p = people[num];
+        taskActive += p.activeSec; taskMat += p.materialHoldSec; taskEng += p.engineeringHoldSec;
+        const total = p.activeSec + p.materialHoldSec + p.engineeringHoldSec;
+        return `<div style="display:inline-flex;align-items:center;gap:7px;padding:6px 10px;border-radius:20px;background:var(--surface-2,#faf9f8);border:1px solid var(--border,#edebe9);">
+          <span style="font-size:12px;font-weight:700;">${num}${p.isTrainee?' &#127891;':''}</span>
+          <span style="font-size:11px;color:#0e7c3a;">${s2FormatHM(p.activeSec)}</span>
+          <span style="font-size:11px;color:#4b3a9e;">${s2FormatHM(p.materialHoldSec)}</span>
+          <span style="font-size:11px;color:#006A8E;">${s2FormatHM(p.engineeringHoldSec)}</span>
+          <span style="font-size:11px;font-weight:700;color:var(--text-1,#0f1923);">= ${s2FormatHM(total)}</span>
+        </div>`;
+      }).join('');
+      projActive += taskActive; projMat += taskMat; projEng += taskEng;
+      const taskTotal = taskActive + taskMat + taskEng;
+      return `<div style="margin-bottom:10px;border:1px solid #edebe9;border-radius:8px;overflow:hidden;">
+        <div style="padding:7px 12px;background:#f8f9fb;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px;">
+          <span style="font-size:12px;font-weight:700;">${taskName}</span>
+          <span style="font-size:11px;color:var(--text-2,#605e5c);">Active ${s2FormatHM(taskActive)} &middot; Mat. Hold ${s2FormatHM(taskMat)} &middot; Eng. Hold ${s2FormatHM(taskEng)} &middot; <strong>Total ${s2FormatHM(taskTotal)}</strong></span>
+        </div>
+        <div style="padding:8px 10px;display:flex;flex-wrap:wrap;gap:8px;">${personChips}</div>
       </div>`;
     }).join('');
-    stationActive += taskActive; stationMat += taskMat; stationEng += taskEng;
-    const taskTotal = taskActive + taskMat + taskEng;
-    return `<div style="margin-bottom:14px;border:1px solid #edebe9;border-radius:8px;overflow:hidden;">
-      <div style="padding:8px 12px;background:#f8f9fb;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px;">
-        <span style="font-size:13px;font-weight:700;">${taskName}</span>
-        <span style="font-size:11px;color:var(--text-2,#605e5c);">Active ${s2FormatHM(taskActive)} &middot; Mat. Hold ${s2FormatHM(taskMat)} &middot; Eng. Hold ${s2FormatHM(taskEng)} &middot; <strong>Total ${s2FormatHM(taskTotal)}</strong></span>
+
+    stationActive += projActive; stationMat += projMat; stationEng += projEng;
+    const projTotal = projActive + projMat + projEng;
+    const cs = CONFIG.boardCategories[projectName] || {bg:'#f3f2f1',text:'#605e5c',border:'#8a8886'};
+    return `<div style="margin-bottom:14px;border:1.5px solid ${cs.border};border-radius:10px;overflow:hidden;">
+      <div style="padding:9px 14px;background:${cs.bg};display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px;">
+        <span style="font-size:13px;font-weight:800;color:${cs.text};">${projectName}</span>
+        <span style="font-size:11px;color:${cs.text};">Active ${s2FormatHM(projActive)} &middot; Mat. Hold ${s2FormatHM(projMat)} &middot; Eng. Hold ${s2FormatHM(projEng)} &middot; <strong>Total ${s2FormatHM(projTotal)}</strong></span>
       </div>
-      <div style="padding:10px 12px;display:flex;flex-wrap:wrap;gap:8px;">${personChips}</div>
+      <div style="padding:10px 12px;">${taskBlocks}</div>
     </div>`;
   }).join('');
 
   const stationTotal = stationActive + stationMat + stationEng;
   el.innerHTML = `
     <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:10px;">
-      <div class="chart-title" style="margin-bottom:0;">Station Tracker Time — Station &rarr; Task &rarr; Person</div>
+      <div class="chart-title" style="margin-bottom:0;">Station Tracker Time — Station &rarr; Project &rarr; Job &rarr; Person</div>
       <select id="pm-station-time-picker" onchange="pmStationTimePickedStation=this.value;renderPMStationTrackerTime();" style="font-size:12px;padding:5px 8px;">${stationOptions}</select>
     </div>
     <p style="font-size:11px;color:var(--text-2,#605e5c);margin-bottom:10px;">${picked} total &mdash; Active ${s2FormatHM(stationActive)} &middot; Material Hold ${s2FormatHM(stationMat)} &middot; Engineering Hold ${s2FormatHM(stationEng)} &middot; <strong>${s2FormatHM(stationTotal)}</strong></p>
-    ${taskBlocks}`;
+    ${projectBlocks}`;
 }
 let pmStationTimePickedStation = null;
 
@@ -13444,7 +13490,7 @@ function quickDismissReadyForPDI(unitId) {
    visible stamp every time a change is made, or version checks
    against a stale reference and never fires.
    ============================================================ */
-const BUILD_DATE = '2026-08-21-52';
+const BUILD_DATE = '2026-08-21-53';
 let updateBannerShown = false;
 function checkForNewVersion() {
   if (updateBannerShown) return;

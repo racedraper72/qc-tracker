@@ -1155,7 +1155,7 @@ label { font-size: 11px; font-weight: 600; color: var(--text-2); display: block;
 
 <!-- ============================================================ HEADER -->
 <div class="app-header">
-  <div id="build-stamp" title="If this looks out of date after an update was announced, hard-refresh with Ctrl+Shift+R (Cmd+Shift+R on Mac) to clear your browser's cached copy.">Build: <span id="build-stamp-text">2026-08-21-55</span></div>
+  <div id="build-stamp" title="If this looks out of date after an update was announced, hard-refresh with Ctrl+Shift+R (Cmd+Shift+R on Mac) to clear your browser's cached copy.">Build: <span id="build-stamp-text">2026-08-21-56</span></div>
   <div id="header-signed-in" style="position:absolute;top:26px;right:16px;font-size:11px;color:rgba(255,255,255,.75);white-space:nowrap;z-index:101;"></div>
   <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;flex:1;">
     <div style="background:#fff;border-radius:8px;padding:8px 14px;display:flex;align-items:center;box-shadow:0 1px 3px rgba(0,0,0,.15);">
@@ -10184,16 +10184,21 @@ function renderPMClockedIn() {
   }
   const runningCount = rows.filter(r=>r.status==='running').length;
 
-  // Grouped by station so it reads as "who's where" at a glance, rather
-  // than one long flat list mixing every station together — station
-  // itself no longer needs repeating on each chip since its own section
-  // heading already says it.
   const byStation = {};
   rows.forEach(r => { if (!byStation[r.station]) byStation[r.station] = []; byStation[r.station].push(r); });
   const stationOrder = Object.keys(byStation).sort();
 
-  const stationSections = stationOrder.map(station => {
-    const stationRows = byStation[station];
+  // "All Stations" by default gives the full picture at a glance, same
+  // as before — the dropdown is there for filtering down to just one
+  // when that's what's actually needed, matching the same picker pattern
+  // Station Tracker Time already uses just below this.
+  const picked = pmClockedInPickedStation && (pmClockedInPickedStation === 'All Stations' || stationOrder.includes(pmClockedInPickedStation)) ? pmClockedInPickedStation : 'All Stations';
+  const stationOptions = ['All Stations', ...stationOrder].map(s => `<option value="${s}" ${s===picked?'selected':''}>${s}</option>`).join('');
+  const stationsToShow = picked === 'All Stations' ? stationOrder : [picked];
+
+  const stationSections = stationsToShow.map(station => {
+    const stationRows = byStation[station] || [];
+    if (!stationRows.length) return '';
     const chips = stationRows.map(r => {
       const sinceLabel = (r.status==='running' && r.sinceMs) ? s2FormatHM(Math.floor((Date.now()-r.sinceMs)/1000)) + ' ago' : '—';
       return `<div style="display:inline-flex;align-items:center;gap:8px;padding:6px 8px 6px 12px;border-radius:20px;background:${S2_STATUS_COLOR[r.status]}14;border:1.5px solid ${S2_STATUS_COLOR[r.status]}55;">
@@ -10210,9 +10215,14 @@ function renderPMClockedIn() {
     </div>`;
   }).join('');
 
-  el.innerHTML = `<div class="chart-title">Currently Clocked In <span class="chart-subtitle">${rows.length} active &middot; ${runningCount} running right now</span></div>
+  el.innerHTML = `
+    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:10px;">
+      <div class="chart-title" style="margin-bottom:0;">Currently Clocked In <span class="chart-subtitle">${rows.length} active &middot; ${runningCount} running right now</span></div>
+      <select id="pm-clockedin-picker" onchange="pmClockedInPickedStation=this.value;renderPMClockedIn();" style="font-size:12px;padding:5px 8px;">${stationOptions}</select>
+    </div>
     ${stationSections}`;
 }
+let pmClockedInPickedStation = null;
 
 // Station Tracker time totals — Station → Task → Person, with Active /
 // Material Hold / Engineering Hold broken out separately at every level
@@ -13524,7 +13534,7 @@ function quickDismissReadyForPDI(unitId) {
    visible stamp every time a change is made, or version checks
    against a stale reference and never fires.
    ============================================================ */
-const BUILD_DATE = '2026-08-21-55';
+const BUILD_DATE = '2026-08-21-56';
 let updateBannerShown = false;
 function checkForNewVersion() {
   if (updateBannerShown) return;

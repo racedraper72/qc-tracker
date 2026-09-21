@@ -1155,7 +1155,7 @@ label { font-size: 11px; font-weight: 600; color: var(--text-2); display: block;
 
 <!-- ============================================================ HEADER -->
 <div class="app-header">
-  <div id="build-stamp" title="If this looks out of date after an update was announced, hard-refresh with Ctrl+Shift+R (Cmd+Shift+R on Mac) to clear your browser's cached copy.">Build: <span id="build-stamp-text">2026-08-21-56</span></div>
+  <div id="build-stamp" title="If this looks out of date after an update was announced, hard-refresh with Ctrl+Shift+R (Cmd+Shift+R on Mac) to clear your browser's cached copy.">Build: <span id="build-stamp-text">2026-08-21-57</span></div>
   <div id="header-signed-in" style="position:absolute;top:26px;right:16px;font-size:11px;color:rgba(255,255,255,.75);white-space:nowrap;z-index:101;"></div>
   <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;flex:1;">
     <div style="background:#fff;border-radius:8px;padding:8px 14px;display:flex;align-items:center;box-shadow:0 1px 3px rgba(0,0,0,.15);">
@@ -2689,12 +2689,24 @@ function s2ToggleTrainee(unitId, taskName, idx, stationKey) {
 /* Banks whatever segment is currently in progress into its accumulator
    before a status change, so no time is lost/double-counted on transition.
    Operates on one EMPLOYEE's timer state now, not a shared task timer. */
+// Records elapsed time into a running total (as before) AND, going
+// forward from whenever this shipped, into a per-day log keyed by date
+// — enabling Daily/Weekly/Monthly/Yearly breakdowns. The running totals
+// existed long before this log did, so they can't be retroactively
+// sorted into specific past days; period reporting only ever reflects
+// time actually earned after this was added. A segment that happens to
+// straddle midnight is attributed entirely to the date it was banked on
+// (when it stopped), not split across two days — simpler, and shift
+// segments crossing midnight are a rare edge case here.
 function s2BankSegment(emp) {
   if (!emp.currentSegmentStart) return;
   const elapsed = (Date.now() - emp.currentSegmentStart) / 1000;
-  if (emp.status === 'running')             emp.activeSec += elapsed;
-  else if (emp.status === 'holdMaterial')    emp.materialHoldSec += elapsed;
-  else if (emp.status === 'holdEngineering') emp.engineeringHoldSec += elapsed;
+  const dateKey = fmtDateInput(new Date());
+  if (!emp.dailyLog) emp.dailyLog = {};
+  if (!emp.dailyLog[dateKey]) emp.dailyLog[dateKey] = { activeSec: 0, materialHoldSec: 0, engineeringHoldSec: 0 };
+  if (emp.status === 'running')             { emp.activeSec += elapsed; emp.dailyLog[dateKey].activeSec += elapsed; }
+  else if (emp.status === 'holdMaterial')    { emp.materialHoldSec += elapsed; emp.dailyLog[dateKey].materialHoldSec += elapsed; }
+  else if (emp.status === 'holdEngineering') { emp.engineeringHoldSec += elapsed; emp.dailyLog[dateKey].engineeringHoldSec += elapsed; }
   emp.currentSegmentStart = null;
 }
 
@@ -9917,7 +9929,23 @@ function getInspectorActivity() {
 // employee's segments still currently running is included live via
 // s2LiveSeconds, so totals stay accurate for anyone actively clocked in
 // right now, not just banked time from segments that have finished.
-function getStationTrackerTimeReport() {
+// Whether a "YYYY-MM-DD" dailyLog key falls within the given period,
+// relative to right now. Week is calendar week starting Sunday.
+function s2DateKeyInPeriod(dateKey, period) {
+  if (period === 'all' || !period) return true;
+  const d = new Date(dateKey + 'T00:00:00');
+  const now = new Date();
+  if (period === 'today') return dateKey === fmtDateInput(now);
+  if (period === 'week') {
+    const startOfWeek = new Date(now); startOfWeek.setDate(now.getDate() - now.getDay()); startOfWeek.setHours(0,0,0,0);
+    return d >= startOfWeek;
+  }
+  if (period === 'month') return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth();
+  if (period === 'year') return d.getFullYear() === now.getFullYear();
+  return true;
+}
+function getStationTrackerTimeReport(period) {
+  period = period || 'all';
   const tree = {}; // project -> unitId -> station -> task -> empNum -> { activeSec, materialHoldSec, engineeringHoldSec, isTrainee }
   getAllBoardUnits().forEach(u => {
     const project = getProjectType(u.id);
@@ -9925,15 +9953,47 @@ function getStationTrackerTimeReport() {
       if (!bucket) return;
       Object.keys(bucket).forEach(taskName => {
         (bucket[taskName].employees || []).forEach(e => {
+          let empActive, empMat, empEng;
+          if (period === 'all') {
+            // Full running total, including time earned before per-day
+            // logging existed — the only period that can reflect that
+            // older history, since it was never date-stamped.
+            empActive = s2LiveSeconds(e, 'active');
+            empMat = s2LiveSeconds(e, 'materialHold');
+            empEng = s2LiveSeconds(e, 'engineeringHold');
+          } else {
+            // Sums only the dailyLog entries that fall in this period —
+            // doesn't include the live currently-running segment's
+            // elapsed time unless todays's date key already covers it,
+            // since that segment hasn't been banked into dailyLog yet.
+            // Approximated here by adding the live delta only when
+            // today is actually part of the requested period.
+            empActive = 0; empMat = 0; empEng = 0;
+            const log = e.dailyLog || {};
+            Object.keys(log).forEach(dateKey => {
+              if (s2DateKeyInPeriod(dateKey, period)) {
+                empActive += log[dateKey].activeSec;
+                empMat += log[dateKey].materialHoldSec;
+                empEng += log[dateKey].engineeringHoldSec;
+              }
+            });
+            if (e.currentSegmentStart && s2DateKeyInPeriod(fmtDateInput(new Date()), period)) {
+              const liveDelta = (Date.now() - e.currentSegmentStart) / 1000;
+              if (e.status === 'running') empActive += liveDelta;
+              else if (e.status === 'holdMaterial') empMat += liveDelta;
+              else if (e.status === 'holdEngineering') empEng += liveDelta;
+            }
+          }
+          if (empActive === 0 && empMat === 0 && empEng === 0 && period !== 'all') return; // no activity in this period — skip rather than showing an empty zero row
           if (!tree[project]) tree[project] = {};
           if (!tree[project][u.id]) tree[project][u.id] = {};
           if (!tree[project][u.id][stationKey]) tree[project][u.id][stationKey] = {};
           if (!tree[project][u.id][stationKey][taskName]) tree[project][u.id][stationKey][taskName] = {};
           if (!tree[project][u.id][stationKey][taskName][e.num]) tree[project][u.id][stationKey][taskName][e.num] = { activeSec: 0, materialHoldSec: 0, engineeringHoldSec: 0, isTrainee: false };
           const agg = tree[project][u.id][stationKey][taskName][e.num];
-          agg.activeSec += s2LiveSeconds(e, 'active');
-          agg.materialHoldSec += s2LiveSeconds(e, 'materialHold');
-          agg.engineeringHoldSec += s2LiveSeconds(e, 'engineeringHold');
+          agg.activeSec += empActive;
+          agg.materialHoldSec += empMat;
+          agg.engineeringHoldSec += empEng;
           if (e.isTrainee) agg.isTrainee = true; // if they were ever flagged as training on any segment, keep showing that
         });
       });
@@ -10183,6 +10243,21 @@ function renderPMClockedIn() {
     return;
   }
   const runningCount = rows.filter(r=>r.status==='running').length;
+  const holdCount = rows.filter(r=>r.status==='holdMaterial'||r.status==='holdEngineering').length;
+  const pausedCount = rows.filter(r=>r.status==='paused').length;
+
+  // Same flat "My Dashboard"-style summary cards as Station Tracker Time
+  // uses — a quick live headcount before the grouped-by-station detail
+  // below.
+  const summaryCards = [
+    { icon:'&#128101;', label:'Total Clocked In', color:'#0078d4', val: rows.length },
+    { icon:'&#9654;', label:'Working Now', color:'#0e7c3a', val: runningCount },
+    { icon:'&#9208;', label:'On Hold Now', color:'#b45309', val: holdCount },
+    { icon:'&#10074;&#10074;', label:'Paused Now', color:'#8a96a8', val: pausedCount },
+  ].map(c => `<div style="background:#fff;border:1px solid #e2e6ea;border-top:3px solid ${c.color};border-radius:8px;padding:10px 12px;min-width:130px;flex:1;">
+    <div style="font-size:10px;font-weight:700;color:var(--text-3,#8a96a8);text-transform:uppercase;letter-spacing:.3px;margin-bottom:4px;">${c.icon} ${c.label}</div>
+    <div style="font-size:18px;font-weight:800;color:var(--text-1,#0f1923);">${c.val}</div>
+  </div>`).join('');
 
   const byStation = {};
   rows.forEach(r => { if (!byStation[r.station]) byStation[r.station] = []; byStation[r.station].push(r); });
@@ -10216,8 +10291,9 @@ function renderPMClockedIn() {
   }).join('');
 
   el.innerHTML = `
-    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:10px;">
-      <div class="chart-title" style="margin-bottom:0;">Currently Clocked In <span class="chart-subtitle">${rows.length} active &middot; ${runningCount} running right now</span></div>
+    <div class="chart-title" style="margin-bottom:10px;">Currently Clocked In</div>
+    <div style="display:flex;flex-wrap:wrap;gap:10px;margin-bottom:14px;">${summaryCards}</div>
+    <div style="display:flex;justify-content:flex-end;margin-bottom:10px;">
       <select id="pm-clockedin-picker" onchange="pmClockedInPickedStation=this.value;renderPMClockedIn();" style="font-size:12px;padding:5px 8px;">${stationOptions}</select>
     </div>
     ${stationSections}`;
@@ -10230,12 +10306,47 @@ let pmClockedInPickedStation = null;
 // that was actually productive work versus waiting on parts or
 // engineering. A station picker keeps this manageable rather than
 // dumping every station's data at once.
+// Sums Active+Material+Engineering time across EVERY station/project/
+// unit/job/person for a given period — used for the flat summary cards,
+// independent of whichever single station the detailed breakdown below
+// is currently scoped to.
+function s2TotalSecondsForPeriod(period) {
+  const tree = getStationTrackerTimeReport(period);
+  let total = 0;
+  Object.values(tree).forEach(units => Object.values(units).forEach(stations => Object.values(stations).forEach(tasks => Object.values(tasks).forEach(people => Object.values(people).forEach(p => {
+    total += p.activeSec + p.materialHoldSec + p.engineeringHoldSec;
+  })))));
+  return total;
+}
+let pmStationTimePeriod = 'all';
 function renderPMStationTrackerTime() {
   const el = document.getElementById('pm-station-tracker-time'); if (!el) return;
-  const tree = flattenTimeReportByStationAndProject(getStationTrackerTimeReport());
+
+  // Flat "My Dashboard"-style summary cards — same card look used there
+  // (colored top border, uppercase icon label, big number) — giving an
+  // at-a-glance total across everything before drilling into the
+  // detailed station-by-station breakdown below.
+  const summaryCards = [
+    { icon:'&#9201;', label:'Active Today', color:'#0e7c3a', sec: s2TotalSecondsForPeriod('today') },
+    { icon:'&#128197;', label:'Active This Week', color:'#0078d4', sec: s2TotalSecondsForPeriod('week') },
+    { icon:'&#128198;', label:'Active This Month', color:'#4b3a9e', sec: s2TotalSecondsForPeriod('month') },
+    { icon:'&#128213;', label:'Active This Year', color:'#892729', sec: s2TotalSecondsForPeriod('year') },
+  ].map(c => `<div style="background:#fff;border:1px solid #e2e6ea;border-top:3px solid ${c.color};border-radius:8px;padding:10px 12px;min-width:140px;flex:1;">
+    <div style="font-size:10px;font-weight:700;color:var(--text-3,#8a96a8);text-transform:uppercase;letter-spacing:.3px;margin-bottom:4px;">${c.icon} ${c.label}</div>
+    <div style="font-size:18px;font-weight:800;color:var(--text-1,#0f1923);">${s2FormatHM(c.sec)}</div>
+  </div>`).join('');
+
+  const periodOptions = [
+    { key:'all', label:'All Time' }, { key:'today', label:'Today' }, { key:'week', label:'This Week' }, { key:'month', label:'This Month' }, { key:'year', label:'This Year' },
+  ].map(p => `<option value="${p.key}" ${p.key===pmStationTimePeriod?'selected':''}>${p.label}</option>`).join('');
+
+  const tree = flattenTimeReportByStationAndProject(getStationTrackerTimeReport(pmStationTimePeriod));
   const stations = Object.keys(tree);
   if (!stations.length) {
-    el.innerHTML = `<div class="chart-title">Station Tracker Time — Station &rarr; Project &rarr; Job &rarr; Person</div><p style="font-size:13px;color:#605e5c;">No Station Tracker activity recorded yet.</p>`;
+    el.innerHTML = `<div class="chart-title">Station Tracker Time — Station &rarr; Project &rarr; Job &rarr; Person</div>
+      <div style="display:flex;flex-wrap:wrap;gap:10px;margin-bottom:14px;">${summaryCards}</div>
+      <div style="margin-bottom:10px;"><select id="pm-station-time-period" onchange="pmStationTimePeriod=this.value;renderPMStationTrackerTime();" style="font-size:12px;padding:5px 8px;">${periodOptions}</select></div>
+      <p style="font-size:13px;color:#605e5c;">No Station Tracker activity recorded for this period.</p>`;
     return;
   }
 
@@ -10292,8 +10403,10 @@ function renderPMStationTrackerTime() {
 
   const stationTotal = stationActive + stationMat + stationEng;
   el.innerHTML = `
+    <div class="chart-title" style="margin-bottom:10px;">Station Tracker Time — Station &rarr; Project &rarr; Job &rarr; Person</div>
+    <div style="display:flex;flex-wrap:wrap;gap:10px;margin-bottom:14px;">${summaryCards}</div>
     <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:10px;">
-      <div class="chart-title" style="margin-bottom:0;">Station Tracker Time — Station &rarr; Project &rarr; Job &rarr; Person</div>
+      <select id="pm-station-time-period" onchange="pmStationTimePeriod=this.value;renderPMStationTrackerTime();" style="font-size:12px;padding:5px 8px;">${periodOptions}</select>
       <select id="pm-station-time-picker" onchange="pmStationTimePickedStation=this.value;renderPMStationTrackerTime();" style="font-size:12px;padding:5px 8px;">${stationOptions}</select>
     </div>
     <p style="font-size:11px;color:var(--text-2,#605e5c);margin-bottom:10px;">${picked} total &mdash; Active ${s2FormatHM(stationActive)} &middot; Material Hold ${s2FormatHM(stationMat)} &middot; Engineering Hold ${s2FormatHM(stationEng)} &middot; <strong>${s2FormatHM(stationTotal)}</strong></p>
@@ -13534,7 +13647,7 @@ function quickDismissReadyForPDI(unitId) {
    visible stamp every time a change is made, or version checks
    against a stale reference and never fires.
    ============================================================ */
-const BUILD_DATE = '2026-08-21-56';
+const BUILD_DATE = '2026-08-21-57';
 let updateBannerShown = false;
 function checkForNewVersion() {
   if (updateBannerShown) return;

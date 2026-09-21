@@ -1155,7 +1155,7 @@ label { font-size: 11px; font-weight: 600; color: var(--text-2); display: block;
 
 <!-- ============================================================ HEADER -->
 <div class="app-header">
-  <div id="build-stamp" title="If this looks out of date after an update was announced, hard-refresh with Ctrl+Shift+R (Cmd+Shift+R on Mac) to clear your browser's cached copy.">Build: <span id="build-stamp-text">2026-08-21-53</span></div>
+  <div id="build-stamp" title="If this looks out of date after an update was announced, hard-refresh with Ctrl+Shift+R (Cmd+Shift+R on Mac) to clear your browser's cached copy.">Build: <span id="build-stamp-text">2026-08-21-55</span></div>
   <div id="header-signed-in" style="position:absolute;top:26px;right:16px;font-size:11px;color:rgba(255,255,255,.75);white-space:nowrap;z-index:101;"></div>
   <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;flex:1;">
     <div style="background:#fff;border-radius:8px;padding:8px 14px;display:flex;align-items:center;box-shadow:0 1px 3px rgba(0,0,0,.15);">
@@ -2906,6 +2906,10 @@ function s2OpenHoldNoteModal(unitId, taskName, empIdx, holdType, stationKey) {
 function fmtTimeInput(d) {
   return String(d.getHours()).padStart(2,'0') + ':' + String(d.getMinutes()).padStart(2,'0');
 }
+// Formats a Date as "YYYY-MM-DD" for an <input type="date"> value.
+function fmtDateInput(d) {
+  return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+}
 // Computes a duration in seconds from two "HH:MM" clock times. If the
 // "out" time is earlier than "in", it's treated as having crossed
 // midnight (out + 24h) rather than a negative duration — the far more
@@ -2956,6 +2960,9 @@ function s2ShowClockOutModal(unitId, taskName, empIdx, stationKey) {
       <h2 style="font-size:16px;font-weight:800;color:#0f1923;margin-bottom:4px;letter-spacing:-.3px;">Clock Out — ${emp.num}</h2>
       <p style="font-size:12px;color:#4a5568;margin-bottom:16px;">${taskName} &middot; ${u.id}</p>
 
+      <label style="font-size:11px;font-weight:700;color:#4a5568;text-transform:uppercase;">Date</label>
+      <input id="s2co-date" type="date" value="${fmtDateInput(new Date())}" style="width:100%;font-size:14px;padding:8px;border:2px solid #e2e6ea;border-radius:8px;margin-bottom:12px;" />
+
       <label style="font-size:11px;font-weight:700;color:#4a5568;text-transform:uppercase;">Active time — clock in / clock out</label>
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
         <input id="s2co-act-in" type="time" value="${fmtTimeInput(new Date(Date.now() - liveActive*1000))}" oninput="s2UpdateClockOutComputed()" style="flex:1;font-size:14px;padding:8px;border:2px solid #e2e6ea;border-radius:8px;" />
@@ -2996,6 +3003,14 @@ function s2ShowClockOutModal(unitId, taskName, empIdx, stationKey) {
     const errEl = overlay.querySelector('#s2co-err');
     if (!reason) { errEl.textContent = 'A reason is required.'; return; }
 
+    const dateVal = overlay.querySelector('#s2co-date').value;
+    // Parsed as local time (not UTC) by appending a time-of-day, so the
+    // displayed date always matches exactly what was picked, regardless
+    // of the browser's timezone — a bare "YYYY-MM-DD" string is parsed
+    // as UTC midnight by Date(), which can silently roll back a day in
+    // timezones behind UTC.
+    const dateLabel = dateVal ? new Date(dateVal+'T00:00:00').toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' }) : '';
+
     const newActiveSec = s2ClockRangeToSeconds(overlay.querySelector('#s2co-act-in').value, overlay.querySelector('#s2co-act-out').value);
     const newMatSec = (parseInt(overlay.querySelector('#s2co-mat-h').value)||0)*3600 + (parseInt(overlay.querySelector('#s2co-mat-m').value)||0)*60;
     const newEngSec = (parseInt(overlay.querySelector('#s2co-eng-h').value)||0)*3600 + (parseInt(overlay.querySelector('#s2co-eng-m').value)||0)*60;
@@ -3009,9 +3024,10 @@ function s2ShowClockOutModal(unitId, taskName, empIdx, stationKey) {
     emp.engineeringHoldSec = newEngSec;
     emp.currentSegmentStart = null;
     emp.status = finish ? 'finished' : 'paused';
+    emp.clockOutDate = dateLabel; // shown on the Station Tracker card itself, next to their time
 
     u.history.push({
-      action: `Supervisor clock-out — ${emp.num} on "${taskName}" (${stationKey}). Time adjusted from ${s2FormatHM(oldTotal)} to ${s2FormatHM(newTotal)}${finish?' — marked Finished':''}. Reason: ${reason}`,
+      action: `Supervisor clock-out — ${emp.num} on "${taskName}" (${stationKey}), ${dateLabel}. Time adjusted from ${s2FormatHM(oldTotal)} to ${s2FormatHM(newTotal)}${finish?' — marked Finished':''}. Reason: ${reason}`,
       ts: now(), notes: ''
     });
 
@@ -3210,6 +3226,7 @@ function renderStationTracker(stationKey) {
               ${e.name ? `<span style="font-size:12px;color:var(--text-3,#8a96a8);">#${e.num}</span>` : ''}
               <span class="badge ${statusBadgeClass}">${S2_STATUS_LABEL[e.status]}</span>
               ${e.isTrainee ? `<span class="badge badge-orange">&#127891; Trainee</span>` : ''}
+              ${e.clockOutDate ? `<span style="font-size:11px;color:var(--text-3,#8a96a8);">&#128197; ${e.clockOutDate}</span>` : ''}
             </span>
             <span style="display:flex;gap:8px;">
               <button style="${iconBtn}" onclick="s2ToggleTrainee('${u.id}','${taskName}',${idx},'${stationKey}')" title="${e.isTrainee?'Trainee — tap to unmark':'Mark as trainee'}">&#127891;</button>
@@ -10166,18 +10183,35 @@ function renderPMClockedIn() {
     return;
   }
   const runningCount = rows.filter(r=>r.status==='running').length;
-  const chips = rows.map(r => {
-    const sinceLabel = (r.status==='running' && r.sinceMs) ? s2FormatHM(Math.floor((Date.now()-r.sinceMs)/1000)) + ' ago' : '—';
-    return `<div style="display:inline-flex;align-items:center;gap:8px;padding:6px 8px 6px 12px;border-radius:20px;background:${S2_STATUS_COLOR[r.status]}14;border:1.5px solid ${S2_STATUS_COLOR[r.status]}55;">
-      <span style="font-size:12px;font-weight:700;">${r.name || r.num}${r.name?' <span style="font-weight:500;color:var(--text-3,#8a96a8);">#'+r.num+'</span>':''}${r.isTrainee?' &#127891;':''}</span>
-      <span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:20px;background:${S2_STATUS_COLOR[r.status]}25;color:${S2_STATUS_COLOR[r.status]};">${S2_STATUS_LABEL[r.status]}</span>
-      <span style="font-size:11px;color:var(--text-2,#605e5c);">${r.unitId} &middot; ${r.station} &middot; ${r.task}</span>
-      <span style="font-size:10px;color:var(--text-3,#8a96a8);">${sinceLabel}</span>
-      <button onclick="s2OpenSupervisorClockOut('${r.unitId}','${r.task}',${r.empIdx},'${r.station}')" style="font-size:10px;font-weight:700;padding:4px 9px;border-radius:14px;cursor:pointer;background:#fff;border:1.5px solid #892729;color:#892729;white-space:nowrap;">&#128274; Clock Out</button>
+
+  // Grouped by station so it reads as "who's where" at a glance, rather
+  // than one long flat list mixing every station together — station
+  // itself no longer needs repeating on each chip since its own section
+  // heading already says it.
+  const byStation = {};
+  rows.forEach(r => { if (!byStation[r.station]) byStation[r.station] = []; byStation[r.station].push(r); });
+  const stationOrder = Object.keys(byStation).sort();
+
+  const stationSections = stationOrder.map(station => {
+    const stationRows = byStation[station];
+    const chips = stationRows.map(r => {
+      const sinceLabel = (r.status==='running' && r.sinceMs) ? s2FormatHM(Math.floor((Date.now()-r.sinceMs)/1000)) + ' ago' : '—';
+      return `<div style="display:inline-flex;align-items:center;gap:8px;padding:6px 8px 6px 12px;border-radius:20px;background:${S2_STATUS_COLOR[r.status]}14;border:1.5px solid ${S2_STATUS_COLOR[r.status]}55;">
+        <span style="font-size:12px;font-weight:700;">${r.name || r.num}${r.name?' <span style="font-weight:500;color:var(--text-3,#8a96a8);">#'+r.num+'</span>':''}${r.isTrainee?' &#127891;':''}</span>
+        <span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:20px;background:${S2_STATUS_COLOR[r.status]}25;color:${S2_STATUS_COLOR[r.status]};">${S2_STATUS_LABEL[r.status]}</span>
+        <span style="font-size:11px;color:var(--text-2,#605e5c);">${r.unitId} &middot; ${r.task}</span>
+        <span style="font-size:10px;color:var(--text-3,#8a96a8);">${sinceLabel}</span>
+        <button onclick="s2OpenSupervisorClockOut('${r.unitId}','${r.task}',${r.empIdx},'${r.station}')" style="font-size:10px;font-weight:700;padding:4px 9px;border-radius:14px;cursor:pointer;background:#fff;border:1.5px solid #892729;color:#892729;white-space:nowrap;">&#128274; Clock Out</button>
+      </div>`;
+    }).join('');
+    return `<div style="margin-bottom:12px;">
+      <div style="font-size:11px;font-weight:800;color:var(--text-2,#605e5c);text-transform:uppercase;letter-spacing:.3px;margin-bottom:6px;">${station} <span style="font-weight:600;opacity:.7;">&middot; ${stationRows.length}</span></div>
+      <div style="display:flex;flex-wrap:wrap;gap:8px;">${chips}</div>
     </div>`;
   }).join('');
+
   el.innerHTML = `<div class="chart-title">Currently Clocked In <span class="chart-subtitle">${rows.length} active &middot; ${runningCount} running right now</span></div>
-    <div style="display:flex;flex-wrap:wrap;gap:8px;">${chips}</div>`;
+    ${stationSections}`;
 }
 
 // Station Tracker time totals — Station → Task → Person, with Active /
@@ -13490,7 +13524,7 @@ function quickDismissReadyForPDI(unitId) {
    visible stamp every time a change is made, or version checks
    against a stale reference and never fires.
    ============================================================ */
-const BUILD_DATE = '2026-08-21-53';
+const BUILD_DATE = '2026-08-21-55';
 let updateBannerShown = false;
 function checkForNewVersion() {
   if (updateBannerShown) return;

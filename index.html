@@ -1155,7 +1155,7 @@ label { font-size: 11px; font-weight: 600; color: var(--text-2); display: block;
 
 <!-- ============================================================ HEADER -->
 <div class="app-header">
-  <div id="build-stamp" title="If this looks out of date after an update was announced, hard-refresh with Ctrl+Shift+R (Cmd+Shift+R on Mac) to clear your browser's cached copy.">Build: <span id="build-stamp-text">2026-08-21-57</span></div>
+  <div id="build-stamp" title="If this looks out of date after an update was announced, hard-refresh with Ctrl+Shift+R (Cmd+Shift+R on Mac) to clear your browser's cached copy.">Build: <span id="build-stamp-text">2026-08-21-58</span></div>
   <div id="header-signed-in" style="position:absolute;top:26px;right:16px;font-size:11px;color:rgba(255,255,255,.75);white-space:nowrap;z-index:101;"></div>
   <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;flex:1;">
     <div style="background:#fff;border-radius:8px;padding:8px 14px;display:flex;align-items:center;box-shadow:0 1px 3px rgba(0,0,0,.15);">
@@ -1314,22 +1314,6 @@ label { font-size: 11px; font-weight: 600; color: var(--text-2); display: block;
   <!-- Admin-configured Dashboard cards — hidden until Admin adds at least one -->
   <div class="dash-card-wrap" data-card-id="custom">
     <div id="dashboard-custom-cards" style="display:none;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:10px;margin-bottom:18px;"></div>
-  </div>
-
-  <!-- Station Tracker Time report — filterable by Project, Unit, Station, Job and Person -->
-  <div class="dash-card-wrap" data-card-id="trackertime">
-    <div class="card" style="margin-bottom:18px;">
-      <div class="section-title">&#9201; Station Tracker Time</div>
-      <p style="font-size:12px;color:#605e5c;margin-bottom:10px;">Active / Material Hold / Engineering Hold time — Project &rarr; Unit &rarr; Station &rarr; Job &rarr; Person. Each unit always shows its own separate time, never combined with another unit's. Pick a project to start; narrow further with any of the other filters, or leave them on "All" for a fuller report.</p>
-      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;">
-        <div><label style="font-size:10px;font-weight:700;color:var(--text-3,#8a96a8);text-transform:uppercase;">Project</label><select id="dash-tt-project" onchange="dashTTProjectChanged();"></select></div>
-        <div><label style="font-size:10px;font-weight:700;color:var(--text-3,#8a96a8);text-transform:uppercase;">Unit</label><select id="dash-tt-unit" onchange="dashTTUnitChanged();"></select></div>
-        <div><label style="font-size:10px;font-weight:700;color:var(--text-3,#8a96a8);text-transform:uppercase;">Station</label><select id="dash-tt-station" onchange="dashTTStationChanged();"></select></div>
-        <div><label style="font-size:10px;font-weight:700;color:var(--text-3,#8a96a8);text-transform:uppercase;">Job</label><select id="dash-tt-task" onchange="renderDashTrackerTime();"></select></div>
-        <div><label style="font-size:10px;font-weight:700;color:var(--text-3,#8a96a8);text-transform:uppercase;">Person</label><select id="dash-tt-person" onchange="renderDashTrackerTime();"></select></div>
-      </div>
-      <div id="dash-tt-body"></div>
-    </div>
   </div>
 
   <!-- Completed -->
@@ -6470,7 +6454,7 @@ function getBoardReadyForReleaseUnits() {
 
 /* ---- Dashboard card reordering ---- */
 const DASH_CARD_ORDER_KEY = 'dashboard_card_order';
-const DASH_CARD_DEFAULT_ORDER = ['lines','custom','trackertime','completedboard'];
+const DASH_CARD_DEFAULT_ORDER = ['lines','custom','completedboard'];
 let dashDraggedId = null;
 
 function getDashCardOrder() {
@@ -6524,7 +6508,6 @@ function resetDashboardOrder() {
 const DASH_SECTION_LABELS = {
   lines: '&#128203; Production lines',
   custom: '&#128200; Custom metric cards (below)',
-  trackertime: '&#9201; Station Tracker Time',
   completedboard: '&#9989; Completed — Board',
 };
 let secOrderDraggedId = null;
@@ -6612,7 +6595,6 @@ function renderAll() {
   renderBoardStats(); renderLineSummary(); renderBoardCompleted();
   renderChecklistKPI();
   renderDashboardCards();
-  renderDashTrackerTime();
   applyDashboardCardOrder();
   const typing = isTypingInUnitCard();
   if (currentPage==='tracker' && !typing) { renderUnifiedTabs(); renderUnifiedContent(); }
@@ -13647,7 +13629,7 @@ function quickDismissReadyForPDI(unitId) {
    visible stamp every time a change is made, or version checks
    against a stale reference and never fires.
    ============================================================ */
-const BUILD_DATE = '2026-08-21-57';
+const BUILD_DATE = '2026-08-21-58';
 let updateBannerShown = false;
 function checkForNewVersion() {
   if (updateBannerShown) return;

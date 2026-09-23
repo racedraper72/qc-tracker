@@ -1155,7 +1155,7 @@ label { font-size: 11px; font-weight: 600; color: var(--text-2); display: block;
 
 <!-- ============================================================ HEADER -->
 <div class="app-header">
-  <div id="build-stamp" title="If this looks out of date after an update was announced, hard-refresh with Ctrl+Shift+R (Cmd+Shift+R on Mac) to clear your browser's cached copy.">Build: <span id="build-stamp-text">2026-08-21-58</span></div>
+  <div id="build-stamp" title="If this looks out of date after an update was announced, hard-refresh with Ctrl+Shift+R (Cmd+Shift+R on Mac) to clear your browser's cached copy.">Build: <span id="build-stamp-text">2026-08-21-59</span></div>
   <div id="header-signed-in" style="position:absolute;top:26px;right:16px;font-size:11px;color:rgba(255,255,255,.75);white-space:nowrap;z-index:101;"></div>
   <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;flex:1;">
     <div style="background:#fff;border-radius:8px;padding:8px 14px;display:flex;align-items:center;box-shadow:0 1px 3px rgba(0,0,0,.15);">
@@ -4738,7 +4738,12 @@ function applyStationTrackerOverrides() {
   // simply never appear on another device's screen unless someone
   // happened to navigate away from and back to that exact page — which
   // looked exactly like "saves on one device but not the other."
-  if (typeof currentPage !== 'undefined' && currentPage) {
+  // Guarded the same way as renderAll's own Station Tracker refresh
+  // below — this call runs BEFORE that guarded one every render cycle,
+  // so without its own check here it was re-rendering (and wiping
+  // in-progress typing in Name/Employee #/Notes) even when the later
+  // guard correctly would have skipped it.
+  if (typeof currentPage !== 'undefined' && currentPage && !isTypingInStationTracker()) {
     if (currentPage === 'admin') {
       renderStationTrackerEditor();
     } else if (currentPage.indexOf('stationtracker_') === 0) {
@@ -6582,6 +6587,21 @@ function isTypingInUnitCard() {
   if (tag !== 'INPUT' && tag !== 'TEXTAREA') return false;
   return !!el.closest('.unit-card');
 }
+// Station Tracker's own Name / Employee # / Job Notes inputs sit outside
+// any .unit-card, so isTypingInUnitCard alone never catches someone
+// mid-entry there — this was letting a periodic auto-sync re-render wipe
+// out unsaved text in exactly those fields before someone finished
+// typing, especially noticeable on an iPad where on-screen-keyboard
+// typing is slower and more likely to still be in progress when a sync
+// cycle lands.
+function isTypingInStationTracker() {
+  const el = document.activeElement;
+  if (!el) return false;
+  const tag = el.tagName;
+  if (tag !== 'INPUT' && tag !== 'TEXTAREA') return false;
+  const id = el.id || '';
+  return id.startsWith('s2-emp-name-') || id.startsWith('s2-emp-input-') || id.startsWith('s2-notes-input-');
+}
 function renderAll() {
   applyChecklistOverrides();
   applyStationTrackerOverrides();
@@ -6601,7 +6621,19 @@ function renderAll() {
   if (currentPage==='floor' && !typing) { renderFloorPage(); }
   if (currentPage==='pm') { switchPMTab(pmActiveTab); renderPMPage(); }
   if (currentPage==='tv') { renderTVMode(); }
-  if (currentPage==='station2') { renderStation2Tracker(); }
+  // Every Station Tracker page (Station 2 and all 9 individual stations)
+  // now refreshes together on the same sync cycle, and all of them skip
+  // the refresh entirely while someone's actively typing into one of
+  // their own inputs — station2 alone used to refresh here without that
+  // protection, and the other 8 stations never refreshed on their own
+  // at all (meaning they'd silently go stale between manual refreshes).
+  if (!isTypingInStationTracker()) {
+    if (currentPage === 'station2') { renderStationTracker('Station 2'); }
+    else {
+      const stationKey = STATION_TRACKER_STATIONS.find(s => 'stationtracker_' + s.replace(/\s+/g,'') === currentPage);
+      if (stationKey) renderStationTracker(stationKey);
+    }
+  }
   if (currentPage==='cleaner' && !typing) { renderCleanerDashboard(); }
 }
 
@@ -13629,7 +13661,7 @@ function quickDismissReadyForPDI(unitId) {
    visible stamp every time a change is made, or version checks
    against a stale reference and never fires.
    ============================================================ */
-const BUILD_DATE = '2026-08-21-58';
+const BUILD_DATE = '2026-08-21-59';
 let updateBannerShown = false;
 function checkForNewVersion() {
   if (updateBannerShown) return;

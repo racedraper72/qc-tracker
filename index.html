@@ -1155,7 +1155,7 @@ label { font-size: 11px; font-weight: 600; color: var(--text-2); display: block;
 
 <!-- ============================================================ HEADER -->
 <div class="app-header">
-  <div id="build-stamp" title="If this looks out of date after an update was announced, hard-refresh with Ctrl+Shift+R (Cmd+Shift+R on Mac) to clear your browser's cached copy.">Build: <span id="build-stamp-text">2026-08-21-59</span></div>
+  <div id="build-stamp" title="If this looks out of date after an update was announced, hard-refresh with Ctrl+Shift+R (Cmd+Shift+R on Mac) to clear your browser's cached copy.">Build: <span id="build-stamp-text">2026-08-21-61</span></div>
   <div id="header-signed-in" style="position:absolute;top:26px;right:16px;font-size:11px;color:rgba(255,255,255,.75);white-space:nowrap;z-index:101;"></div>
   <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;flex:1;">
     <div style="background:#fff;border-radius:8px;padding:8px 14px;display:flex;align-items:center;box-shadow:0 1px 3px rgba(0,0,0,.15);">
@@ -2614,8 +2614,21 @@ function s2SetNotes(unitId, taskName, sid, stationKey) {
   if (!input) return;
   const u = ensureBoardTracked(unitId);
   const t = getS2TaskState(u, taskName, stationKey);
-  t.notes = input.value;
-  pushBoard();
+  const newVal = input.value;
+  if (newVal === (t.notes || '')) return; // unchanged — nothing to log, avoids a no-op entry every time the field just loses focus
+  requireName(() => {
+    const hadPrevious = !!(t.notes || '').trim();
+    t.notes = newVal;
+    // Logged so there's a record of who actually added or changed a
+    // job's notes and when, rather than the change happening silently —
+    // matches how other edits on a unit already get tracked in its
+    // history.
+    u.history.push({
+      action: `${getOperator().name} ${hadPrevious ? 'updated' : 'added'} notes on "${taskName}" (${stationKey}): "${newVal}"`,
+      ts: now(), notes: ''
+    });
+    pushBoard();
+  }, 'Sign to save job notes');
 }
 function s2SetLink(unitId, taskName, sid, stationKey) {
   const input = document.getElementById('s2-link-input-'+sid);
@@ -2762,7 +2775,7 @@ function s2TaskAction(unitId, taskName, empIdx, action, note, stationKey) {
   else if (action === 'pause')           { emp.status = 'paused'; }
   else if (action === 'holdMaterial')    { emp.status = 'holdMaterial'; emp.currentSegmentStart = Date.now(); emp.materialHoldNote = note || ''; emp.materialHoldNotes.push({ note: note || '', ts: now() }); }
   else if (action === 'holdEngineering') { emp.status = 'holdEngineering'; emp.currentSegmentStart = Date.now(); emp.engineeringHoldNote = note || ''; emp.engineeringHoldNotes.push({ note: note || '', ts: now() }); }
-  else if (action === 'finish')          { emp.status = 'finished'; }
+  else if (action === 'finish')          { emp.status = 'finished'; emp.finishedAt = fmtDateInput(new Date()); }
   else if (action === 'reopen')          { emp.status = 'idle'; } // undo a mistaken Finish
 
   s2SyncHeldFromTaskHolds(u);
@@ -3020,6 +3033,7 @@ function s2ShowClockOutModal(unitId, taskName, empIdx, stationKey) {
     emp.engineeringHoldSec = newEngSec;
     emp.currentSegmentStart = null;
     emp.status = finish ? 'finished' : 'paused';
+    if (finish) emp.finishedAt = fmtDateInput(new Date());
     emp.clockOutDate = dateLabel; // shown on the Station Tracker card itself, next to their time
 
     u.history.push({
@@ -10332,6 +10346,59 @@ function s2TotalSecondsForPeriod(period) {
   })))));
   return total;
 }
+// Computes the four Station Tracker KPIs for a given period. Hold % and
+// Utilization % are complementary (they sum to ~100%) but shown as two
+// separate numbers since each answers a different question at a glance
+// — "how much was blocked" versus "how much was productive". Jobs
+// Finished counts each individual person's completed assignment (not
+// unique units, since two people finishing the same job on the same
+// unit are two completed pieces of work, not one) — Finished status
+// alone isn't date-stamped by itself, so finishedAt (recorded going
+// forward from when this shipped, same limitation as dailyLog) is what
+// actually scopes this by period; a finish from before that field
+// existed won't be counted in anything but "all".
+function getStationTrackerKPIs(period) {
+  let totalActive = 0, totalMat = 0, totalEng = 0, finishedCount = 0, finishedTotalSec = 0;
+  getAllBoardUnits().forEach(u => {
+    const scan = (bucket, stationKey) => {
+      if (!bucket) return;
+      Object.keys(bucket).forEach(taskName => {
+        (bucket[taskName].employees || []).forEach(e => {
+          let empActive, empMat, empEng;
+          if (period === 'all' || !period) {
+            empActive = s2LiveSeconds(e, 'active');
+            empMat = s2LiveSeconds(e, 'materialHold');
+            empEng = s2LiveSeconds(e, 'engineeringHold');
+          } else {
+            empActive = 0; empMat = 0; empEng = 0;
+            const log = e.dailyLog || {};
+            Object.keys(log).forEach(dateKey => {
+              if (s2DateKeyInPeriod(dateKey, period)) {
+                empActive += log[dateKey].activeSec;
+                empMat += log[dateKey].materialHoldSec;
+                empEng += log[dateKey].engineeringHoldSec;
+              }
+            });
+          }
+          totalActive += empActive; totalMat += empMat; totalEng += empEng;
+          if (e.status === 'finished' && (period === 'all' || !period || (e.finishedAt && s2DateKeyInPeriod(e.finishedAt, period)))) {
+            finishedCount++;
+            finishedTotalSec += e.activeSec + e.materialHoldSec + e.engineeringHoldSec;
+          }
+        });
+      });
+    };
+    scan(u.station2Tasks, 'Station 2');
+    if (u.stationTrackerTasks) Object.keys(u.stationTrackerTasks).forEach(sk => scan(u.stationTrackerTasks[sk], sk));
+  });
+  const grandTotal = totalActive + totalMat + totalEng;
+  return {
+    holdPct: grandTotal > 0 ? Math.round((totalMat+totalEng)/grandTotal*100) : 0,
+    utilizationPct: grandTotal > 0 ? Math.round(totalActive/grandTotal*100) : 0,
+    jobsFinished: finishedCount,
+    avgSecPerJob: finishedCount > 0 ? Math.round(finishedTotalSec/finishedCount) : 0,
+  };
+}
 let pmStationTimePeriod = 'all';
 function renderPMStationTrackerTime() {
   const el = document.getElementById('pm-station-tracker-time'); if (!el) return;
@@ -10354,11 +10421,27 @@ function renderPMStationTrackerTime() {
     { key:'all', label:'All Time' }, { key:'today', label:'Today' }, { key:'week', label:'This Week' }, { key:'month', label:'This Month' }, { key:'year', label:'This Year' },
   ].map(p => `<option value="${p.key}" ${p.key===pmStationTimePeriod?'selected':''}>${p.label}</option>`).join('');
 
+  // The four KPI cards — respond to the SAME period picker as everything
+  // else below, so switching to "This Week" scopes these right along
+  // with the detailed breakdown, rather than being a fixed, separate
+  // window.
+  const kpis = getStationTrackerKPIs(pmStationTimePeriod);
+  const kpiCards = [
+    { icon:'&#9208;', label:'Hold %', color:'#b45309', val: kpis.holdPct+'%' },
+    { icon:'&#9989;', label:'Jobs Finished', color:'#0e7c3a', val: kpis.jobsFinished },
+    { icon:'&#8987;', label:'Avg Time / Job', color:'#4b3a9e', val: s2FormatHM(kpis.avgSecPerJob) },
+    { icon:'&#128200;', label:'Utilization %', color:'#0078d4', val: kpis.utilizationPct+'%' },
+  ].map(c => `<div style="background:#fff;border:1px solid #e2e6ea;border-top:3px solid ${c.color};border-radius:8px;padding:10px 12px;min-width:140px;flex:1;">
+    <div style="font-size:10px;font-weight:700;color:var(--text-3,#8a96a8);text-transform:uppercase;letter-spacing:.3px;margin-bottom:4px;">${c.icon} ${c.label}</div>
+    <div style="font-size:18px;font-weight:800;color:var(--text-1,#0f1923);">${c.val}</div>
+  </div>`).join('');
+
   const tree = flattenTimeReportByStationAndProject(getStationTrackerTimeReport(pmStationTimePeriod));
   const stations = Object.keys(tree);
   if (!stations.length) {
     el.innerHTML = `<div class="chart-title">Station Tracker Time — Station &rarr; Project &rarr; Job &rarr; Person</div>
-      <div style="display:flex;flex-wrap:wrap;gap:10px;margin-bottom:14px;">${summaryCards}</div>
+      <div style="display:flex;flex-wrap:wrap;gap:10px;margin-bottom:10px;">${summaryCards}</div>
+      <div style="display:flex;flex-wrap:wrap;gap:10px;margin-bottom:14px;">${kpiCards}</div>
       <div style="margin-bottom:10px;"><select id="pm-station-time-period" onchange="pmStationTimePeriod=this.value;renderPMStationTrackerTime();" style="font-size:12px;padding:5px 8px;">${periodOptions}</select></div>
       <p style="font-size:13px;color:#605e5c;">No Station Tracker activity recorded for this period.</p>`;
     return;
@@ -10418,7 +10501,8 @@ function renderPMStationTrackerTime() {
   const stationTotal = stationActive + stationMat + stationEng;
   el.innerHTML = `
     <div class="chart-title" style="margin-bottom:10px;">Station Tracker Time — Station &rarr; Project &rarr; Job &rarr; Person</div>
-    <div style="display:flex;flex-wrap:wrap;gap:10px;margin-bottom:14px;">${summaryCards}</div>
+    <div style="display:flex;flex-wrap:wrap;gap:10px;margin-bottom:10px;">${summaryCards}</div>
+    <div style="display:flex;flex-wrap:wrap;gap:10px;margin-bottom:14px;">${kpiCards}</div>
     <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:10px;">
       <select id="pm-station-time-period" onchange="pmStationTimePeriod=this.value;renderPMStationTrackerTime();" style="font-size:12px;padding:5px 8px;">${periodOptions}</select>
       <select id="pm-station-time-picker" onchange="pmStationTimePickedStation=this.value;renderPMStationTrackerTime();" style="font-size:12px;padding:5px 8px;">${stationOptions}</select>
@@ -13661,7 +13745,7 @@ function quickDismissReadyForPDI(unitId) {
    visible stamp every time a change is made, or version checks
    against a stale reference and never fires.
    ============================================================ */
-const BUILD_DATE = '2026-08-21-59';
+const BUILD_DATE = '2026-08-21-61';
 let updateBannerShown = false;
 function checkForNewVersion() {
   if (updateBannerShown) return;

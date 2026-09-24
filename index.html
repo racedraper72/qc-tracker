@@ -1155,7 +1155,7 @@ label { font-size: 11px; font-weight: 600; color: var(--text-2); display: block;
 
 <!-- ============================================================ HEADER -->
 <div class="app-header">
-  <div id="build-stamp" title="If this looks out of date after an update was announced, hard-refresh with Ctrl+Shift+R (Cmd+Shift+R on Mac) to clear your browser's cached copy.">Build: <span id="build-stamp-text">2026-08-21-67</span></div>
+  <div id="build-stamp" title="If this looks out of date after an update was announced, hard-refresh with Ctrl+Shift+R (Cmd+Shift+R on Mac) to clear your browser's cached copy.">Build: <span id="build-stamp-text">2026-08-21-68</span></div>
   <div id="header-signed-in" style="position:absolute;top:26px;right:16px;font-size:11px;color:rgba(255,255,255,.75);white-space:nowrap;z-index:101;"></div>
   <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;flex:1;">
     <div style="background:#fff;border-radius:8px;padding:8px 14px;display:flex;align-items:center;box-shadow:0 1px 3px rgba(0,0,0,.15);">
@@ -9333,7 +9333,7 @@ function saveStationLeads(data) {
 // on, matching how the app has always behaved, so nothing changes for
 // anyone until an admin deliberately turns one off.
 function getUnitCardFeatureToggles() {
-  const defaults = { remediationFlag: true, materialHold: true, requestMove: true, readyForPDI: true };
+  const defaults = { remediationFlag: true, materialHold: true, requestMove: false, readyForPDI: true };
   const synced = unitIssues['__config__card_features'] && unitIssues['__config__card_features'].url;
   if (synced) { try { return { ...defaults, ...JSON.parse(synced) }; } catch(e) {} }
   try { return { ...defaults, ...JSON.parse(localStorage.getItem('card_features_local') || '{}') }; } catch(e) { return defaults; }
@@ -10517,6 +10517,64 @@ function s2FormatHMS(totalSec) {
   const h = Math.floor(sec/3600), m = Math.floor((sec%3600)/60), s = sec%60;
   return `${h}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
 }
+// Excel export — flat raw data plus one summary sheet per level of the
+// Project/Unit/Station/Job/Person hierarchy, each a clean, pivot-ready
+// table. Genuinely embedded Excel charts aren't achievable here (that's
+// a paid-tier feature of the client-side library this runs on, not
+// something free in the browser) — these tables are built specifically
+// so a real chart is just a couple of clicks away once opened in Excel,
+// rather than promising something baked in that can't actually be
+// delivered this way.
+function pmDownloadTrackerExcel() {
+  if (typeof XLSX === 'undefined') {
+    alert('The spreadsheet library did not load — check your internet connection and try again.');
+    return;
+  }
+  const tree = getStationTrackerTimeReport('all'); // project -> unit -> station -> job -> person -> {activeSec, materialHoldSec, engineeringHoldSec}
+  const rawRows = [];
+  for (const project of Object.keys(tree)) {
+    for (const unit of Object.keys(tree[project])) {
+      for (const station of Object.keys(tree[project][unit])) {
+        for (const job of Object.keys(tree[project][unit][station])) {
+          for (const person of Object.keys(tree[project][unit][station][job])) {
+            const p = tree[project][unit][station][job][person];
+            rawRows.push({ Project: project, Unit: unit, Station: station, Job: job, Person: person,
+              'Active (hrs)': +(p.activeSec/3600).toFixed(2), 'Material Hold (hrs)': +(p.materialHoldSec/3600).toFixed(2),
+              'Engineering Hold (hrs)': +(p.engineeringHoldSec/3600).toFixed(2), 'Total (hrs)': +((p.activeSec+p.materialHoldSec+p.engineeringHoldSec)/3600).toFixed(2) });
+          }
+        }
+      }
+    }
+  }
+
+  // Aggregates the raw rows by whichever single field is passed in —
+  // used once per summary sheet below.
+  const summarize = (field) => {
+    const totals = {};
+    rawRows.forEach(r => {
+      const key = r[field];
+      if (!totals[key]) totals[key] = { Active: 0, 'Material Hold': 0, 'Engineering Hold': 0, Total: 0 };
+      totals[key].Active += r['Active (hrs)'];
+      totals[key]['Material Hold'] += r['Material Hold (hrs)'];
+      totals[key]['Engineering Hold'] += r['Engineering Hold (hrs)'];
+      totals[key].Total += r['Total (hrs)'];
+    });
+    return Object.keys(totals).sort().map(key => ({
+      [field]: key,
+      'Active (hrs)': +totals[key].Active.toFixed(2), 'Material Hold (hrs)': +totals[key]['Material Hold'].toFixed(2),
+      'Engineering Hold (hrs)': +totals[key]['Engineering Hold'].toFixed(2), 'Total (hrs)': +totals[key].Total.toFixed(2),
+    }));
+  };
+
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rawRows), 'Raw Data');
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(summarize('Project')), 'By Project');
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(summarize('Unit')), 'By Unit');
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(summarize('Station')), 'By Station');
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(summarize('Job')), 'By Job');
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(summarize('Person')), 'By Person');
+  XLSX.writeFile(wb, 'station-tracker-report-'+fmtDateInput(new Date())+'.xlsx');
+}
 let pmEmployeeHoursPeriod = 'all';
 function renderPMEmployeeHours() {
   const el = document.getElementById('pm-employee-hours'); if (!el) return;
@@ -10668,7 +10726,10 @@ function renderPMStationTrackerTime() {
 
   const stationTotal = stationActive + stationMat + stationEng;
   el.innerHTML = `
-    <div class="chart-title" style="margin-bottom:10px;">Station Tracker Time — Station &rarr; Project &rarr; Job &rarr; Person</div>
+    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:10px;">
+      <div class="chart-title" style="margin-bottom:0;">Station Tracker Time — Station &rarr; Project &rarr; Job &rarr; Person</div>
+      <button class="primary sm" onclick="pmDownloadTrackerExcel()" title="Downloads Raw Data plus a summary sheet per level (Project, Unit, Station, Job, Person)">&#8595; Download Excel Report</button>
+    </div>
     <div style="display:flex;flex-wrap:wrap;gap:10px;margin-bottom:10px;">${summaryCards}</div>
     <div style="display:flex;flex-wrap:wrap;gap:10px;margin-bottom:14px;">${kpiCards}</div>
     <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:10px;">
@@ -13913,7 +13974,7 @@ function quickDismissReadyForPDI(unitId) {
    visible stamp every time a change is made, or version checks
    against a stale reference and never fires.
    ============================================================ */
-const BUILD_DATE = '2026-08-21-67';
+const BUILD_DATE = '2026-08-21-68';
 let updateBannerShown = false;
 function checkForNewVersion() {
   if (updateBannerShown) return;

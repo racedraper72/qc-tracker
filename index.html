@@ -1155,7 +1155,7 @@ label { font-size: 11px; font-weight: 600; color: var(--text-2); display: block;
 
 <!-- ============================================================ HEADER -->
 <div class="app-header">
-  <div id="build-stamp" title="If this looks out of date after an update was announced, hard-refresh with Ctrl+Shift+R (Cmd+Shift+R on Mac) to clear your browser's cached copy.">Build: <span id="build-stamp-text">2026-08-21-61</span></div>
+  <div id="build-stamp" title="If this looks out of date after an update was announced, hard-refresh with Ctrl+Shift+R (Cmd+Shift+R on Mac) to clear your browser's cached copy.">Build: <span id="build-stamp-text">2026-08-21-63</span></div>
   <div id="header-signed-in" style="position:absolute;top:26px;right:16px;font-size:11px;color:rgba(255,255,255,.75);white-space:nowrap;z-index:101;"></div>
   <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;flex:1;">
     <div style="background:#fff;border-radius:8px;padding:8px 14px;display:flex;align-items:center;box-shadow:0 1px 3px rgba(0,0,0,.15);">
@@ -1492,6 +1492,7 @@ label { font-size: 11px; font-weight: 600; color: var(--text-2); display: block;
     <div class="chart-card" id="pm-inspector-activity" style="margin-bottom:14px;"></div>
     <div class="chart-card" id="pm-clocked-in" style="margin-bottom:14px;"></div>
     <div class="chart-card" id="pm-station-tracker-time" style="margin-bottom:14px;"></div>
+    <div class="chart-card" id="pm-employee-hours" style="margin-bottom:14px;"></div>
   </div>
 
   <!-- ===== TAB: UNITS ===== -->
@@ -3046,6 +3047,7 @@ function s2ShowClockOutModal(unitId, taskName, empIdx, stationKey) {
     renderStationTracker(stationKey);
     if (document.getElementById('pm-clocked-in')) renderPMClockedIn();
     if (document.getElementById('pm-station-tracker-time')) renderPMStationTrackerTime();
+    if (document.getElementById('pm-employee-hours')) renderPMEmployeeHours();
   });
   overlay.querySelector('#s2co-cancel').addEventListener('click', () => overlay.remove());
   overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
@@ -9210,6 +9212,7 @@ function renderPMPage() {
   renderPMInspectorActivity();
   renderPMClockedIn();
   renderPMStationTrackerTime();
+  renderPMEmployeeHours();
   renderRTSPanel();
   renderSheetTabs();
   switchFTITab(ftiActiveTab === 'gantt' || ftiActiveTab === 'allgantt' ? 'calendar' : (ftiActiveTab || 'calendar'));
@@ -10399,7 +10402,144 @@ function getStationTrackerKPIs(period) {
     avgSecPerJob: finishedCount > 0 ? Math.round(finishedTotalSec/finishedCount) : 0,
   };
 }
+// Flat, payroll-style rows — one per person per day per job — built
+// straight from dailyLog, the same source everything else in this
+// period-reporting system already relies on. Kept as a flat list rather
+// than a nested tree since this is meant to read like a spreadsheet
+// export, not a drill-down report. Same historical limitation as
+// everywhere else this session: only reflects time logged after
+// per-day tracking shipped, since older time was never date-stamped.
+/* ---- Production Ops Tracker (replaces Employee Hours) ----
+   Modeled directly on the "2561701 Titus BLDG 1 Tracker" Smartsheet
+   layout the user shared — one row per operation/phase under each unit
+   (Order #, Phase Code, Description, Configuration, # of Ops, Manhours,
+   Plan Hours, Earned Hours, % Complete, Actual Start/Finish, Material
+   Delay, Comments). None of this existed in Cadence before, so every
+   field here is a real, directly-editable cell — explicitly requested
+   this way as a safety net in case data from elsewhere is ever lost, so
+   it can always be typed back in by hand rather than depending on it
+   coming from somewhere else. % Complete is auto-calculated from Plan
+   and Earned Hours rather than typed, since that's a pure derived ratio
+   and letting it drift out of sync with the two numbers it's based on
+   would be worse than the small convenience of not typing it.
+   Data lives on the unit itself as u.opsTracker — an array of rows —
+   synced the same way as everything else on a unit via pushBoard(). */
+function getOpsTrackerRows(u) {
+  if (!Array.isArray(u.opsTracker)) u.opsTracker = [];
+  return u.opsTracker;
+}
+function pmAddOpsRow(unitId) {
+  const u = ensureBoardTracked(unitId);
+  const rows = getOpsTrackerRows(u);
+  rows.push({
+    id: 'ops_'+Date.now()+'_'+Math.random().toString(36).slice(2,7),
+    orderNum:'', phaseCode:'', description:'', configuration:'', numOps:'', manhours:'',
+    planHours:'', earnedHours:'', actualStart:'', actualFinish:'', materialDelay:'', comments:'',
+  });
+  pushBoard();
+  renderPMEmployeeHours();
+}
+function pmRemoveOpsRow(unitId, rowId) {
+  const u = ensureBoardTracked(unitId);
+  const rows = getOpsTrackerRows(u);
+  const idx = rows.findIndex(r => r.id === rowId);
+  if (idx === -1) return;
+  if (!confirm('Remove this row? This can\'t be undone.')) return;
+  rows.splice(idx, 1);
+  pushBoard();
+  renderPMEmployeeHours();
+}
+function pmUpdateOpsField(unitId, rowId, field) {
+  const u = ensureBoardTracked(unitId);
+  const rows = getOpsTrackerRows(u);
+  const row = rows.find(r => r.id === rowId);
+  if (!row) return;
+  const inputEl = document.getElementById('ops-'+field+'-'+rowId);
+  if (!inputEl) return;
+  const newVal = inputEl.value;
+  if (newVal === (row[field] || '')) return; // unchanged, skip the write/push
+  row[field] = newVal;
+  pushBoard();
+}
+let pmOpsTrackerProject = 'All Projects';
 let pmStationTimePeriod = 'all';
+function renderPMEmployeeHours() {
+  const el = document.getElementById('pm-employee-hours'); if (!el) return;
+  const allUnits = getAllBoardUnits().filter(u => !u.completed);
+
+  const projects = Array.from(new Set(allUnits.map(u => getProjectType(u.id)))).sort();
+  const projectOptions = ['All Projects', ...projects].map(p => `<option value="${p}" ${p===pmOpsTrackerProject?'selected':''}>${p}</option>`).join('');
+  const units = pmOpsTrackerProject === 'All Projects' ? allUnits : allUnits.filter(u => getProjectType(u.id) === pmOpsTrackerProject);
+
+  const fieldStyle = 'width:100%;font-size:12px;padding:4px 6px;border:1px solid transparent;background:transparent;';
+  const fieldFocusable = fieldStyle + 'border-radius:4px;';
+
+  const unitBlocks = units.map(u => {
+    const rows = getOpsTrackerRows(u);
+    const cs = getBoardCatStyle(u.id);
+    const rowsHtml = rows.map(r => {
+      const plan = parseFloat(r.planHours) || 0;
+      const earned = parseFloat(r.earnedHours) || 0;
+      const pct = plan > 0 ? Math.round(Math.min(999, earned/plan*100)) : 0;
+      const remaining = (plan - earned).toFixed(1);
+      const textField = (field, ph) => `<input id="ops-${field}-${r.id}" type="text" value="${(r[field]||'').replace(/"/g,'&quot;')}" placeholder="${ph||''}" onchange="pmUpdateOpsField('${u.id}','${r.id}','${field}')" style="${fieldFocusable}" />`;
+      const numField = (field, ph) => `<input id="ops-${field}-${r.id}" type="number" step="0.1" value="${r[field]||''}" placeholder="${ph||''}" onchange="pmUpdateOpsField('${u.id}','${r.id}','${field}');renderPMEmployeeHours();" style="${fieldFocusable}" />`;
+      const dateField = (field) => `<input id="ops-${field}-${r.id}" type="date" value="${r[field]||''}" onchange="pmUpdateOpsField('${u.id}','${r.id}','${field}')" style="${fieldFocusable}" />`;
+      return `<tr style="border-bottom:1px solid #f0f2f5;">
+        <td style="padding:2px 4px;">${textField('orderNum','Order #')}</td>
+        <td style="padding:2px 4px;">${textField('phaseCode','Phase code')}</td>
+        <td style="padding:2px 4px;min-width:160px;">${textField('description','Description')}</td>
+        <td style="padding:2px 4px;">${textField('configuration','Config')}</td>
+        <td style="padding:2px 4px;width:60px;">${numField('numOps')}</td>
+        <td style="padding:2px 4px;width:70px;">${numField('manhours')}</td>
+        <td style="padding:2px 4px;width:70px;">${numField('planHours')}</td>
+        <td style="padding:2px 4px;width:70px;">${numField('earnedHours')}</td>
+        <td style="padding:4px 8px;font-size:12px;font-weight:700;color:${pct>=100?'#0e7c3a':pct>=50?'#b45309':'#A03033'};">${pct}%</td>
+        <td style="padding:4px 8px;font-size:12px;color:var(--text-2,#605e5c);">${remaining}</td>
+        <td style="padding:2px 4px;">${dateField('actualStart')}</td>
+        <td style="padding:2px 4px;">${dateField('actualFinish')}</td>
+        <td style="padding:2px 4px;min-width:120px;">${textField('materialDelay','Material delay')}</td>
+        <td style="padding:2px 4px;min-width:140px;">${textField('comments','Comments')}</td>
+        <td style="padding:2px 4px;text-align:center;"><button onclick="pmRemoveOpsRow('${u.id}','${r.id}')" title="Remove row" style="border:none;background:transparent;color:#A03033;font-weight:900;cursor:pointer;font-size:13px;">&times;</button></td>
+      </tr>`;
+    }).join('');
+    return `<div style="margin-bottom:16px;border:1px solid #edebe9;border-radius:8px;overflow:hidden;">
+      <div style="padding:8px 12px;background:${cs.bg};display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
+        <span style="font-size:13px;font-weight:800;color:${cs.text};">${u.id}</span>
+        <button class="sm" onclick="pmAddOpsRow('${u.id}')">&#43; Add Row</button>
+      </div>
+      ${rows.length ? `<div style="overflow-x:auto;">
+        <table style="width:100%;border-collapse:collapse;">
+          <thead><tr style="border-bottom:2px solid #edebe9;text-align:left;">
+            <th style="padding:5px 6px;font-size:10px;color:var(--text-3,#8a96a8);text-transform:uppercase;">Order #</th>
+            <th style="padding:5px 6px;font-size:10px;color:var(--text-3,#8a96a8);text-transform:uppercase;">Phase Code</th>
+            <th style="padding:5px 6px;font-size:10px;color:var(--text-3,#8a96a8);text-transform:uppercase;">Description</th>
+            <th style="padding:5px 6px;font-size:10px;color:var(--text-3,#8a96a8);text-transform:uppercase;">Config</th>
+            <th style="padding:5px 6px;font-size:10px;color:var(--text-3,#8a96a8);text-transform:uppercase;"># Ops</th>
+            <th style="padding:5px 6px;font-size:10px;color:var(--text-3,#8a96a8);text-transform:uppercase;">Manhours</th>
+            <th style="padding:5px 6px;font-size:10px;color:var(--text-3,#8a96a8);text-transform:uppercase;">Plan Hrs</th>
+            <th style="padding:5px 6px;font-size:10px;color:var(--text-3,#8a96a8);text-transform:uppercase;">Earned Hrs</th>
+            <th style="padding:5px 6px;font-size:10px;color:var(--text-3,#8a96a8);text-transform:uppercase;">% Complete</th>
+            <th style="padding:5px 6px;font-size:10px;color:var(--text-3,#8a96a8);text-transform:uppercase;">Remaining</th>
+            <th style="padding:5px 6px;font-size:10px;color:var(--text-3,#8a96a8);text-transform:uppercase;">Actual Start</th>
+            <th style="padding:5px 6px;font-size:10px;color:var(--text-3,#8a96a8);text-transform:uppercase;">Actual Finish</th>
+            <th style="padding:5px 6px;font-size:10px;color:var(--text-3,#8a96a8);text-transform:uppercase;">Material Delay</th>
+            <th style="padding:5px 6px;font-size:10px;color:var(--text-3,#8a96a8);text-transform:uppercase;">Comments</th>
+            <th style="padding:5px 6px;"></th>
+          </tr></thead>
+          <tbody>${rowsHtml}</tbody>
+        </table>
+      </div>` : `<p style="font-size:12px;color:var(--text-3,#8a96a8);font-style:italic;padding:10px 12px;">No operations logged yet — click "+ Add Row" to start.</p>`}
+    </div>`;
+  }).join('');
+
+  el.innerHTML = `
+    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:10px;">
+      <div class="chart-title" style="margin-bottom:0;">Production Ops Tracker</div>
+      <select id="pm-ops-project-picker" onchange="pmOpsTrackerProject=this.value;renderPMEmployeeHours();" style="font-size:12px;padding:5px 8px;">${projectOptions}</select>
+    </div>
+    ${units.length ? unitBlocks : `<p style="font-size:13px;color:#605e5c;">No active units for this project.</p>`}`;
+}
 function renderPMStationTrackerTime() {
   const el = document.getElementById('pm-station-tracker-time'); if (!el) return;
 
@@ -13745,7 +13885,7 @@ function quickDismissReadyForPDI(unitId) {
    visible stamp every time a change is made, or version checks
    against a stale reference and never fires.
    ============================================================ */
-const BUILD_DATE = '2026-08-21-61';
+const BUILD_DATE = '2026-08-21-63';
 let updateBannerShown = false;
 function checkForNewVersion() {
   if (updateBannerShown) return;

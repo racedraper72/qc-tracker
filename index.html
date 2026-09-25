@@ -97,13 +97,13 @@
    Station Tracker reads as clearly different from a regular manual
    Hold (solid yellow) or Material Hold (blinking yellow) at a glance. */
 @keyframes tracker-hold-blink {
-  0%, 100% { border-color: #be185d; box-shadow: 0 0 0 0 rgba(190,24,93,.4); }
-  50% { border-color: #f472b6; box-shadow: 0 0 0 4px rgba(190,24,93,0); }
+  0%, 100% { border-color: #ca8a04; box-shadow: 0 0 0 0 rgba(202,138,4,.4); }
+  50% { border-color: #fde047; box-shadow: 0 0 0 4px rgba(202,138,4,0); }
 }
 .tracker-hold-alert { animation: tracker-hold-blink 1.4s ease-in-out infinite; }
 @keyframes unit-name-trackerhold-blink {
-  0%, 100% { color: #be185d; }
-  50% { color: #f472b6; }
+  0%, 100% { color: #ca8a04; }
+  50% { color: #eab308; }
 }
 .unit-name-trackerhold { animation: unit-name-trackerhold-blink 1.4s ease-in-out infinite; font-weight: 700; }
 /* Energized — a unit that's live/connected to power, a physical safety
@@ -681,7 +681,7 @@ label { font-size: 11px; font-weight: 600; color: var(--text-2); display: block;
 .station-chip.has-material-hold { border-color: #b45309; background: #fff4ce; }
 .station-chip.has-move-request { border-color: #6b46c1; background: #f3effc; }
 .station-chip.has-ready-pdi { border-color: #c2410c; background: #fff0e6; }
-.station-chip.has-tracker-hold { border-color: #be185d; background: #fce7f3; }
+.station-chip.has-tracker-hold { border-color: #ca8a04; background: #fef9c3; }
 .station-chip.has-energized { border-color: #0369a1; background: #e0f2fe; }
 .station-chip-label { font-size: 9px; font-weight: 700; color: var(--text-2); text-transform: uppercase; letter-spacing: .3px; }
 .station-chip-count { font-size: 16px; font-weight: 800; margin: 2px 0; }
@@ -6902,7 +6902,7 @@ function renderLineSummary() {
       // it outranks every other alert here too — same precedence as the
       // Tracker card border (see renderBoardUnitCard).
       const cls=count>0?(hasEnergized?'energized-alert has-energized':hasRemediation?'remediation-alert has-deviation':hasMaterialHold?'material-hold-alert has-material-hold':hasTrackerHold?'tracker-hold-alert has-tracker-hold':hasMoveRequest?'move-request-alert has-move-request':hasReadyPDI?'ready-pdi-alert has-ready-pdi':hasDeviation?'has-deviation':hasFail?'has-fail':hasHeld?'has-held':hasDone?'has-done':'has-units'):'';
-      const topColor=count>0?(hasEnergized?'#0369a1':hasRemediation?'#A03033':hasMaterialHold?'#b45309':hasTrackerHold?'#be185d':hasMoveRequest?'#6b46c1':hasReadyPDI?'#c2410c':hasDeviation?'#A03033':hasFail?'#A03033':hasHeld?'#b45309':hasDone?'#107c10':line.headerColor):'#edebe9';
+      const topColor=count>0?(hasEnergized?'#0369a1':hasRemediation?'#A03033':hasMaterialHold?'#b45309':hasTrackerHold?'#ca8a04':hasMoveRequest?'#6b46c1':hasReadyPDI?'#c2410c':hasDeviation?'#A03033':hasFail?'#A03033':hasHeld?'#b45309':hasDone?'#107c10':line.headerColor):'#edebe9';
       const shortLabel=col.label.replace('Station ','Stn ').replace('In the Hole','Hole').replace('On Deck','Deck').replace('Ready to Ship','✓ RTS').replace('Holding ','Hold.').replace('Load Bank','LB');
       // Color each unit's name by ITS OWN status — remediation (blinking
       // red) takes priority over Material Hold (blinking yellow), which
@@ -6952,7 +6952,7 @@ function renderLineSummary() {
         const locTag = u.location ? `<div style="font-size:9px;color:#006A8E;font-weight:600;">&#128205; ${u.location}</div>` : '';
         const moveTag = u.moveRequest ? `<div style="font-size:9px;color:#6b46c1;font-weight:700;">&#8594; ${u.moveRequest.target}${u.moveRequest.location?' ('+u.moveRequest.location+')':''}</div>` : '';
         const pdiTag = u.readyForPDI ? `<div style="font-size:9px;color:#c2410c;font-weight:700;">&#128992; Ready for PDI</div>` : '';
-        const trackerHoldTag = uHasTrackerHold ? `<div style="font-size:9px;color:#be185d;font-weight:700;">&#9888; Hold — ${u.trackerHoldStations.join(', ')}</div>` : '';
+        const trackerHoldTag = uHasTrackerHold ? `<div style="font-size:9px;color:#ca8a04;font-weight:700;">&#9888; Hold — ${u.trackerHoldStations.join(', ')}</div>` : '';
         const readyTag = (u.inspectionComplete && CONFIG.boardInspectionCols.includes(u.col)) ? `<div style="font-size:9px;color:#0e7c3a;font-weight:700;">&#10003; Ready to Move</div>` : '';
         const energizedTag = uHasEnergized ? `<div style="font-size:9px;color:#0369a1;font-weight:700;"><span class="energized-bolt">&#9889;</span> ENERGIZED</div>` : '';
         const clickHandler = uHasTrackerHold
@@ -7958,7 +7958,7 @@ function renderBoardUnitCard(u) {
   // live should never have that visually buried under a workflow badge.
   const energizedActive = !!u.energized && getUnitCardFeatureToggles().energized;
   const alertClass = energizedActive ? 'energized-alert' : (remediationActive ? 'remediation-alert' : (materialHoldActive ? 'material-hold-alert' : (trackerHoldActive ? 'tracker-hold-alert' : (moveRequestActive ? 'move-request-alert' : (readyPDIActive ? 'ready-pdi-alert' : '')))));
-  const alertBorderStyle = energizedActive ? 'border:3px solid #0369a1;' : (remediationActive ? 'border:3px solid #A03033;' : (materialHoldActive ? 'border:3px solid #b45309;' : (trackerHoldActive ? 'border:3px solid #be185d;' : (moveRequestActive ? 'border:3px solid #6b46c1;' : (readyPDIActive ? 'border:3px solid #c2410c;' : (u.deviationNeeded||openFailOverrides.length?'border:2px solid #A03033;':''))))));
+  const alertBorderStyle = energizedActive ? 'border:3px solid #0369a1;' : (remediationActive ? 'border:3px solid #A03033;' : (materialHoldActive ? 'border:3px solid #b45309;' : (trackerHoldActive ? 'border:3px solid #ca8a04;' : (moveRequestActive ? 'border:3px solid #6b46c1;' : (readyPDIActive ? 'border:3px solid #c2410c;' : (u.deviationNeeded||openFailOverrides.length?'border:2px solid #A03033;':''))))));
   const energizedBadge = energizedActive ? `<span class="badge" style="background:#e0f2fe;color:#0369a1;border:1px solid #0369a1;font-weight:800;"><span class="energized-bolt">&#9889;</span> ENERGIZED</span>` : '';
   return `<div class="unit-card ${u.held?'held':''} ${u.completed?'completed':''} ${alertClass}" data-unit-id="${u.id}" style="${alertBorderStyle}">
     <div class="unit-header"><div>${boardPill(u.id)}</div><div style="display:flex;gap:6px;align-items:center;">${energizedBadge}${deviationBadge}${failOverrideBadge}${statusBadge}</div></div>
@@ -14072,7 +14072,7 @@ function quickClearEnergized(unitId) {
    visible stamp every time a change is made, or version checks
    against a stale reference and never fires.
    ============================================================ */
-const BUILD_DATE = '2026-08-21-71';
+const BUILD_DATE = '2026-08-21-72';
 let updateBannerShown = false;
 function checkForNewVersion() {
   if (updateBannerShown) return;

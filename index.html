@@ -2549,6 +2549,26 @@ STATION_TRACKER_EDITOR_STATIONS.forEach(station => {
   STATION_TRACKER_TASKS[station] = {};
   Object.keys(CONFIG.boardCategories).forEach(project => { STATION_TRACKER_TASKS[station][project] = []; });
 });
+/* Some lines/boards label a station column with their own shorthand —
+   "Station 6W", "Stn 6W", etc. — instead of the plain "Station 6" that
+   the Station Tracker pages key off of (see STATION_CHECKLISTS aliasing
+   below for the same issue on the checklist side). A straight
+   u.col === stationKey filter silently drops every unit sitting in a
+   column labeled that way — they don't error out, they just never
+   appear on that station's Tracker page, which looks like "units
+   disappeared." Matching on the station NUMBER instead of the exact
+   label text — allowing any "Station"/"Stn" prefix and an optional
+   trailing letter like "W" — covers whatever shorthand a given board
+   happens to use, current or future, without hardcoding each spelling. */
+function stationColMatches(colValue, stationKey) {
+  if (colValue === stationKey) return true;
+  const norm = s => {
+    const m = /^(?:station|stn)\s*0*(\d+)\s*[a-z]?$/i.exec(String(s || '').trim());
+    return m ? m[1] : null;
+  };
+  const a = norm(colValue), b = norm(stationKey);
+  return a !== null && a === b;
+}
 function getStationTaskList(stationKey, project) {
   if (!STATION_TRACKER_TASKS[stationKey]) return [];
   return STATION_TRACKER_TASKS[stationKey][project] || [];
@@ -3074,7 +3094,7 @@ function s2PageIdFor(stationKey) { return stationKey === 'Station 2' ? 'station2
    was wiping out whatever anyone was mid-typing into an input. */
 function s2TickUpdate(stationKey) {
   stationKey = stationKey || 'Station 2';
-  const units = getAllBoardUnits().filter(u => u.col === stationKey);
+  const units = getAllBoardUnits().filter(u => stationColMatches(u.col, stationKey));
   const setText = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
   units.forEach(u => {
     getStationTaskList(stationKey, getProjectType(u.id)).forEach(taskName => {
@@ -3124,7 +3144,7 @@ function s2ToggleTaskCollapse(tsid) {
 function renderStationTrackerStats(stationKey) {
   const statsId = stationKey === 'Station 2' ? 'station2-stats-bar' : 'stationtracker-stats-' + safeId(stationKey);
   const el = document.getElementById(statsId); if (!el) return;
-  const units = getAllBoardUnits().filter(u => u.col === stationKey);
+  const units = getAllBoardUnits().filter(u => stationColMatches(u.col, stationKey));
 
   let working = 0, onHold = 0, idle = 0, finished = 0, totalEarnedSec = 0;
   units.forEach(u => {
@@ -3158,7 +3178,7 @@ function renderStationTracker(stationKey) {
   const el = document.getElementById(stationKey === 'Station 2' ? 'station2-tracker-body' : 'stationtracker-body-' + safeId(stationKey));
   if (!el) return;
   renderStationTrackerStats(stationKey);
-  const units = getAllBoardUnits().filter(u => u.col === stationKey);
+  const units = getAllBoardUnits().filter(u => stationColMatches(u.col, stationKey));
 
   if (!units.length) {
     el.innerHTML = `<div class="floor-empty" style="grid-column:1/-1;">
@@ -6421,6 +6441,7 @@ function _showPage(page) {
   if (page==='admin') {
     switchAdminTab(adminActiveTab);
     renderAdminBoard(); renderOperatorList(); renderChecklistEditor(); renderStationTrackerEditor(); renderAdminDashboardCardManager(); renderAdminSectionOrder(); renderLineEditor(); renderBoardInspectionColEditor(); renderProjectEditor(); renderSupervisorList();
+    if (document.getElementById('card-features-body')) renderCardFeatureToggles();
     document.getElementById('cfg-target').value = syncTarget;
     document.getElementById('cfg-url-sheets').value = sheetsUrl;
     document.getElementById('cfg-url-smartsheet').value = smartsheetUrl;
@@ -13974,7 +13995,7 @@ function quickDismissReadyForPDI(unitId) {
    visible stamp every time a change is made, or version checks
    against a stale reference and never fires.
    ============================================================ */
-const BUILD_DATE = '2026-08-21-68';
+const BUILD_DATE = '2026-08-21-69';
 let updateBannerShown = false;
 function checkForNewVersion() {
   if (updateBannerShown) return;

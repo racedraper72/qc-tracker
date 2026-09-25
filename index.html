@@ -682,6 +682,7 @@ label { font-size: 11px; font-weight: 600; color: var(--text-2); display: block;
 .station-chip.has-move-request { border-color: #6b46c1; background: #f3effc; }
 .station-chip.has-ready-pdi { border-color: #c2410c; background: #fff0e6; }
 .station-chip.has-tracker-hold { border-color: #be185d; background: #fce7f3; }
+.station-chip.has-energized { border-color: #0369a1; background: #e0f2fe; }
 .station-chip-label { font-size: 9px; font-weight: 700; color: var(--text-2); text-transform: uppercase; letter-spacing: .3px; }
 .station-chip-count { font-size: 16px; font-weight: 800; margin: 2px 0; }
 .station-chip-units { font-size: 11px; color: var(--text-2); }
@@ -1292,6 +1293,9 @@ label { font-size: 11px; font-weight: 600; color: var(--text-2); display: block;
       <!-- Legend: what each unit-name color/animation means -->
       <div style="display:flex;gap:14px;flex-wrap:wrap;align-items:center;background:var(--surface-2);border:1px solid var(--border);border-radius:8px;padding:8px 14px;margin-bottom:12px;">
         <span style="font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.3px;color:var(--text-3,#8a96a8);">Legend:</span>
+        <span style="font-size:11px;color:#605e5c;display:inline-flex;align-items:center;gap:5px;">
+          <span class="unit-name-energized" style="font-weight:700;">UNIT</span> Energized
+        </span>
         <span style="font-size:11px;color:#605e5c;display:inline-flex;align-items:center;gap:5px;">
           <span class="unit-name-held" style="font-weight:700;">UNIT</span> On Hold
         </span>
@@ -6884,6 +6888,7 @@ function renderLineSummary() {
       const cu=getColUnits(line.id,col.label); const count=cu.length;
       const hasHeld=cu.some(u=>u.held); const hasDone=cu.some(u=>u.completed);
       const hasDeviation=cu.some(u=>u.deviationNeeded);
+      const hasEnergized=cu.some(u=>u.energized)&&getUnitCardFeatureToggles().energized;
       const hasRemediation=cu.some(u=>(u.remediationNeeded&&!u.remediationComplete)||(u.remediationFlags||[]).length>0);
       const hasMaterialHold=cu.some(u=>u.materialHold);
       const hasTrackerHold=cu.some(u=>(u.trackerHoldStations||[]).length>0);
@@ -6893,8 +6898,11 @@ function renderLineSummary() {
         const cS=getChecklistState(u), qS=getQCChecklistState(u);
         return (cS && cS.includes('fail')) || (qS && qS.includes('fail'));
       });
-      const cls=count>0?(hasRemediation?'remediation-alert has-deviation':hasMaterialHold?'material-hold-alert has-material-hold':hasTrackerHold?'tracker-hold-alert has-tracker-hold':hasMoveRequest?'move-request-alert has-move-request':hasReadyPDI?'ready-pdi-alert has-ready-pdi':hasDeviation?'has-deviation':hasFail?'has-fail':hasHeld?'has-held':hasDone?'has-done':'has-units'):'';
-      const topColor=count>0?(hasRemediation?'#A03033':hasMaterialHold?'#b45309':hasTrackerHold?'#be185d':hasMoveRequest?'#6b46c1':hasReadyPDI?'#c2410c':hasDeviation?'#A03033':hasFail?'#A03033':hasHeld?'#b45309':hasDone?'#107c10':line.headerColor):'#edebe9';
+      // Energized is a physical safety hazard, not a workflow state, so
+      // it outranks every other alert here too — same precedence as the
+      // Tracker card border (see renderBoardUnitCard).
+      const cls=count>0?(hasEnergized?'energized-alert has-energized':hasRemediation?'remediation-alert has-deviation':hasMaterialHold?'material-hold-alert has-material-hold':hasTrackerHold?'tracker-hold-alert has-tracker-hold':hasMoveRequest?'move-request-alert has-move-request':hasReadyPDI?'ready-pdi-alert has-ready-pdi':hasDeviation?'has-deviation':hasFail?'has-fail':hasHeld?'has-held':hasDone?'has-done':'has-units'):'';
+      const topColor=count>0?(hasEnergized?'#0369a1':hasRemediation?'#A03033':hasMaterialHold?'#b45309':hasTrackerHold?'#be185d':hasMoveRequest?'#6b46c1':hasReadyPDI?'#c2410c':hasDeviation?'#A03033':hasFail?'#A03033':hasHeld?'#b45309':hasDone?'#107c10':line.headerColor):'#edebe9';
       const shortLabel=col.label.replace('Station ','Stn ').replace('In the Hole','Hole').replace('On Deck','Deck').replace('Ready to Ship','✓ RTS').replace('Holding ','Hold.').replace('Load Bank','LB');
       // Color each unit's name by ITS OWN status — remediation (blinking
       // red) takes priority over Material Hold (blinking yellow), which
@@ -6914,6 +6922,7 @@ function renderLineSummary() {
         const cS=getChecklistState(u), qS=getQCChecklistState(u);
         const uHasFail = (cS && cS.includes('fail')) || (qS && qS.includes('fail'));
         const uReady   = isAllChecklistsComplete(u);
+        const uHasEnergized = !!u.energized && getUnitCardFeatureToggles().energized;
         const uHasRemediation = (u.remediationNeeded && !u.remediationComplete) || (u.remediationFlags||[]).length>0;
         const uHasMaterialHold = !!u.materialHold;
         const uHasTrackerHold = (u.trackerHoldStations||[]).length>0;
@@ -6922,7 +6931,8 @@ function renderLineSummary() {
         let nameClass = '';
         let color = uHasFail ? '#A03033' : uReady ? '#0e7c3a' : 'inherit';
         let weight = (uHasFail || uReady) ? '700' : '400';
-        if (uHasRemediation) { nameClass = 'unit-name-remediation'; color = ''; weight = ''; }
+        if (uHasEnergized) { nameClass = 'unit-name-energized'; color = ''; weight = ''; }
+        else if (uHasRemediation) { nameClass = 'unit-name-remediation'; color = ''; weight = ''; }
         else if (uHasMaterialHold) { nameClass = 'unit-name-mathold'; color = ''; weight = ''; }
         else if (uHasTrackerHold) { nameClass = 'unit-name-trackerhold'; color = ''; weight = ''; }
         else if (uHasMoveRequest) { nameClass = 'unit-name-moverequest'; color = ''; weight = ''; }
@@ -6944,10 +6954,11 @@ function renderLineSummary() {
         const pdiTag = u.readyForPDI ? `<div style="font-size:9px;color:#c2410c;font-weight:700;">&#128992; Ready for PDI</div>` : '';
         const trackerHoldTag = uHasTrackerHold ? `<div style="font-size:9px;color:#be185d;font-weight:700;">&#9888; Hold — ${u.trackerHoldStations.join(', ')}</div>` : '';
         const readyTag = (u.inspectionComplete && CONFIG.boardInspectionCols.includes(u.col)) ? `<div style="font-size:9px;color:#0e7c3a;font-weight:700;">&#10003; Ready to Move</div>` : '';
+        const energizedTag = uHasEnergized ? `<div style="font-size:9px;color:#0369a1;font-weight:700;"><span class="energized-bolt">&#9889;</span> ENERGIZED</div>` : '';
         const clickHandler = uHasTrackerHold
           ? `event.stopPropagation();jumpToStationTrackerPage('${jsq(u.trackerHoldStations[0])}')`
           : `event.stopPropagation();jumpToUnit('${jsq(line.id)}','${jsq(col.label)}','${jsq(u.id)}')`;
-        return `<div class="dash-unit-name ${nameClass}" style="${color?'color:'+color+';':''}${weight?'font-weight:'+weight+';':''}" onclick="${clickHandler}">${u.id}${dueTag}${locTag}${moveTag}${pdiTag}${trackerHoldTag}${readyTag}</div>`;
+        return `<div class="dash-unit-name ${nameClass}" style="${color?'color:'+color+';':''}${weight?'font-weight:'+weight+';':''}" onclick="${clickHandler}">${u.id}${dueTag}${locTag}${moveTag}${pdiTag}${trackerHoldTag}${readyTag}${energizedTag}</div>`;
       }).join('');
       return `<div class="station-chip station-chip-lg ${cls}" onclick="event.stopPropagation();jumpToLine('${jsq(line.id)}','${jsq(col.label)}')">
         <div class="station-chip-header">${shortLabel}</div>
@@ -14061,7 +14072,7 @@ function quickClearEnergized(unitId) {
    visible stamp every time a change is made, or version checks
    against a stale reference and never fires.
    ============================================================ */
-const BUILD_DATE = '2026-08-21-70';
+const BUILD_DATE = '2026-08-21-71';
 let updateBannerShown = false;
 function checkForNewVersion() {
   if (updateBannerShown) return;

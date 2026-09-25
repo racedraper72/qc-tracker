@@ -1177,7 +1177,14 @@ label { font-size: 11px; font-weight: 600; color: var(--text-2); display: block;
 
 <!-- ============================================================ HEADER -->
 <div class="app-header">
-  <div id="build-stamp" title="If this looks out of date after an update was announced, hard-refresh with Ctrl+Shift+R (Cmd+Shift+R on Mac) to clear your browser's cached copy.">Build: <span id="build-stamp-text">2026-08-21-68</span></div>
+  <!-- This literal text is what the update-checker fetches and reads directly out of the raw
+       HTML (it can't run this page's JS to ask it), so it MUST be updated by hand to match
+       BUILD_DATE below every single time BUILD_DATE changes — the two are otherwise
+       unrelated and nothing enforces they match. Forgetting this makes the update banner
+       falsely nag every visitor forever, comparing everyone's real (newer) build against
+       this stale leftover number, since it never changes on its own. See BUILD_DATE's own
+       comment further down for the matching reminder. -->
+  <div id="build-stamp" title="If this looks out of date after an update was announced, hard-refresh with Ctrl+Shift+R (Cmd+Shift+R on Mac) to clear your browser's cached copy.">Build: <span id="build-stamp-text">2026-08-21-72</span></div>
   <div id="header-signed-in" style="position:absolute;top:26px;right:16px;font-size:11px;color:rgba(255,255,255,.75);white-space:nowrap;z-index:101;"></div>
   <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;flex:1;">
     <div style="background:#fff;border-radius:8px;padding:8px 14px;display:flex;align-items:center;box-shadow:0 1px 3px rgba(0,0,0,.15);">
